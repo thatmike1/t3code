@@ -161,6 +161,7 @@ import * as HostResources from "./resourceTelemetry/HostResources.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
 import * as UsageService from "./usage/UsageService.ts";
+import * as Widgets from "./widgets/Widgets.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import { listLinkedPullRequestThreads } from "./pullRequest/linkedThreads.ts";
@@ -635,6 +636,7 @@ const makeWsRpcLayer = (
       const agentSessionScanner = yield* AgentSessionScanner.AgentSessionScanner;
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
+      const widgets = yield* Widgets.Widgets;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
       yield* Effect.addFinalizer(() =>
         Ref.get(rpcClientIds).pipe(
@@ -4059,6 +4061,16 @@ const makeWsRpcLayer = (
             WS_METHODS.subscribeBackgroundPolicy,
             Stream.unwrap(
               Effect.map(backgroundPolicy.subscribe, ({ latest, changes }) =>
+                Stream.concat(Stream.make(latest), changes),
+              ),
+            ),
+            { "rpc.aggregate": "server" },
+          ),
+        [WS_METHODS.subscribeWidgets]: (_input) =>
+          observeRpcStream(
+            WS_METHODS.subscribeWidgets,
+            Stream.unwrap(
+              Effect.map(widgets.subscribe, ({ latest, changes }) =>
                 Stream.concat(Stream.make(latest), changes),
               ),
             ),
