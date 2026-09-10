@@ -861,3 +861,31 @@ describe("ChatMarkdown Windows file links", () => {
     expect(html).not.toContain("chat-markdown-file-link");
   });
 });
+
+describe("ChatMarkdown bead links", () => {
+  const boardHref = "http://127.0.0.1:4180/#ccChat-general-4y6";
+
+  it("chips a bead id written in prose", () => {
+    const html = renderToStaticMarkup(<ChatMarkdown text="filed as ccChat-general-4y6 today" />);
+
+    expect(html).toContain(`href="${boardHref}"`);
+    expect(html).toContain("ccChat-general-4y6");
+    expect(html).toContain("filed as ");
+  });
+
+  it("chips a bead id written as inline code, and copies back as code", () => {
+    const html = renderToStaticMarkup(<ChatMarkdown text="the bead is `ccChat-general-4y6`" />);
+
+    expect(html).toContain(`href="${boardHref}"`);
+    expect(html).toContain('data-markdown-copy="`ccChat-general-4y6`"');
+  });
+
+  it("leaves a path-shaped inline code as a file link", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown cwd="/tmp/project" text="see `src/app/main.ts`" />,
+    );
+
+    expect(html).not.toContain("127.0.0.1:4180");
+    expect(html).toContain("chat-markdown-file-link");
+  });
+});
