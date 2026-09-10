@@ -82,6 +82,7 @@ import {
   EnvironmentAuthorizationError,
 } from "./auth.ts";
 import { ClientActivityReportInput } from "./background.ts";
+import { WidgetsSnapshot } from "./widgets.ts";
 import {
   FilesystemGetMetadataInput,
   FilesystemGetMetadataResult,
@@ -611,6 +612,7 @@ export const WS_METHODS = {
   subscribeServerConfig: "subscribeServerConfig",
   subscribeServerLifecycle: "subscribeServerLifecycle",
   subscribeAuthAccess: "subscribeAuthAccess",
+  subscribeWidgets: "subscribeWidgets",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
 } as const;
 
@@ -1975,6 +1977,13 @@ const WsSubscribeAuthAccessRpc = Rpc.make(WS_METHODS.subscribeAuthAccess, {
   stream: true,
 });
 
+const WsSubscribeWidgetsRpc = Rpc.make(WS_METHODS.subscribeWidgets, {
+  payload: Schema.Struct({}),
+  success: WidgetsSnapshot,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+
 const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeResourceTelemetry, {
   payload: Schema.Struct({}),
   success: ResourceTelemetrySnapshot,
@@ -2177,6 +2186,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeServerConfigRpc,
   WsSubscribeServerLifecycleRpc,
   WsSubscribeAuthAccessRpc,
+  WsSubscribeWidgetsRpc,
   WsSubscribeResourceTelemetryRpc,
   WsOrchestrationV2DispatchCommandRpc,
   WsOrchestrationV2GetWorkflowScriptRpc,
