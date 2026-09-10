@@ -91,6 +91,9 @@ import { AssistantCitationChip } from "./chat/AssistantCitationChip";
 import { MarkdownThreadLink } from "./chat/MarkdownThreadLink";
 import { mathKind } from "@t3tools/shared/markdownMath";
 import remarkMath from "remark-math";
+import { isWindowsAbsolutePath } from "@t3tools/shared/path";
+import { beadBoardHref, beadIdCandidate, remarkBeadAutolinks } from "../markdown-bead-links";
+import { BeadChip } from "./chat/BeadChip";
 import {
   artifactTemplateFromHastProperties,
   renderCodexInlineDirectivesAsMarkdown,
@@ -1089,6 +1092,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
         <span>{label}</span>
       );
     }
+    const beadId = String((props as Record<string, unknown>)["data-bead-id"] ?? "");
+    if (beadId.length > 0) {
+      return <BeadChip id={beadId} href={href ?? beadBoardHref(beadId)} copyText={beadId} />;
+    }
     const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
     const fileLinkMeta = normalizedHref
       ? (markdownFileLinkMetaByHref.get(normalizedHref) ??
@@ -1331,6 +1338,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
     }
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
+      const beadId = beadIdCandidate(codeText);
+      if (beadId) {
+        return <BeadChip id={beadId} href={beadBoardHref(beadId)} copyText={`\`${codeText}\``} />;
+      }
       const fileLinkMeta =
         inlineCodeFileLinkMetaByText.get(codeText.trim()) ??
         resolveInlineCodeFileLinkMeta(codeText, cwd, imageBaseDir ?? cwd);
@@ -1588,6 +1599,7 @@ function ChatMarkdown({
   };
   const remarkPlugins = [
     ...(lineBreaks ? CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS : CHAT_MARKDOWN_REMARK_PLUGINS),
+    remarkBeadAutolinks,
     ...extraRemarkPlugins,
     ...(incrementalParsing ? [createIncrementalMarkdownPlugin()] : []),
   ];
