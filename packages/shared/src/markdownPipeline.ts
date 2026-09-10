@@ -148,7 +148,8 @@ const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
     code: [...(defaultSchema.attributes?.code ?? []), "dataCodeMeta", "dataInlineCode"],
     blockquote: [...(defaultSchema.attributes?.blockquote ?? []), "dataAlert"],
     div: [...(defaultSchema.attributes?.div ?? []), ...CODEX_ARTIFACT_TEMPLATE_HAST_PROPERTIES],
-    a: [...(defaultSchema.attributes?.a ?? []), "dataPullRequestAutolink"],
+    // dataBeadId: the web client's bead autolinks mark beads issue ids for its chip renderer
+    a: [...(defaultSchema.attributes?.a ?? []), "dataPullRequestAutolink", "dataBeadId"],
     img: [
       ...(defaultSchema.attributes?.img ?? []),
       "dataLocalSrc",
