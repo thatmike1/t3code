@@ -98,6 +98,9 @@ import { AssistantCitationChip } from "./chat/AssistantCitationChip";
 import { MarkdownThreadLink } from "./chat/MarkdownThreadLink";
 import { mathKind } from "@t3tools/shared/markdownMath";
 import remarkMath from "remark-math";
+import { isWindowsAbsolutePath } from "@t3tools/shared/path";
+import { beadBoardHref, beadIdCandidate, remarkBeadAutolinks } from "../markdown-bead-links";
+import { BeadChip } from "./chat/BeadChip";
 import {
   artifactTemplateFromHastProperties,
   renderCodexInlineDirectivesAsMarkdown,
@@ -1117,6 +1120,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
         <span>{label}</span>
       );
     }
+    const beadId = String((props as Record<string, unknown>)["data-bead-id"] ?? "");
+    if (beadId.length > 0) {
+      return <BeadChip id={beadId} href={href ?? beadBoardHref(beadId)} copyText={beadId} />;
+    }
     const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
     const fileLinkMeta = normalizedHref
       ? (markdownFileLinkMetaByHref.get(normalizedHref) ??
@@ -1361,6 +1368,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
     }
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
+      const beadId = beadIdCandidate(codeText);
+      if (beadId) {
+        return <BeadChip id={beadId} href={beadBoardHref(beadId)} copyText={`\`${codeText}\``} />;
+      }
       const fileLinkMeta =
         inlineCodeFileLinkMetaByText.get(codeText.trim()) ??
         resolveInlineCodeFileLinkMeta(codeText, cwd, imageBaseDir ?? cwd);
@@ -1671,10 +1682,11 @@ const CHAT_MARKDOWN_COMPONENTS = {
 const REMARK_MATH: Pluggable = [remarkMath, { singleDollarTextMath: true }];
 // Shared lists, so every message with the same options shares a processor and its cache.
 const CHAT_MARKDOWN_REMARK_PLUGIN_SETS = {
-  plain: CHAT_MARKDOWN_REMARK_PLUGINS,
-  breaks: CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS,
-  math: [REMARK_MATH, ...CHAT_MARKDOWN_REMARK_PLUGINS],
-  mathBreaks: [REMARK_MATH, ...CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS],
+  // the fork's bead-id autolinks run right after the shared plugins, as before the plugin sets existed
+  plain: [...CHAT_MARKDOWN_REMARK_PLUGINS, remarkBeadAutolinks],
+  breaks: [...CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS, remarkBeadAutolinks],
+  math: [REMARK_MATH, ...CHAT_MARKDOWN_REMARK_PLUGINS, remarkBeadAutolinks],
+  mathBreaks: [REMARK_MATH, ...CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS, remarkBeadAutolinks],
 } satisfies Record<string, PluggableList>;
 
 const combinedPlugins = new WeakMap<PluggableList, WeakMap<PluggableList, PluggableList>>();
