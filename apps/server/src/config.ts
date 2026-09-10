@@ -41,6 +41,8 @@ export interface ServerDerivedPaths {
   readonly keybindingsConfigPath: string;
   readonly settingsPath: string;
   readonly environmentThemesDir: string;
+  /** Status widgets any process on this machine publishes, one file per widget. */
+  readonly widgetsDir: string;
   readonly providerStatusCacheDir: string;
   readonly worktreesDir: string;
   /** Where workflow definition files live. In the home itself: they are the user's own code. */
@@ -162,6 +164,7 @@ export const deriveServerPaths = Effect.fn(function* (
     keybindingsConfigPath: join(stateDir, "keybindings.json"),
     settingsPath: join(stateDir, "settings.json"),
     environmentThemesDir: join(stateDir, "themes"),
+    widgetsDir: join(stateDir, "widgets"),
     providerStatusCacheDir,
     worktreesDir: join(baseDir, "worktrees"),
     workflowsDir: join(baseDir, "workflows"),
