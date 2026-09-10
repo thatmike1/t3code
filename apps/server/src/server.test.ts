@@ -46,6 +46,7 @@ import {
   EditorId,
   WorktreeSetupSnapshot,
   type WorktreeSetupStageId,
+  type WidgetsSnapshot,
 } from "@t3tools/contracts";
 import {
   computeDpopAccessTokenHash,
@@ -97,6 +98,12 @@ const SUCCESSFUL_GIT_EXECUTION = {
   stderr: "",
   stdoutTruncated: false,
   stderrTruncated: false,
+};
+
+/** No process publishes widgets in these tests; the directory is inert. */
+const TEST_WIDGETS_SNAPSHOT: WidgetsSnapshot = {
+  directory: "/tmp/t3code-test-widgets",
+  widgets: [],
 };
 const decodeTransferThreadSnapshot = Schema.decodeUnknownEffect(
   Schema.fromJsonString(OrchestrationThreadDetailSnapshot),
@@ -186,6 +193,7 @@ import * as NativeTelemetryClient from "./resourceTelemetry/NativeTelemetryClien
 import * as ResourceAttribution from "./resourceTelemetry/ResourceAttribution.ts";
 import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as UsageService from "./usage/UsageService.ts";
+import * as Widgets from "./widgets/Widgets.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as Data from "effect/Data";
 
@@ -1148,11 +1156,18 @@ const buildAppUnderTest = (options?: {
         }),
       ),
       Layer.provide(
-        Layer.mock(ServerEnvironment.ServerEnvironment)({
-          getEnvironmentId: Effect.succeed(testEnvironmentDescriptor.environmentId),
-          getDescriptor: Effect.succeed(testEnvironmentDescriptor),
-          ...options?.layers?.serverEnvironment,
-        }),
+        Layer.mergeAll(
+          Layer.mock(Widgets.Widgets)({
+            latest: Effect.succeed(TEST_WIDGETS_SNAPSHOT),
+            changes: Stream.empty,
+            subscribe: Effect.succeed({ latest: TEST_WIDGETS_SNAPSHOT, changes: Stream.empty }),
+          }),
+          Layer.mock(ServerEnvironment.ServerEnvironment)({
+            getEnvironmentId: Effect.succeed(testEnvironmentDescriptor.environmentId),
+            getDescriptor: Effect.succeed(testEnvironmentDescriptor),
+            ...options?.layers?.serverEnvironment,
+          }),
+        ),
       ),
       Layer.provide(
         Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({

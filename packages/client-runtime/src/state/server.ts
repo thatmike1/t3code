@@ -1035,6 +1035,11 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.subscribeResourceTelemetry,
       idleTtlMs: 0,
     }),
+    widgets: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+      label: "environment-data:server:widgets",
+      tag: WS_METHODS.subscribeWidgets,
+      idleTtlMs: 0,
+    }),
     resourceTelemetryHistory: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:server:resource-telemetry-history",
       tag: WS_METHODS.serverGetResourceTelemetryHistory,
