@@ -88,6 +88,8 @@ import { parseComposerContextHref } from "@t3tools/shared/composerContextReferen
 import { AssistantCitationChip } from "./chat/AssistantCitationChip";
 import remarkGfm from "remark-gfm";
 import { remarkGithubAlerts } from "../markdown-github-alerts";
+import { beadBoardHref, beadIdCandidate, remarkBeadAutolinks } from "../markdown-bead-links";
+import { BeadChip } from "./chat/BeadChip";
 import {
   artifactTemplateFromHastProperties,
   CODEX_ARTIFACT_TEMPLATE_HAST_PROPERTIES,
@@ -465,7 +467,7 @@ const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
     code: [...(defaultSchema.attributes?.code ?? []), "dataCodeMeta", "dataInlineCode"],
     blockquote: [...(defaultSchema.attributes?.blockquote ?? []), "dataAlert"],
     div: [...(defaultSchema.attributes?.div ?? []), ...CODEX_ARTIFACT_TEMPLATE_HAST_PROPERTIES],
-    a: [...(defaultSchema.attributes?.a ?? []), "dataPullRequestAutolink"],
+    a: [...(defaultSchema.attributes?.a ?? []), "dataPullRequestAutolink", "dataBeadId"],
     img: [
       ...(defaultSchema.attributes?.img ?? []),
       "dataLocalSrc",
@@ -487,6 +489,7 @@ const CHAT_MARKDOWN_REMARK_PLUGINS = [
   remarkCodexDirectives,
   remarkPreserveCodeMeta,
   remarkNormalizeLinksAndTagInlineCode,
+  remarkBeadAutolinks,
 ] satisfies NonNullable<ReactMarkdownOptions["remarkPlugins"]>;
 
 const CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS = [
@@ -497,6 +500,7 @@ const CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS = [
   remarkBreaks,
   remarkPreserveCodeMeta,
   remarkNormalizeLinksAndTagInlineCode,
+  remarkBeadAutolinks,
 ] satisfies NonNullable<ReactMarkdownOptions["remarkPlugins"]>;
 
 const CHAT_MARKDOWN_REHYPE_PLUGINS = [
@@ -2828,6 +2832,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
         <span>{label}</span>
       );
     }
+    const beadId = String((props as Record<string, unknown>)["data-bead-id"] ?? "");
+    if (beadId.length > 0) {
+      return <BeadChip id={beadId} href={href ?? beadBoardHref(beadId)} copyText={beadId} />;
+    }
     const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
     const fileLinkMeta = normalizedHref
       ? (markdownFileLinkMetaByHref.get(normalizedHref) ??
@@ -3062,6 +3070,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
     );
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
+      const beadId = beadIdCandidate(codeText);
+      if (beadId) {
+        return <BeadChip id={beadId} href={beadBoardHref(beadId)} copyText={`\`${codeText}\``} />;
+      }
       const fileLinkMeta =
         inlineCodeFileLinkMetaByText.get(codeText.trim()) ??
         resolveInlineCodeFileLinkMeta(codeText, cwd, imageBaseDir ?? cwd);
