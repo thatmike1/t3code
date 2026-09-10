@@ -242,6 +242,7 @@ import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import { commandFeatureUsage, featureUsage } from "./telemetry/FeatureUsage.ts";
 import type { TelemetryOwner } from "./telemetry/Identify.ts";
 import * as UsageService from "./usage/UsageService.ts";
+import * as Widgets from "./widgets/Widgets.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
 import * as TriageService from "./triage/TriageService.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
@@ -1521,6 +1522,7 @@ export const layerWsRpc = (
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
+      const widgets = yield* Widgets.Widgets;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
       yield* Effect.addFinalizer(() =>
         Ref.get(rpcClientIds).pipe(
@@ -3503,6 +3505,12 @@ export const layerWsRpc = (
                 liveEvents,
               );
             }),
+          ),
+        [WS_METHODS.subscribeWidgets]: (_input) =>
+          Stream.unwrap(
+            Effect.map(widgets.subscribe, ({ latest, changes }) =>
+              Stream.concat(Stream.make(latest), changes),
+            ),
           ),
         [WS_METHODS.subscribeResourceTelemetry]: (_input) =>
           Stream.unwrap(
