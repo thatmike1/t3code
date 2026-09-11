@@ -356,7 +356,7 @@ describe("assetResponseHeaders", () => {
 
   it("does not apply document policy to raster images", () => {
     expect(assetResponseHeaders("/attachments/user-image.png")).toEqual({
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": "private, max-age=3600, no-transform",
       "X-Content-Type-Options": "nosniff",
     });
   });
@@ -367,7 +367,7 @@ describe("assetResponseHeaders", () => {
         mimeType: 'video/mp4; codecs="avc1.42E01E"',
       }),
     ).toEqual({
-      "Cache-Control": "private, max-age=3600",
+      "Cache-Control": "private, max-age=3600, no-transform",
       "Content-Type": "video/mp4",
       "X-Content-Type-Options": "nosniff",
     });

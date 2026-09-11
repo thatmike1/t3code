@@ -96,7 +96,12 @@ export function assetResponseHeaders(
   const lowerPath = filePath.toLowerCase();
   const inlineMimeType = options?.mimeType?.split(";", 1)[0]?.trim();
   return {
-    "Cache-Control": "private, max-age=3600",
+    // no-transform opts these responses out of HttpMiddleware.compression. It
+    // rebuilds the body from `body.contentType`, which a file response leaves
+    // undefined because the type is carried as an explicit header, so setBody
+    // deletes Content-Type. Paired with nosniff below, the browser then falls
+    // back to text/plain and an HTML preview renders as source instead of a page.
+    "Cache-Control": "private, max-age=3600, no-transform",
     "X-Content-Type-Options": "nosniff",
     ...(options?.download
       ? {
