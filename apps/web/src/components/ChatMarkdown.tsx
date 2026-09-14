@@ -107,7 +107,13 @@ import { parseThreadLinkHref } from "@t3tools/shared/threadLinks";
 import { AssistantCitationChip } from "./chat/AssistantCitationChip";
 import { MarkdownThreadLink } from "./chat/MarkdownThreadLink";
 import { isWindowsAbsolutePath } from "@t3tools/shared/path";
-import { beadBoardHref, beadIdCandidate, remarkBeadAutolinks } from "../markdown-bead-links";
+import {
+  beadBoardHref,
+  beadIdCandidate,
+  remarkBeadAutolinks,
+  shortBeadIdCandidate,
+} from "../markdown-bead-links";
+import { useBeadBoardIds } from "../lib/beadBoardIds";
 import { BeadChip } from "./chat/BeadChip";
 import {
   artifactTemplateFromHastProperties,
@@ -3198,11 +3204,19 @@ const CHAT_MARKDOWN_COMPONENTS = {
     const { cwd, imageBaseDir, inlineCodeFileLinkMetaByText, fileLinkChip } = use(
       ChatMarkdownRendererContext,
     );
+    const knownBeadIds = useBeadBoardIds();
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
-      const beadId = beadIdCandidate(codeText);
+      const beadId = beadIdCandidate(codeText) ?? shortBeadIdCandidate(codeText, knownBeadIds);
       if (beadId) {
-        return <BeadChip id={beadId} href={beadBoardHref(beadId)} copyText={`\`${codeText}\``} />;
+        return (
+          <BeadChip
+            id={beadId}
+            href={beadBoardHref(beadId)}
+            copyText={`\`${codeText}\``}
+            label={codeText.trim()}
+          />
+        );
       }
       const fileLinkMeta =
         inlineCodeFileLinkMetaByText.get(codeText.trim()) ??
