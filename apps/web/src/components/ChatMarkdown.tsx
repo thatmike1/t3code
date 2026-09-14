@@ -92,7 +92,13 @@ import { MarkdownThreadLink } from "./chat/MarkdownThreadLink";
 import { mathKind } from "@t3tools/shared/markdownMath";
 import remarkMath from "remark-math";
 import { isWindowsAbsolutePath } from "@t3tools/shared/path";
-import { beadBoardHref, beadIdCandidate, remarkBeadAutolinks } from "../markdown-bead-links";
+import {
+  beadBoardHref,
+  beadIdCandidate,
+  remarkBeadAutolinks,
+  shortBeadIdCandidate,
+} from "../markdown-bead-links";
+import { useBeadBoardIds } from "../lib/beadBoardIds";
 import { BeadChip } from "./chat/BeadChip";
 import {
   artifactTemplateFromHastProperties,
@@ -1326,6 +1332,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
   code: function MarkdownCode({ node, children, className, ...props }) {
     const { cwd, imageBaseDir, inlineCodeFileLinkMetaByText, fileLinkChip, mathEnabled, inline } =
       use(ChatMarkdownRendererContext);
+    const knownBeadIds = useBeadBoardIds();
     const math = mathEnabled ? mathKind(className) : null;
     if (math) {
       return (
@@ -1338,9 +1345,16 @@ const CHAT_MARKDOWN_COMPONENTS = {
     }
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
-      const beadId = beadIdCandidate(codeText);
+      const beadId = beadIdCandidate(codeText) ?? shortBeadIdCandidate(codeText, knownBeadIds);
       if (beadId) {
-        return <BeadChip id={beadId} href={beadBoardHref(beadId)} copyText={`\`${codeText}\``} />;
+        return (
+          <BeadChip
+            id={beadId}
+            href={beadBoardHref(beadId)}
+            copyText={`\`${codeText}\``}
+            label={codeText.trim()}
+          />
+        );
       }
       const fileLinkMeta =
         inlineCodeFileLinkMetaByText.get(codeText.trim()) ??
