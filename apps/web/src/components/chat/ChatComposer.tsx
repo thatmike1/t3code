@@ -217,7 +217,11 @@ import { ComposerFooterPrimaryActions } from "./ComposerFooterControls";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
 import { buildPullRequestReferenceContext } from "../pullRequest/pullRequestDetail.logic";
-import { getComposerPromptInjectionState, getComposerReasoningStep } from "./composerProviderState";
+import {
+  getComposerPromptInjectionState,
+  getComposerReasoningStep,
+  stepComposerEffort,
+} from "./composerProviderState";
 import { readPromptUltrathink } from "./TraitsPicker";
 import { useApplyThreadModelPick } from "./useApplyThreadModelPick";
 import {
@@ -310,6 +314,8 @@ export interface ChatComposerHandle {
   replyToResponse: (response: ResponseContextRecord) => boolean;
   openModelPicker: () => void;
   stepReasoningEffort: (direction: 1 | -1) => void;
+  /** fork: alt+2 / alt+5, one effort level down or up, clamped, never onto ultrathink or ultracode */
+  stepEffortLevel: (direction: 1 | -1) => void;
   toggleModelPicker: () => void;
   openControl: (command: KeybindingCommand) => void;
   isModelPickerOpen: () => boolean;
@@ -3095,6 +3101,30 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             expandedCursorAfterReplace: change.cursor,
           });
         }
+      },
+      stepEffortLevel: (direction) => {
+        if (noProviderAvailable || pendingUserInputs.length > 0 || isEditingQueuedMessage) {
+          return;
+        }
+        const nextOptions = stepComposerEffort(
+          {
+            provider: selectedProvider,
+            model: selectedModel,
+            models: selectedProviderModels,
+            modelOptions: composerModelOptions?.[selectedInstanceId],
+            prompt: promptRef.current,
+            planModeEnabled: settings.planModeEnabled,
+          },
+          direction,
+        );
+        if (!nextOptions) return;
+        useComposerDraftStore
+          .getState()
+          .setProviderModelOptions(composerDraftTarget, selectedProvider, nextOptions, {
+            instanceId: selectedInstanceId,
+            model: selectedModel,
+            persistSticky: true,
+          });
       },
       toggleModelPicker: () => {
         if (isComposerModelPickerOpen) {
