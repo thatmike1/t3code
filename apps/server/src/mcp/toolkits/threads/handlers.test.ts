@@ -142,11 +142,7 @@ describe("threads toolkit handlers", () => {
     Effect.gen(function* () {
       const harness = yield* makeHarness();
       const result = yield* harness.call({ prompt: "Fix the flaky test in auth" });
-      expect(result).toEqual({
-        threadId: expect.any(String),
-        title: "New thread",
-        alreadyStarted: false,
-      });
+      expect(result).toEqual({ threadId: expect.any(String), title: "New thread" });
       expect(result.threadId).not.toBe(THREAD_ID);
       const commands = yield* Ref.get(harness.commands);
       expect(commands).toMatchObject([
@@ -203,30 +199,29 @@ describe("threads toolkit handlers", () => {
     }),
   );
 
-  it.effect("derives the thread id from clientRequestId and reports a repeat call", () =>
+  it.effect("derives the thread and command ids from clientRequestId so a retry replays", () =>
     Effect.gen(function* () {
-      const first = yield* makeHarness();
-      const created = yield* first.call({ prompt: "Do it", clientRequestId: "req-1" });
-      expect(created.alreadyStarted).toBe(false);
-      expect(created.threadId).toMatch(/^mcp-[0-9a-f]{32}$/);
+      const harness = yield* makeHarness();
+      const first = yield* harness.call({ prompt: "Do it", clientRequestId: "req-1" });
+      const retry = yield* harness.call({ prompt: "Do it", clientRequestId: "req-1" });
+      expect(first.threadId).toMatch(/^mcp-[0-9a-f]{32}$/);
+      expect(retry.threadId).toBe(first.threadId);
 
-      // The same request from the same caller, once the first thread exists.
-      const retried = yield* makeHarness({
-        threads: [
-          makeThread(),
-          makeThread({ id: ThreadId.make(created.threadId), title: "Do it" }),
-        ],
-      });
-      const repeat = yield* retried.call({ prompt: "Do it", clientRequestId: "req-1" });
-      expect(repeat).toEqual({ threadId: created.threadId, title: "Do it", alreadyStarted: true });
-      expect(yield* Ref.get(retried.commands)).toEqual([]);
+      // Same command ids on both calls: the real engine replays the accepted
+      // receipt instead of creating or starting the thread twice.
+      const commands = yield* Ref.get(harness.commands);
+      expect(commands.map((command) => command.commandId)).toEqual([
+        `server:mcp-thread-create:${first.threadId}`,
+        `server:mcp-thread-turn-start:${first.threadId}`,
+        `server:mcp-thread-create:${first.threadId}`,
+        `server:mcp-thread-turn-start:${first.threadId}`,
+      ]);
 
-      // A different caller with the same clientRequestId gets its own thread.
-      const other = yield* makeHarness();
-      const otherResult = yield* other
-        .call({ prompt: "Do it", clientRequestId: "req-2" })
-        .pipe(Effect.map((result) => result.threadId));
-      expect(otherResult).not.toBe(created.threadId);
+      // A different request id, and a call without one, each get a new thread.
+      const other = yield* harness.call({ prompt: "Do it", clientRequestId: "req-2" });
+      const anonymous = yield* harness.call({ prompt: "Do it" });
+      expect(other.threadId).not.toBe(first.threadId);
+      expect(anonymous.threadId).not.toMatch(/^mcp-/);
     }),
   );
 

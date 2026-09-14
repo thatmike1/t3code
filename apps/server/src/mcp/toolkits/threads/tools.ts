@@ -46,7 +46,7 @@ export const StartThreadInput = Schema.Struct({
   clientRequestId: Schema.optional(
     TrimmedNonEmptyString.check(Schema.isMaxLength(128)).annotate({
       description:
-        "Stable id you choose for this call. A retry with the same id returns the same thread instead of starting a second one.",
+        "Stable id you choose for this call. A retry with the same id lands on the same thread with the same first turn instead of starting a second one.",
     }),
   ),
 });
@@ -55,10 +55,6 @@ export type StartThreadInput = typeof StartThreadInput.Type;
 export const StartThreadResult = Schema.Struct({
   threadId: ThreadId,
   title: Schema.String,
-  alreadyStarted: Schema.Boolean.annotate({
-    description:
-      "True when an earlier call with the same clientRequestId already started this thread.",
-  }),
 });
 export type StartThreadResult = typeof StartThreadResult.Type;
 
