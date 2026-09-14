@@ -3,7 +3,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { describe, expect, it } from "vite-plus/test";
 
-import { beadBoardHref, beadIdCandidate, remarkBeadAutolinks } from "./markdown-bead-links";
+import {
+  beadBoardHref,
+  beadIdCandidate,
+  remarkBeadAutolinks,
+  shortBeadIdCandidate,
+} from "./markdown-bead-links";
 
 function renderMarkdown(markdown: string): string {
   return renderToStaticMarkup(
@@ -44,6 +49,12 @@ describe("remarkBeadAutolinks", () => {
     expect(html).not.toContain("data-bead-id");
   });
 
+  it("links a child id whole, not just its parent", () => {
+    const html = renderMarkdown("see ccChat-general-zye.6.");
+
+    expect(html).toContain('data-bead-id="ccChat-general-zye.6"');
+  });
+
   it("links every id in a sentence", () => {
     const html = renderMarkdown("ccChat-general-4y6 relates to ccChat-general-qpo.");
 
@@ -64,5 +75,28 @@ describe("beadIdCandidate", () => {
 
   it("rejects inline code that only contains an id", () => {
     expect(beadIdCandidate("bd show ccChat-general-4y6")).toBeNull();
+  });
+});
+
+describe("shortBeadIdCandidate", () => {
+  const known = new Set(["ccChat-general-qju", "ccChat-general-zye.6"]);
+
+  it("resolves a short id bd-board knows to the full id", () => {
+    expect(shortBeadIdCandidate("qju", known)).toBe("ccChat-general-qju");
+    expect(shortBeadIdCandidate(" zye.6 ", known)).toBe("ccChat-general-zye.6");
+  });
+
+  it("leaves an id-shaped span alone when no such bead exists", () => {
+    expect(shortBeadIdCandidate("the", known)).toBeNull();
+    expect(shortBeadIdCandidate("zye.7", known)).toBeNull();
+    expect(shortBeadIdCandidate("qju", new Set())).toBeNull();
+  });
+
+  it("rejects spans that are not exactly a short id", () => {
+    const loose = new Set(["ccChat-general-QJU", "ccChat-general-qjux", "ccChat-general-qju."]);
+    expect(shortBeadIdCandidate("QJU", loose)).toBeNull();
+    expect(shortBeadIdCandidate("qjux", loose)).toBeNull();
+    expect(shortBeadIdCandidate("qju.", loose)).toBeNull();
+    expect(shortBeadIdCandidate("bd show qju", known)).toBeNull();
   });
 });
