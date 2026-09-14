@@ -6,7 +6,13 @@ import { ContextChip, ContextChipLabel } from "../ContextChip";
  * app, so the chip is an ordinary anchor and the runtime decides where it
  * opens.
  */
-export function BeadChip(props: { id: string; href: string; copyText: string }) {
+export function BeadChip(props: {
+  id: string;
+  href: string;
+  copyText: string;
+  /** Text as written, when it is shorter than the id (`qju` for `ccChat-general-qju`). */
+  label?: string;
+}) {
   return (
     // the element kind carries the amber hue the bead chip has always had
     <ContextChip
@@ -16,7 +22,7 @@ export function BeadChip(props: { id: string; href: string; copyText: string }) 
       className="font-mono no-underline"
     >
       <CircleDotIcon aria-hidden="true" className="opacity-85" />
-      <ContextChipLabel>{props.id}</ContextChipLabel>
+      <ContextChipLabel>{props.label ?? props.id}</ContextChipLabel>
     </ContextChip>
   );
 }
