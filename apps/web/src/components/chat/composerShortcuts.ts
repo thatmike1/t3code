@@ -24,6 +24,9 @@ export function composerShortcutCommands(
     "composer.decreaseEffort": ({ event }) => {
       if (!event.repeat) composerRef.current?.stepReasoningEffort(-1);
     },
+    // fork: alt+2 / alt+5 clamp at the ends, so a held key is safe and repeats
+    "composer.effort.decrease": () => composerRef.current?.stepEffortLevel(-1),
+    "composer.effort.increase": () => composerRef.current?.stepEffortLevel(1),
     "composer.host": openControl(composerRef, "composer.host"),
     "composer.effort": openControl(composerRef, "composer.effort"),
     "composer.mode": openControl(composerRef, "composer.mode"),
