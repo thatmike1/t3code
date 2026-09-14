@@ -210,7 +210,7 @@ import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
 import { buildPullRequestReferenceContext } from "../pullRequest/pullRequestDetail.logic";
-import { getComposerPromptInjectionState, getComposerReasoningStep } from "./composerProviderState";
+import { getComposerPromptInjectionState, getComposerReasoningStep, stepComposerEffort } from "./composerProviderState";
 import { readPromptUltrathink } from "./TraitsPicker";
 import {
   providerSupportsManualCompaction,
@@ -2639,6 +2639,66 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     setIsTasksDrawerOpen(false);
   }
   if (tasksDrawerThreadId !== activeThreadId) setTasksDrawerThreadId(activeThreadId);
+
+  // alt+2 / alt+5 step the reasoning effort without opening the traits menu,
+  // persisted the same way a pick from that menu is
+  useEffect(() => {
+    const handler = (event: globalThis.KeyboardEvent) => {
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: {
+          terminalFocus: getTerminalFocusOwner() !== null,
+          terminalOpen,
+          modelPickerOpen: isComposerModelPickerOpen,
+        },
+      });
+      if (command !== "composer.effort.decrease" && command !== "composer.effort.increase") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const threadTarget = routeKind === "server" ? routeThreadRef : draftId;
+      if (!threadTarget || isCommandPaletteOpen()) {
+        return;
+      }
+      const nextOptions = stepComposerEffort(
+        {
+          provider: selectedProvider,
+          model: selectedModel,
+          models: selectedProviderModels,
+          modelOptions: composerModelOptions?.[selectedInstanceId],
+          prompt: promptRef.current,
+          planModeEnabled: settings.planModeEnabled,
+        },
+        command === "composer.effort.decrease" ? -1 : 1,
+      );
+      if (!nextOptions) {
+        return;
+      }
+      setComposerProviderModelOptions(threadTarget, selectedProvider, nextOptions, {
+        instanceId: selectedInstanceId,
+        model: selectedModel,
+        persistSticky: true,
+      });
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [
+    composerModelOptions,
+    draftId,
+    isComposerModelPickerOpen,
+    keybindings,
+    promptRef,
+    routeKind,
+    routeThreadRef,
+    selectedInstanceId,
+    selectedModel,
+    selectedProvider,
+    selectedProviderModels,
+    setComposerProviderModelOptions,
+    settings.planModeEnabled,
+    terminalOpen,
+  ]);
+
 
   const insertComposerText = (
     text: string,
