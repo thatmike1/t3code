@@ -28,6 +28,7 @@ import { ThreadsToolkit } from "./tools.ts";
 
 const PROJECT_ID = ProjectId.make("project-1");
 const THREAD_ID = ThreadId.make("thread-1");
+const OTHER_THREAD_ID = ThreadId.make("thread-2");
 
 const testCrypto = Crypto.make({
   randomBytes: (size) => new Uint8Array(size).fill(7),
@@ -37,9 +38,10 @@ const testCrypto = Crypto.make({
 
 const invocation = (
   capabilities: ReadonlyArray<McpInvocationContext.McpCapability>,
+  threadId: ThreadId = THREAD_ID,
 ): McpInvocationContext.McpInvocationScope => ({
   environmentId: EnvironmentId.make("environment-1"),
-  threadId: THREAD_ID,
+  threadId,
   providerSessionId: "provider-session-1",
   providerInstanceId: ProviderInstanceId.make("codex"),
   capabilities: new Set(capabilities),
@@ -81,7 +83,7 @@ const makeHarness = Effect.fn("makeThreadsToolkitHarness")(function* (
   options: HarnessOptions = {},
 ) {
   const commands = yield* Ref.make<ReadonlyArray<OrchestrationCommand>>([]);
-  const threads = options.threads ?? [makeThread()];
+  const threads = options.threads ?? [makeThread(), makeThread({ id: OTHER_THREAD_ID })];
   const dispatch: OrchestrationEngineShape["dispatch"] = (command) =>
     Effect.gen(function* () {
       const rejection = options.reject?.(command) ?? null;
@@ -108,6 +110,7 @@ const makeHarness = Effect.fn("makeThreadsToolkitHarness")(function* (
   const call = (
     params: Parameters<typeof toolkit.handle<"start_thread">>[1],
     capabilities: ReadonlyArray<McpInvocationContext.McpCapability> = ["threads"],
+    caller: ThreadId = THREAD_ID,
   ) =>
     toolkit.handle("start_thread", params).pipe(
       Stream.unwrap,
@@ -116,7 +119,10 @@ const makeHarness = Effect.fn("makeThreadsToolkitHarness")(function* (
       Effect.map(
         (chunk) => chunk.at(-1)!.result as Tool.Success<typeof ThreadsToolkit.tools.start_thread>,
       ),
-      Effect.provideService(McpInvocationContext.McpInvocationContext, invocation(capabilities)),
+      Effect.provideService(
+        McpInvocationContext.McpInvocationContext,
+        invocation(capabilities, caller),
+      ),
       Effect.provide(dependencies),
     );
   return { commands, call };
@@ -217,10 +223,17 @@ describe("threads toolkit handlers", () => {
         `server:mcp-thread-turn-start:${first.threadId}`,
       ]);
 
-      // A different request id, and a call without one, each get a new thread.
+      // A different request id, the same id from another caller, and a call
+      // without an id each get their own thread.
       const other = yield* harness.call({ prompt: "Do it", clientRequestId: "req-2" });
+      const otherCaller = yield* harness.call(
+        { prompt: "Do it", clientRequestId: "req-1" },
+        ["threads"],
+        OTHER_THREAD_ID,
+      );
       const anonymous = yield* harness.call({ prompt: "Do it" });
       expect(other.threadId).not.toBe(first.threadId);
+      expect(otherCaller.threadId).not.toBe(first.threadId);
       expect(anonymous.threadId).not.toMatch(/^mcp-/);
     }),
   );
