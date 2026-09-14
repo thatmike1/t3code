@@ -216,6 +216,87 @@ function getSelectedTraits(
   };
 }
 
+/** Descriptor ids that carry a model's effort level, one per driver family. */
+const EFFORT_DESCRIPTOR_IDS: ReadonlySet<string> = new Set([
+  "effort",
+  "reasoningEffort",
+  "reasoning",
+  "variant",
+]);
+
+/**
+ * Moves the effort descriptor one choice down (-1) or up (+1), clamped at the
+ * ends. Prompt-injected choices (`ultrathink`) and `ultracode` are modes rather
+ * than levels, so a step never lands on them; stepping down from one lands on
+ * the highest level. Null when there is no effort descriptor or nothing moves.
+ */
+export function stepEffortDescriptors(
+  descriptors: ReadonlyArray<ProviderOptionDescriptor>,
+  direction: -1 | 1,
+): ReadonlyArray<ProviderOptionDescriptor> | null {
+  const descriptor = descriptors.find(
+    (candidate): candidate is Extract<ProviderOptionDescriptor, { type: "select" }> =>
+      candidate.type === "select" && EFFORT_DESCRIPTOR_IDS.has(candidate.id),
+  );
+  if (!descriptor) {
+    return null;
+  }
+  const levels = descriptor.options.filter(
+    (option) => option.id !== "ultracode" && !descriptor.promptInjectedValues?.includes(option.id),
+  );
+  if (levels.length === 0) {
+    return null;
+  }
+  const currentIndex = levels.findIndex(
+    (option) => option.id === getDescriptorStringValue(descriptor),
+  );
+  const nextIndex =
+    currentIndex === -1
+      ? direction === -1
+        ? levels.length - 1
+        : -1
+      : Math.min(levels.length - 1, Math.max(0, currentIndex + direction));
+  const next = levels[nextIndex];
+  if (!next || nextIndex === currentIndex) {
+    return null;
+  }
+  return replaceDescriptorCurrentValue(descriptors, descriptor.id, next.id);
+}
+
+/**
+ * The model options after one effort step for the composer's current model,
+ * or null when the step does nothing, including while `ultrathink` in the
+ * prompt owns the effort.
+ */
+export function stepProviderEffort(
+  input: {
+    provider: ProviderDriverKind;
+    models: ReadonlyArray<ServerProviderModel>;
+    model: string | null | undefined;
+    prompt: string;
+    modelOptions: ProviderOptions | null | undefined;
+    planModeEnabled: boolean;
+  },
+  direction: -1 | 1,
+): ProviderOptions | null {
+  const selected = getSelectedTraits(
+    input.provider,
+    input.models,
+    input.model,
+    input.prompt,
+    input.modelOptions,
+    true,
+    input.planModeEnabled,
+  );
+  if (selected.ultrathinkPromptControlled) {
+    return null;
+  }
+  const nextDescriptors = stepEffortDescriptors(selected.descriptors, direction);
+  return nextDescriptors
+    ? (buildProviderOptionSelectionsFromDescriptors(nextDescriptors) ?? null)
+    : null;
+}
+
 function getTraitsSectionVisibility(input: {
   provider: ProviderDriverKind;
   models: ReadonlyArray<ServerProviderModel>;
