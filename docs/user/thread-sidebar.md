@@ -25,6 +25,14 @@ in a new thread's model picker to add or remove them. A regular click returns to
 single model. Choose a base branch and send. Each selection starts a separate thread
 and worktree while you stay in the new thread composer. This requires a Git project.
 
+### Start from an agent
+
+An agent can start a new thread in its own project with the `start_thread` tool
+on the T3 Code MCP server. The new thread keeps the agent's provider, checkout,
+and worktree, and runs on its own. Ask for it when you want work split across
+threads, or when a follow-up should keep going after the current turn ends. Two
+threads editing one checkout can conflict, so ask the agent to split by files.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.
