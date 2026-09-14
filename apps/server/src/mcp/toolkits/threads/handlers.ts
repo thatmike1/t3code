@@ -50,28 +50,42 @@ const make = Effect.gen(function* () {
   const engine = yield* OrchestrationEngine.OrchestrationEngineService;
   const snapshots = yield* ProjectionSnapshotQuery.ProjectionSnapshotQuery;
   const crypto = yield* Crypto.Crypto;
+  const uuid = crypto.randomUUIDv4.pipe(Effect.orDie);
 
   const failed = <E>(cause: Cause.Cause<E>): Effect.Effect<never, StartThreadFailedError> =>
     Cause.hasInterruptsOnly(cause)
       ? Effect.failCause(cause as Cause.Cause<never>)
       : Effect.fail(new StartThreadFailedError({ cause }));
 
-  // A clientRequestId makes the thread id a function of the caller and the id,
-  // so a retried call after a dropped response lands on the same thread
-  // instead of starting a second agent in the same checkout.
-  const newThreadId = (scope: McpInvocationContext.McpInvocationScope, input: StartThreadInput) =>
+  // With a clientRequestId, the thread id and both command ids are a function
+  // of the caller and the request. The engine replays an accepted command id
+  // instead of running it again, so a retry after a dropped response, or two
+  // overlapping calls, land on one thread with one first turn. A thread id
+  // made this way is never created twice, so a deleted one cannot come back
+  // under a pending cleanup. Without a clientRequestId every call is new.
+  const requestIds = (scope: McpInvocationContext.McpInvocationScope, input: StartThreadInput) =>
     input.clientRequestId === undefined
-      ? crypto.randomUUIDv4.pipe(Effect.orDie, Effect.map(ThreadId.make))
+      ? Effect.gen(function* () {
+          const threadId = ThreadId.make(yield* uuid);
+          return {
+            threadId,
+            createCommandId: CommandId.make(`server:mcp-thread-create:${threadId}:${yield* uuid}`),
+            turnCommandId: CommandId.make(
+              `server:mcp-thread-turn-start:${threadId}:${yield* uuid}`,
+            ),
+          };
+        })
       : crypto.digest("SHA-256", encoder.encode(`${scope.threadId} ${input.clientRequestId}`)).pipe(
           Effect.orDie,
-          Effect.map((digest) => ThreadId.make(`mcp-${hex(digest).slice(0, 32)}`)),
+          Effect.map((digest) => {
+            const threadId = ThreadId.make(`mcp-${hex(digest).slice(0, 32)}`);
+            return {
+              threadId,
+              createCommandId: CommandId.make(`server:mcp-thread-create:${threadId}`),
+              turnCommandId: CommandId.make(`server:mcp-thread-turn-start:${threadId}`),
+            };
+          }),
         );
-
-  const commandId = (tag: string, threadId: ThreadId) =>
-    crypto.randomUUIDv4.pipe(
-      Effect.orDie,
-      Effect.map((uuid) => CommandId.make(`server:${tag}:${threadId}:${uuid}`)),
-    );
 
   return ThreadsToolkit.of({
     start_thread: (input) =>
@@ -84,21 +98,13 @@ const make = Effect.gen(function* () {
           return yield* new StartThreadCallerNotFoundError({ threadId: scope.threadId });
         }
 
-        const threadId = yield* newThreadId(scope, input);
-        const existing =
-          input.clientRequestId === undefined
-            ? Option.none()
-            : yield* snapshots.getThreadShellById(threadId).pipe(Effect.catchCause(failed));
-        if (Option.isSome(existing)) {
-          return { threadId, title: existing.value.title, alreadyStarted: true };
-        }
-
+        const { threadId, createCommandId, turnCommandId } = yield* requestIds(scope, input);
         const title = input.title ?? DEFAULT_THREAD_TITLE;
         const createdAt = DateTime.formatIso(yield* DateTime.now);
         yield* engine
           .dispatch({
             type: "thread.create",
-            commandId: yield* commandId("mcp-thread-create", threadId),
+            commandId: createCommandId,
             threadId,
             title,
             createdAt,
@@ -108,7 +114,7 @@ const make = Effect.gen(function* () {
         yield* engine
           .dispatch({
             type: "thread.turn.start",
-            commandId: yield* commandId("mcp-thread-turn-start", threadId),
+            commandId: turnCommandId,
             threadId,
             message: {
               messageId: MessageId.make(`mcp-start:${threadId}`),
@@ -124,7 +130,7 @@ const make = Effect.gen(function* () {
             createdAt,
           })
           .pipe(Effect.catchCause(failed));
-        return { threadId, title, alreadyStarted: false };
+        return { threadId, title };
       }),
   });
 });
