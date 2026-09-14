@@ -862,10 +862,12 @@ describe("ChatMarkdown Windows file links", () => {
 });
 
 describe("ChatMarkdown bead links", () => {
-  const boardHref = "http://127.0.0.1:4180/#ccChat-general-4y6";
+  const boardHref = "http://127.0.0.1:1338/#ccChat-general-4y6";
 
   it("chips a bead id written in prose", () => {
-    const html = renderToStaticMarkup(<ChatMarkdown text="filed as ccChat-general-4y6 today" />);
+    const html = renderToStaticMarkup(
+      <ChatMarkdown cwd={undefined} text="filed as ccChat-general-4y6 today" />,
+    );
 
     expect(html).toContain(`href="${boardHref}"`);
     expect(html).toContain("ccChat-general-4y6");
@@ -873,10 +875,19 @@ describe("ChatMarkdown bead links", () => {
   });
 
   it("chips a bead id written as inline code, and copies back as code", () => {
-    const html = renderToStaticMarkup(<ChatMarkdown text="the bead is `ccChat-general-4y6`" />);
+    const html = renderToStaticMarkup(
+      <ChatMarkdown cwd={undefined} text="the bead is `ccChat-general-4y6`" />,
+    );
 
     expect(html).toContain(`href="${boardHref}"`);
     expect(html).toContain('data-markdown-copy="`ccChat-general-4y6`"');
+  });
+
+  it("keeps a short id as plain code until bd-board confirms it", () => {
+    const html = renderToStaticMarkup(<ChatMarkdown cwd={undefined} text="see `qju`" />);
+
+    expect(html).not.toContain("127.0.0.1:1338");
+    expect(html).toContain("<code");
   });
 
   it("leaves a path-shaped inline code as a file link", () => {
@@ -884,7 +895,7 @@ describe("ChatMarkdown bead links", () => {
       <ChatMarkdown cwd="/tmp/project" text="see `src/app/main.ts`" />,
     );
 
-    expect(html).not.toContain("127.0.0.1:4180");
+    expect(html).not.toContain("127.0.0.1:1338");
     expect(html).toContain("chat-markdown-file-link");
   });
 });
