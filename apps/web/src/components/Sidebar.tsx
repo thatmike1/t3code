@@ -3029,6 +3029,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 label="Active"
                                 visible={from !== null}
                                 isDropTarget={dragTargetSection === "active"}
+                                restingRule={pinnedThreads.length > 0}
                               />,
                             );
                             break;
@@ -3047,6 +3048,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                       dragTargetSection !== "active"))
                                 }
                                 isDropTarget={dragTargetSection === "active"}
+                                restingRule={pinnedThreads.length > 0}
                               />,
                             );
                             break;
