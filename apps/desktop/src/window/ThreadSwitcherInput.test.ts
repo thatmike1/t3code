@@ -33,7 +33,7 @@ describe("desktop thread switcher input", () => {
       { type: "step", reverse: true },
       { type: "commit" },
     ]);
-    expect(preventDefault).toHaveBeenCalledTimes(3);
+    expect(preventDefault).toHaveBeenCalledTimes(1);
   });
 
   it("cancels on Escape and blur without later committing", () => {
@@ -63,6 +63,15 @@ describe("desktop thread switcher input", () => {
     handler.handleInput({ preventDefault }, input({ key: "Tab", alt: true }));
     handler.handleInput({ preventDefault }, input({ key: "Tab", meta: true }));
     expect(notify).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("leaves step keydowns dispatchable so Electron delivers the release", () => {
+    const notify = vi.fn();
+    const preventDefault = vi.fn();
+    const handler = makeThreadSwitcherInputHandler(notify);
+    handler.handleInput({ preventDefault }, input());
+    expect(notify).toHaveBeenCalledWith({ type: "step", reverse: false });
     expect(preventDefault).not.toHaveBeenCalled();
   });
 });
