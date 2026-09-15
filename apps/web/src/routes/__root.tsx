@@ -41,6 +41,7 @@ import { SlowRpcRequestToastCoordinator } from "../components/SlowRpcRequestToas
 import { ChatGptWelcomeCoordinator } from "../components/settings/ChatGptWelcomeCoordinator";
 import { ProviderAuthCallbackCoordinator } from "../components/settings/ProviderAuthCallbackCoordinator";
 import { ThemeEditorHost } from "../components/settings/ThemeEditorHost";
+import { ThreadSwitcher } from "../components/ThreadSwitcher";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useDefaultThemeAdoption } from "../hooks/useDefaultTheme";
 import { useEnvironmentThemeSync } from "../hooks/useEnvironmentTheme";
@@ -269,6 +270,7 @@ function RootRouteView() {
           {isElectron ? <DesktopUpdateLaunchNotice /> : null}
           {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}
           <NightlyMobileBetaNotice />
+          <ThreadSwitcher />
           {appShell}
           {/* Above the router: a theme draft is judged by walking the app, so the
               editor has to survive navigation away from settings. */}
