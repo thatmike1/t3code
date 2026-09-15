@@ -385,3 +385,8 @@ describe("movedSettingsPath", () => {
     expect(movedSettingsPath("/settings/appearance", "theme")).toBeNull();
   });
 });
+
+it("finds fork chat layout settings", () => {
+  expect(searchSettings("chat alignment")[0]?.id).toBe("chat-alignment");
+  expect(searchSettings("chat gutter")[0]?.id).toBe("chat-left-gutter");
+});
