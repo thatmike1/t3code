@@ -108,8 +108,8 @@ export const ChatAlignment = Schema.Literals(["centered", "left"]);
 export type ChatAlignment = typeof ChatAlignment.Type;
 export const DEFAULT_CHAT_ALIGNMENT: ChatAlignment = "centered";
 export const MIN_CHAT_LEFT_GUTTER = 0;
-export const MAX_CHAT_LEFT_GUTTER = 320;
-export const CHAT_LEFT_GUTTER_STEP = 8;
+export const MAX_CHAT_LEFT_GUTTER = 500;
+export const CHAT_LEFT_GUTTER_STEP = 4;
 export const ChatLeftGutter = Schema.Int.check(
   Schema.isBetween({ minimum: MIN_CHAT_LEFT_GUTTER, maximum: MAX_CHAT_LEFT_GUTTER }),
   Schema.makeFilter(
