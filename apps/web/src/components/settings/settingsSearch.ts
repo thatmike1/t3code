@@ -210,17 +210,29 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["red green blue orange additions deletions changes counts palette colorblind"],
   },
   {
-    id: "panel-animations",
-    title: "Panel animations",
-    to: "/settings/appearance",
-  },
-  {
     id: "environment-identification",
     title: "Environment identification",
     to: "/settings/appearance",
     searchTerms: ["dev nightly artwork pill label hide none"],
     // The setting is stage-dependent, so its parent section is the stable destination.
     targetId: "appearance-interface",
+  },
+  {
+    id: "chat-alignment",
+    title: "Chat alignment",
+    to: "/settings/appearance",
+    searchTerms: ["conversation layout centered left reading column"],
+  },
+  {
+    id: "chat-left-gutter",
+    title: "Chat left gutter",
+    to: "/settings/appearance",
+    searchTerms: ["conversation layout margin offset widescreen"],
+  },
+  {
+    id: "panel-animations",
+    title: "Panel animations",
+    to: "/settings/appearance",
   },
   {
     id: "interface-font",
