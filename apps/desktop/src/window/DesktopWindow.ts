@@ -23,6 +23,7 @@ import {
   QUIT_SHORTCUT_CHANNEL,
   SNAP_SHOT_EVENT_CHANNEL,
   TRACKPAD_SCROLL_END_CHANNEL,
+  THREAD_SWITCHER_INPUT_CHANNEL,
   WINDOW_FULLSCREEN_STATE_CHANNEL,
 } from "../ipc/channels.ts";
 import { PASSKEY_BRIDGE_ARGUMENT } from "../preview/GuestProtocol.ts";
@@ -34,6 +35,7 @@ import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
 import { makeQuitShortcutHandler } from "./QuitHold.ts";
 import { copyContextMenuImage } from "./ContextMenuImage.ts";
+import { makeThreadSwitcherInputHandler } from "./ThreadSwitcherInput.ts";
 
 const TITLEBAR_HEIGHT = 40;
 // Matches --workspace-topbar-height in apps/web/src/index.css. Native macOS
@@ -550,6 +552,17 @@ export const make = Effect.gen(function* () {
     });
 
     const contextMenuContents = new WeakSet<Electron.WebContents>();
+    const threadSwitcherInputHandler = makeThreadSwitcherInputHandler((input) => {
+      if (!window.isDestroyed()) {
+        window.webContents.send(THREAD_SWITCHER_INPUT_CHANNEL, input);
+      }
+    });
+    const threadSwitcherInputContents = new WeakSet<Electron.WebContents>();
+    const installThreadSwitcherInput = (contents: Electron.WebContents): void => {
+      if (threadSwitcherInputContents.has(contents)) return;
+      threadSwitcherInputContents.add(contents);
+      contents.on("before-input-event", threadSwitcherInputHandler.handleInput);
+    };
     const installContextMenu = (
       ownerWindow: Electron.BrowserWindow,
       contents: Electron.WebContents,
@@ -626,9 +639,11 @@ export const make = Effect.gen(function* () {
       });
     };
     installContextMenu(window, window.webContents);
+    installThreadSwitcherInput(window.webContents);
     window.webContents.on("did-attach-webview", (_event, contents) => {
       installContextMenu(window, contents);
       void runPromise(previewManager.prepareWebview(contents));
+      installThreadSwitcherInput(contents);
     });
 
     window.webContents.setWindowOpenHandler(({ url }) => {
@@ -694,6 +709,7 @@ export const make = Effect.gen(function* () {
     window.webContents.on("input-event", (_event, input) => {
       if (input.type === "gestureScrollEnd") window.webContents.send(TRACKPAD_SCROLL_END_CHANNEL);
     });
+    window.on("blur", threadSwitcherInputHandler.cancel);
 
     window.on("page-title-updated", (event) => {
       event.preventDefault();
