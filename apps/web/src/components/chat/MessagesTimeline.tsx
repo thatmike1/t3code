@@ -349,7 +349,7 @@ function TimelineLoadEarlierHeader({
 }) {
   return (
     <div className={fade ? "pt-(--workspace-titlebar-scroll-fade-height)" : "pt-3 sm:pt-4"}>
-      <div className="mx-auto w-full max-w-(--chat-max-width) pb-2">
+      <div className="chat-reading-column mx-auto w-full max-w-(--chat-max-width) pb-2">
         <button
           type="button"
           onClick={onLoadEarlier}
@@ -1253,7 +1253,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const renderItem = useCallback(
     ({ item }: { item: MessagesTimelineRow }) => (
       <div
-        className="mx-auto w-full min-w-0 max-w-(--chat-max-width) overflow-x-clip"
+        className="chat-reading-column mx-auto w-full min-w-0 max-w-(--chat-max-width) overflow-x-clip"
         data-timeline-root="true"
       >
         <TimelineRowContent row={item} />
