@@ -227,6 +227,22 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(IpcChannels.QUIT_SHORTCUT_CHANNEL, wrappedListener);
     };
   },
+  onThreadSwitcherInput: (listener) => {
+    const wrappedListener = (_event: Electron.IpcRendererEvent, input: unknown) => {
+      if (typeof input !== "object" || input === null || !("type" in input)) return;
+      if (input.type === "commit" || input.type === "cancel") {
+        listener({ type: input.type });
+        return;
+      }
+      if (input.type === "step" && "reverse" in input && typeof input.reverse === "boolean") {
+        listener({ type: "step", reverse: input.reverse });
+      }
+    };
+    ipcRenderer.on(IpcChannels.THREAD_SWITCHER_INPUT_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(IpcChannels.THREAD_SWITCHER_INPUT_CHANNEL, wrappedListener);
+    };
+  },
   getWindowFullscreenState: () =>
     ipcRenderer.sendSync(IpcChannels.GET_WINDOW_FULLSCREEN_STATE_CHANNEL) === true,
   onWindowFullscreenStateChange: (listener) => {
