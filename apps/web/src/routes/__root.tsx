@@ -35,6 +35,7 @@ import { ProjectCloneToastCoordinator } from "../components/ProjectCloneToastCoo
 import { ConnectDeviceApprovalCoordinator } from "../components/ConnectDeviceApprovalCoordinator";
 import { ChatGptWelcomeCoordinator } from "../components/settings/ChatGptWelcomeCoordinator";
 import { ThemeEditorHost } from "../components/settings/ThemeEditorHost";
+import { ChatAlignmentSync } from "../components/ChatAlignmentSync";
 import { ThreadSwitcher } from "../components/ThreadSwitcher";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { Button } from "../components/ui/button";
@@ -211,6 +212,7 @@ function RootRouteBranch() {
 
   return (
     <>
+      <ChatAlignmentSync />
       <ChatGptWelcomeCoordinator />
       {isWelcome ? (
         <>
