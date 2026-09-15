@@ -208,8 +208,15 @@ export function ThreadSwitcher() {
   );
 
   useEffect(() => {
+    const nativeInput = window.desktopBridge?.onThreadSwitcherInput;
+    const usesNativeInput = nativeInput !== undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Tab" && event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (usesNativeInput) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         if (step(event.shiftKey)) {
           event.preventDefault();
           event.stopPropagation();
@@ -219,19 +226,21 @@ export function ThreadSwitcher() {
       if (event.key === "Escape" && gestureRef.current) {
         event.preventDefault();
         event.stopPropagation();
+        if (usesNativeInput) return;
         cancel();
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if ((event.key === "Control" || event.key === "Ctrl") && gestureRef.current) {
         event.preventDefault();
+        if (usesNativeInput) return;
         commit();
       }
     };
     const onBlur = () => {
       if (gestureRef.current) cancel();
     };
-    const unsubscribeDesktop = window.desktopBridge?.onThreadSwitcherInput?.((event) => {
+    const unsubscribeDesktop = nativeInput?.((event) => {
       if (event.type === "step") step(event.reverse);
       else if (event.type === "commit") commit();
       else cancel();

@@ -28,7 +28,10 @@ export function makeThreadSwitcherInputHandler(notify: (event: ThreadSwitcherInp
     handleInput: (event, input) => {
       const key = input.key.toLowerCase();
       if (input.type === "keyDown" && key === "tab" && input.control && !input.meta && !input.alt) {
-        event.preventDefault();
+        // preventing this native keydown suppresses the chord's keyUp events
+        // in Electron on X11; the host renderer prevents its dispatched DOM event.
+        // guest webviews receive the chord because suppressing it loses the same
+        // release sequence, and the desktop menu defines no Ctrl+Tab accelerator.
         active = true;
         notify({ type: "step", reverse: input.shift });
         return;
