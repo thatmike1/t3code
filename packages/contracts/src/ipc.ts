@@ -38,6 +38,11 @@ export type QuitShortcutHintEvent =
   | { readonly state: "down"; readonly mode: Exclude<QuitConfirmationMode, "direct"> }
   | { readonly state: "up" };
 
+export type ThreadSwitcherInputEvent =
+  | { readonly type: "step"; readonly reverse: boolean }
+  | { readonly type: "commit" }
+  | { readonly type: "cancel" };
+
 export interface ContextMenuItemSchemaType {
   readonly id: string;
   readonly label: string;
@@ -1129,6 +1134,8 @@ export interface DesktopBridge {
   onMenuAction: (listener: (action: string) => void) => () => void;
   onSnapShotEvent: (listener: (event: DesktopSnapShotEvent) => void) => () => void;
   onQuitShortcut: (listener: (event: QuitShortcutHintEvent) => void) => () => void;
+  /** fork: native Ctrl+Tab lifecycle, including input focused inside a desktop webview. */
+  onThreadSwitcherInput?: (listener: (event: ThreadSwitcherInputEvent) => void) => () => void;
   getWindowFullscreenState: () => boolean;
   onWindowFullscreenStateChange: (listener: (fullscreen: boolean) => void) => () => void;
   getWindowZoomFactor: () => number;
