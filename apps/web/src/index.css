@@ -1050,6 +1050,22 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 }
 
+/* left chat alignment. Timeline rows and the composer stack already share one
+   content box (the timeline scroller subtracts its scrollbar gutter), so both
+   sit at its start edge. The optional gutter is consumed before the reading
+   column narrows, so it shrinks first in narrow panes. */
+:root[data-chat-alignment="left"] .chat-content-lane,
+:root[data-chat-alignment="left"] [data-chat-composer-stack] {
+  --chat-effective-left-gutter: min(
+    var(--chat-left-gutter, 0px),
+    max(0px, calc(100% - var(--chat-content-max-width)))
+  );
+  width: min(var(--chat-content-max-width), calc(100% - var(--chat-effective-left-gutter)));
+  max-width: none;
+  margin-inline-start: var(--chat-effective-left-gutter);
+  margin-inline-end: auto;
+}
+
 /* Safe-area inset utilities for surfaces that opt into edge-to-edge rendering.
    Insets resolve to 0 when the browser already constrains the layout viewport
    to the safe area. */

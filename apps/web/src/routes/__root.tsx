@@ -41,6 +41,7 @@ import { SlowRpcRequestToastCoordinator } from "../components/SlowRpcRequestToas
 import { ChatGptWelcomeCoordinator } from "../components/settings/ChatGptWelcomeCoordinator";
 import { ProviderAuthCallbackCoordinator } from "../components/settings/ProviderAuthCallbackCoordinator";
 import { ThemeEditorHost } from "../components/settings/ThemeEditorHost";
+import { ChatAlignmentSync } from "../components/ChatAlignmentSync";
 import { ThreadSwitcher } from "../components/ThreadSwitcher";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useDefaultThemeAdoption } from "../hooks/useDefaultTheme";
@@ -236,6 +237,7 @@ function RootRouteView() {
       <AnchoredToastProvider>
         <DocumentTitleSync />
         <ContrastAppearanceSync />
+        <ChatAlignmentSync />
         <EnvironmentThemeSync />
         <GlassAppearanceSync />
         <FontAppearanceSync />
