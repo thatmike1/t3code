@@ -1,4 +1,5 @@
 import { scopedProjectKey, scopedThreadKey } from "@t3tools/client-runtime/environment";
+import { useAtomValue } from "@effect/atom-react";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -8,11 +9,17 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { resolveSidebarThreadStatus } from "./Sidebar.logic";
+import { getTriggerDisplayModelLabel, type ModelEsque } from "./chat/providerIconUtils";
 import { cn } from "../lib/utils";
+import {
+  deriveProviderEntriesByEnvironment,
+  type ProviderInstanceEntry,
+} from "../providerInstances";
 import { resolveThreadRouteRef } from "../threadRoutes";
 import { formatRelativeTimeLabel } from "../timestampFormat";
-import { useEnvironments } from "../state/environments";
+import { useEnvironments, usePrimaryEnvironmentId } from "../state/environments";
 import { useProjects, useThreadShells } from "../state/entities";
+import { primaryServerProvidersAtom } from "../state/server";
 import {
   beginThreadSwitch,
   pruneThreadHistory,
@@ -27,16 +34,36 @@ function statusLabel(thread: EnvironmentThreadShell): string | null {
   return status === "ready" ? null : status.slice(0, 1).toUpperCase() + status.slice(1);
 }
 
+export function threadSwitcherAgentLabel(
+  thread: Pick<EnvironmentThreadShell, "modelSelection" | "session">,
+  providerEntry: {
+    readonly displayName: string;
+    readonly models: ReadonlyArray<ModelEsque>;
+  } | null,
+): string {
+  const selectedModel = providerEntry?.models.find(
+    (model) => model.slug === thread.modelSelection.model,
+  );
+  return selectedModel
+    ? getTriggerDisplayModelLabel(selectedModel)
+    : (providerEntry?.displayName ?? thread.session?.providerName ?? thread.modelSelection.model);
+}
+
 function ThreadSwitcherOverlay({
   gesture,
   threadByKey,
   projectByKey,
   environmentLabelById,
+  providerEntriesByEnvironment,
 }: {
   readonly gesture: ThreadSwitcherGesture;
   readonly threadByKey: ReadonlyMap<string, EnvironmentThreadShell>;
   readonly projectByKey: ReadonlyMap<string, EnvironmentProject>;
   readonly environmentLabelById: ReadonlyMap<string, string>;
+  readonly providerEntriesByEnvironment: ReadonlyMap<
+    string,
+    ReadonlyMap<string, ProviderInstanceEntry>
+  >;
 }) {
   const selectedRef = selectedSwitcherThread(gesture);
   const selectedThread = selectedRef ? threadByKey.get(scopedThreadKey(selectedRef)) : undefined;
@@ -48,6 +75,16 @@ function ThreadSwitcherOverlay({
         }),
       )
     : undefined;
+  const selectedProviderEntry = selectedThread
+    ? (providerEntriesByEnvironment
+        .get(selectedThread.environmentId)
+        ?.get(
+          selectedThread.session?.providerInstanceId ?? selectedThread.modelSelection.instanceId,
+        ) ?? null)
+    : null;
+  const selectedAgentLabel = selectedThread
+    ? threadSwitcherAgentLabel(selectedThread, selectedProviderEntry)
+    : null;
 
   return (
     <div className="pointer-events-none fixed inset-0 z-100 flex items-center justify-center bg-black/20 px-4 backdrop-blur-[1px]">
@@ -58,7 +95,9 @@ function ThreadSwitcherOverlay({
       >
         <p className="sr-only" aria-live="polite">
           {selectedThread
-            ? [selectedThread.title, selectedProject?.title].filter(Boolean).join(", ")
+            ? [selectedThread.title, selectedProject?.title, selectedAgentLabel]
+                .filter(Boolean)
+                .join(", ")
             : ""}
         </p>
         <div className="border-b border-border px-4 py-2.5 text-xs font-medium text-muted-foreground">
@@ -75,6 +114,12 @@ function ThreadSwitcherOverlay({
               }),
             );
             const environmentLabel = environmentLabelById.get(thread.environmentId);
+            const providerEntry =
+              providerEntriesByEnvironment
+                .get(thread.environmentId)
+                ?.get(thread.session?.providerInstanceId ?? thread.modelSelection.instanceId) ??
+              null;
+            const agentLabel = threadSwitcherAgentLabel(thread, providerEntry);
             const status = statusLabel(thread);
             const selected = index === gesture.selectedIndex;
             return (
@@ -97,8 +142,16 @@ function ThreadSwitcherOverlay({
                   <span className="block truncate text-sm font-medium text-foreground">
                     {thread.title}
                   </span>
-                  <span className="block truncate text-xs">
-                    {[project?.title, environmentLabel].filter(Boolean).join(" · ")}
+                  <span className="flex min-w-0 items-center gap-1 text-xs">
+                    <span className="min-w-0 truncate">
+                      {[project?.title, environmentLabel].filter(Boolean).join(" · ")}
+                    </span>
+                    {project?.title || environmentLabel ? (
+                      <span className="shrink-0 text-muted-foreground/60">·</span>
+                    ) : null}
+                    <span className="max-w-[45%] shrink-0 truncate text-foreground/70">
+                      {agentLabel}
+                    </span>
                   </span>
                 </span>
                 {status ? (
@@ -125,6 +178,8 @@ export function ThreadSwitcher() {
   const threads = useThreadShells();
   const projects = useProjects();
   const { environments } = useEnvironments();
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const primaryProviders = useAtomValue(primaryServerProvidersAtom);
   const [gesture, setGesture] = useState<ThreadSwitcherGesture | null>(null);
   const gestureRef = useRef<ThreadSwitcherGesture | null>(null);
   const historyRef = useRef<ReadonlyArray<ScopedThreadRef>>([]);
@@ -154,6 +209,20 @@ export function ThreadSwitcher() {
     () =>
       new Map(environments.map((environment) => [environment.environmentId, environment.label])),
     [environments],
+  );
+  const providerEntriesByEnvironment = useMemo(
+    () =>
+      deriveProviderEntriesByEnvironment(
+        environments.map(
+          (environment) =>
+            [
+              environment.environmentId,
+              environment.serverConfig?.providers ??
+                (environment.environmentId === primaryEnvironmentId ? primaryProviders : []),
+            ] as const,
+        ),
+      ),
+    [environments, primaryEnvironmentId, primaryProviders],
   );
 
   useEffect(() => {
@@ -262,6 +331,7 @@ export function ThreadSwitcher() {
       threadByKey={threadByKey}
       projectByKey={projectByKey}
       environmentLabelById={environmentLabelById}
+      providerEntriesByEnvironment={providerEntriesByEnvironment}
     />
   ) : null;
 }
