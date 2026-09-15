@@ -33,6 +33,7 @@ import { ReopenClosedViewShortcut } from "../components/ReopenClosedViewShortcut
 import { ProjectCloneToastCoordinator } from "../components/ProjectCloneToastCoordinator";
 import { ChatGptWelcomeCoordinator } from "../components/settings/ChatGptWelcomeCoordinator";
 import { ThemeEditorHost } from "../components/settings/ThemeEditorHost";
+import { ChatAlignmentSync } from "../components/ChatAlignmentSync";
 import { ThreadSwitcher } from "../components/ThreadSwitcher";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { Button } from "../components/ui/button";
@@ -193,6 +194,7 @@ function RootRouteBranch() {
 
   return (
     <>
+      <ChatAlignmentSync />
       <ChatGptWelcomeCoordinator />
       <FirstRunGate
         enabled={primaryEnvironmentAuthenticated}
