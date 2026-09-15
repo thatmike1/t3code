@@ -352,7 +352,7 @@ function TimelineLoadEarlierHeader({
 }) {
   return (
     <div className={fade ? "pt-[var(--workspace-titlebar-scroll-fade-height)]" : "pt-3 sm:pt-4"}>
-      <div className="chat-reading-column mx-auto w-full max-w-3xl pb-2">
+      <div className="chat-reading-column chat-reading-column-scrollbar-adjusted mx-auto w-full max-w-3xl pb-2">
         <button
           type="button"
           onClick={onLoadEarlier}
@@ -1242,7 +1242,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   const renderItem = useCallback(
     ({ item }: { item: MessagesTimelineRow }) => (
       <div
-        className="chat-reading-column mx-auto w-full min-w-0 max-w-3xl overflow-x-clip"
+        className="chat-reading-column chat-reading-column-scrollbar-adjusted mx-auto w-full min-w-0 max-w-3xl overflow-x-clip"
         data-timeline-root="true"
       >
         <TimelineRowContent row={item} />
@@ -1315,7 +1315,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
             onScroll={handleScroll}
             onItemSizeChanged={reportContentOverflow}
             className={cn(
-              "scrollbar-gutter-both h-full min-h-0 overflow-x-hidden overscroll-y-contain px-3 [overflow-anchor:none] sm:px-5",
+              "chat-timeline-scroll scrollbar-gutter-both h-full min-h-0 overflow-x-hidden overscroll-y-contain px-3 [overflow-anchor:none] sm:px-5",
               topFadeEnabled && "topbar-scroll-fade",
             )}
             ListHeaderComponent={
