@@ -103,6 +103,23 @@ export const AppearanceContrast = Schema.Int.check(
 );
 export type AppearanceContrast = typeof AppearanceContrast.Type;
 const DEFAULT_APPEARANCE_CONTRAST: AppearanceContrast = 100;
+
+export const ChatAlignment = Schema.Literals(["centered", "left"]);
+export type ChatAlignment = typeof ChatAlignment.Type;
+export const DEFAULT_CHAT_ALIGNMENT: ChatAlignment = "centered";
+export const MIN_CHAT_LEFT_GUTTER = 0;
+export const MAX_CHAT_LEFT_GUTTER = 320;
+export const CHAT_LEFT_GUTTER_STEP = 8;
+export const ChatLeftGutter = Schema.Int.check(
+  Schema.isBetween({ minimum: MIN_CHAT_LEFT_GUTTER, maximum: MAX_CHAT_LEFT_GUTTER }),
+  Schema.makeFilter(
+    (value) =>
+      value % CHAT_LEFT_GUTTER_STEP === 0 ||
+      `Chat left gutter must use ${CHAT_LEFT_GUTTER_STEP}px increments.`,
+  ),
+);
+export type ChatLeftGutter = typeof ChatLeftGutter.Type;
+export const DEFAULT_CHAT_LEFT_GUTTER: ChatLeftGutter = 64;
 export const MIN_PANEL_ANIMATION_DURATION_MS = 0;
 export const MAX_PANEL_ANIMATION_DURATION_MS = 400;
 export const PanelAnimationDurationMs = Schema.Int.check(
@@ -299,6 +316,12 @@ export const ClientSettingsSchema = Schema.Struct({
   loadBalancingWeights: LoadBalancingWeights.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   appearanceContrast: AppearanceContrast.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_APPEARANCE_CONTRAST)),
+  ),
+  chatAlignment: ChatAlignment.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CHAT_ALIGNMENT)),
+  ),
+  chatLeftGutter: ChatLeftGutter.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_CHAT_LEFT_GUTTER)),
   ),
   // Panel motion defaults to zero because width and height transitions cause
   // layout work on every frame, which is noticeable on lower-power clients.
@@ -1447,6 +1470,8 @@ export const ClientSettingsPatch = Schema.Struct({
   loadBalancingEnabled: Schema.optionalKey(Schema.Boolean),
   loadBalancingWeights: Schema.optionalKey(LoadBalancingWeights),
   appearanceContrast: Schema.optionalKey(AppearanceContrast),
+  chatAlignment: Schema.optionalKey(ChatAlignment),
+  chatLeftGutter: Schema.optionalKey(ChatLeftGutter),
   panelAnimationDurationMs: Schema.optionalKey(PanelAnimationDurationMs),
   browserDefaultViewport: Schema.optionalKey(PreviewViewportSetting),
   browserDefaultZoomFactor: Schema.optionalKey(PreviewZoomFactor),

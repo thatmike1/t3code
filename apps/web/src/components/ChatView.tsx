@@ -83,6 +83,7 @@ import {
 import { Debouncer } from "@tanstack/react-pacer";
 import { useAtomValue } from "@effect/atom-react";
 import {
+  type CSSProperties,
   lazy,
   memo,
   Suspense,
@@ -2567,13 +2568,13 @@ export default function ChatView(props: ChatViewProps) {
       (activeThread.session !== null && activeThread.session.status !== "stopped")),
   );
 
-  const loadBalancingSettings = useClientSettings();
+  const clientSettings = useClientSettings();
   const automaticEnvironment = Boolean(
     clientSettingsHydrated &&
     draftId &&
     !envLocked &&
     hasMultipleEnvironments &&
-    loadBalancingSettings.loadBalancingEnabled &&
+    clientSettings.loadBalancingEnabled &&
     draftThread?.environmentSelection !== "manual" &&
     (!composerHasAttachments || Boolean(draftThread?.loadBalancedEnvironmentId)) &&
     (!draftThread?.branch || draftThread.environmentSelection === "auto") &&
@@ -3762,7 +3763,7 @@ export default function ChatView(props: ChatViewProps) {
               const environment = environmentById.get(candidate.environmentId);
               return (
                 environment?.connection.phase === "connected" &&
-                (loadBalancingSettings.loadBalancingWeights[candidate.environmentId] ?? 50) > 0 &&
+                (clientSettings.loadBalancingWeights[candidate.environmentId] ?? 50) > 0 &&
                 environment.serverConfig?.providers.some(
                   (provider) =>
                     (activeProviderInstanceId === null ||
@@ -3782,14 +3783,14 @@ export default function ChatView(props: ChatViewProps) {
       needsLoadBalancing,
       logicalProjectEnvironments,
       environmentById,
-      loadBalancingSettings.loadBalancingWeights,
+      clientSettings.loadBalancingWeights,
       activeProviderInstanceId,
       selectedProvider,
     ],
   );
   const loadBalancing = useLoadBalancedEnvironment(
     loadBalancingCandidates,
-    loadBalancingSettings.loadBalancingWeights,
+    clientSettings.loadBalancingWeights,
   );
   useEffect(() => {
     if (!needsLoadBalancing || loadBalancing.pending || !draftId || sendInFlightRef.current) return;
@@ -9319,6 +9320,9 @@ export default function ChatView(props: ChatViewProps) {
     setDragActive: setIsWorkspaceFileDragActive,
     addFiles: (files) => composerRef.current?.addDroppedFiles(files),
   });
+  const chatLayoutStyle: CSSProperties & { "--chat-left-gutter": string } = {
+    "--chat-left-gutter": `${clientSettings.chatLeftGutter}px`,
+  };
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
@@ -9402,7 +9406,9 @@ export default function ChatView(props: ChatViewProps) {
           {/* Chat column */}
           <div
             className="relative flex min-h-0 min-w-0 flex-1 flex-col"
+            data-chat-alignment={clientSettings.chatAlignment}
             data-chat-workspace-drop-target="true"
+            style={chatLayoutStyle}
             onDragEnter={workspaceFileDropHandlers.onDragEnter}
             onDragOver={workspaceFileDropHandlers.onDragOver}
             onDragLeave={workspaceFileDropHandlers.onDragLeave}
@@ -9528,23 +9534,25 @@ export default function ChatView(props: ChatViewProps) {
               {/* scroll to end pill — shown when user has scrolled away from the live edge */}
               {showScrollToBottom && (
                 <div
-                  className="pointer-events-none absolute left-1/2 z-30 flex -translate-x-1/2 justify-center py-1.5"
+                  className="pointer-events-none absolute inset-x-0 z-30 px-3 py-1.5 sm:px-5"
                   style={{ bottom: scrollToEndClearance + 4 }}
                 >
-                  <Button
-                    aria-label="Scroll to end"
-                    onPointerDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      composerRef.current?.restoreAfterTimelineReachedEnd();
-                      scrollToEnd(true);
-                    }}
-                    className="pointer-events-auto gap-1.5 rounded-full px-3 text-muted-foreground hover:text-foreground"
-                    size="xs"
-                    variant="glass"
-                  >
-                    <ChevronDownIcon className="size-3.5" />
-                    Scroll to end
-                  </Button>
+                  <div className="chat-reading-column mx-auto flex w-full max-w-3xl justify-center">
+                    <Button
+                      aria-label="Scroll to end"
+                      onPointerDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        composerRef.current?.restoreAfterTimelineReachedEnd();
+                        scrollToEnd(true);
+                      }}
+                      className="pointer-events-auto gap-1.5 rounded-full px-3 text-muted-foreground hover:text-foreground"
+                      size="xs"
+                      variant="glass"
+                    >
+                      <ChevronDownIcon className="size-3.5" />
+                      Scroll to end
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -9566,7 +9574,7 @@ export default function ChatView(props: ChatViewProps) {
               >
                 <div
                   data-chat-composer-stack="true"
-                  className="group/composer-stack pointer-events-auto relative z-10 mx-auto w-full max-w-3xl"
+                  className="chat-reading-column group/composer-stack pointer-events-auto relative z-10 mx-auto w-full max-w-3xl"
                 >
                   {isDraftHeroState ? (
                     <div className="absolute inset-x-0 bottom-full z-0">
@@ -9766,7 +9774,7 @@ export default function ChatView(props: ChatViewProps) {
                                   draftId &&
                                   !envLocked &&
                                   hasMultipleEnvironments &&
-                                  loadBalancingSettings.loadBalancingEnabled
+                                  clientSettings.loadBalancingEnabled
                                     ? onAutoEnvironment
                                     : undefined
                                 }

@@ -231,6 +231,14 @@ describe("searchSettings", () => {
       id: "word-wrap",
       to: "/settings/appearance",
     });
+    expect(searchSettings("chat alignment")[0]).toMatchObject({
+      id: "chat-alignment",
+      to: "/settings/appearance",
+    });
+    expect(searchSettings("chat gutter")[0]).toMatchObject({
+      id: "chat-left-gutter",
+      to: "/settings/appearance",
+    });
     expect(searchSettings("environment identification")[0]).toMatchObject({
       id: "environment-identification",
       to: "/settings/appearance",

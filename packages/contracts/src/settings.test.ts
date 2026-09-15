@@ -446,6 +446,33 @@ describe("ClientSettings appearance contrast", () => {
   });
 });
 
+describe("ClientSettings chat layout", () => {
+  it("keeps existing clients centered with a 64px saved gutter", () => {
+    expect(decodeClientSettings({})).toMatchObject({
+      chatAlignment: "centered",
+      chatLeftGutter: 64,
+    });
+  });
+
+  it.each(["centered", "left"] as const)("accepts the %s alignment", (chatAlignment) => {
+    expect(decodeClientSettingsPatch({ chatAlignment })).toEqual({ chatAlignment });
+  });
+
+  it("rejects unsupported alignments", () => {
+    expect(() => decodeClientSettings({ chatAlignment: "right" })).toThrow();
+    expect(() => decodeClientSettingsPatch({ chatAlignment: "right" })).toThrow();
+  });
+
+  it.each([0, 64, 320])("accepts an 8px gutter step: %s", (chatLeftGutter) => {
+    expect(decodeClientSettingsPatch({ chatLeftGutter })).toEqual({ chatLeftGutter });
+  });
+
+  it.each([-8, 328, 7, 64.5])("rejects an invalid left gutter: %s", (chatLeftGutter) => {
+    expect(() => decodeClientSettings({ chatLeftGutter })).toThrow();
+    expect(() => decodeClientSettingsPatch({ chatLeftGutter })).toThrow();
+  });
+});
+
 describe("ClientSettings panel animations", () => {
   it("defaults to instant changes", () => {
     expect(decodeClientSettings({}).panelAnimationDurationMs).toBe(0);
