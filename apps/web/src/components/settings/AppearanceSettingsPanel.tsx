@@ -1,3 +1,5 @@
+import type { ChatAlignment } from "@t3tools/contracts";
+import { CHAT_LEFT_GUTTER_STEP, MIN_CHAT_LEFT_GUTTER, MAX_CHAT_LEFT_GUTTER } from "@t3tools/contracts/settings";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import {
@@ -44,6 +46,11 @@ const CHAT_WIDTH_LABELS: Record<ChatWidth, string> = {
   full: "Full",
 };
 
+const CHAT_ALIGNMENT_LABELS: Record<ChatAlignment, string> = {
+  centered: "Centered",
+  left: "Left",
+};
+
 export function AppearanceSettingsPanel() {
   const {
     appearanceMode,
@@ -82,6 +89,17 @@ export function AppearanceSettingsPanel() {
     "--settings-slider-progress": `${panelAnimationDurationRatio * 100}%`,
     "--settings-slider-fill-offset": `${0.5 - panelAnimationDurationRatio}rem`,
   } as CSSProperties;
+
+  const chatLeftGutterRatio =
+    (settings.chatLeftGutter - MIN_CHAT_LEFT_GUTTER) /
+    (MAX_CHAT_LEFT_GUTTER - MIN_CHAT_LEFT_GUTTER);
+  const chatLeftGutterSliderStyle: CSSProperties & {
+    "--settings-slider-progress": string;
+    "--settings-slider-fill-offset": string;
+  } = {
+    "--settings-slider-progress": `${chatLeftGutterRatio * 100}%`,
+    "--settings-slider-fill-offset": `${0.5 - chatLeftGutterRatio}rem`,
+  };
 
   return (
     <SettingsPageContainer>
@@ -374,6 +392,88 @@ export function AppearanceSettingsPanel() {
               }
               aria-label="Render math"
             />
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection id="chat-layout" title="Chat layout">
+        <SettingsRow
+          {...searchableSetting("chat-alignment")}
+          description="Choose where the conversation column sits in the chat pane."
+          resetAction={
+            settings.chatAlignment !== DEFAULT_UNIFIED_SETTINGS.chatAlignment ? (
+              <SettingResetButton
+                label="chat alignment"
+                onClick={() =>
+                  updateSettings({ chatAlignment: DEFAULT_UNIFIED_SETTINGS.chatAlignment })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={settings.chatAlignment}
+              onValueChange={(value) => {
+                if (value === "centered" || value === "left") {
+                  updateSettings({ chatAlignment: value });
+                }
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-40" aria-label="Chat alignment">
+                <SelectValue>{CHAT_ALIGNMENT_LABELS[settings.chatAlignment]}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                <SelectItem value="centered">Centered</SelectItem>
+                <SelectItem value="left">Left</SelectItem>
+              </SelectPopup>
+            </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("chat-left-gutter")}
+          description="Adds space beyond the normal edge padding. It automatically shrinks in narrow panes."
+          resetAction={
+            settings.chatLeftGutter !== DEFAULT_UNIFIED_SETTINGS.chatLeftGutter ? (
+              <SettingResetButton
+                label="chat left gutter"
+                onClick={() =>
+                  updateSettings({ chatLeftGutter: DEFAULT_UNIFIED_SETTINGS.chatLeftGutter })
+                }
+              />
+            ) : null
+          }
+          control={
+            <div className="flex w-full items-center gap-3 sm:w-52">
+              <output
+                className="min-w-14 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                htmlFor="chat-left-gutter"
+              >
+                {settings.chatLeftGutter} px
+              </output>
+              <input
+                aria-label="Chat left gutter"
+                className="settings-slider min-w-0 flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={settings.chatAlignment === "centered"}
+                id="chat-left-gutter"
+                max={MAX_CHAT_LEFT_GUTTER}
+                min={MIN_CHAT_LEFT_GUTTER}
+                onChange={(event) => {
+                  const chatLeftGutter = Number(event.currentTarget.value);
+                  if (
+                    Number.isInteger(chatLeftGutter) &&
+                    chatLeftGutter >= MIN_CHAT_LEFT_GUTTER &&
+                    chatLeftGutter <= MAX_CHAT_LEFT_GUTTER &&
+                    chatLeftGutter % CHAT_LEFT_GUTTER_STEP === 0
+                  ) {
+                    updateSettings({ chatLeftGutter });
+                  }
+                }}
+                step={CHAT_LEFT_GUTTER_STEP}
+                style={chatLeftGutterSliderStyle}
+                type="range"
+                value={settings.chatLeftGutter}
+              />
+            </div>
           }
         />
       </SettingsSection>

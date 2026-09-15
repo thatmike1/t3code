@@ -234,3 +234,8 @@ describe("auto-settlement search availability", () => {
     ).toBe(true);
   });
 });
+
+it("finds fork chat layout settings", () => {
+  expect(searchSettings("chat alignment")[0]?.id).toBe("chat-alignment");
+  expect(searchSettings("chat gutter")[0]?.id).toBe("chat-left-gutter");
+});

@@ -257,6 +257,18 @@ export const SETTINGS_SEARCH_ITEMS = [
     targetId: "appearance-interface",
   },
   {
+    id: "chat-alignment",
+    title: "Chat alignment",
+    to: "/settings/appearance",
+    searchTerms: ["conversation layout centered left reading column"],
+  },
+  {
+    id: "chat-left-gutter",
+    title: "Chat left gutter",
+    to: "/settings/appearance",
+    searchTerms: ["conversation layout margin offset widescreen"],
+  },
+  {
     id: "interface-font",
     title: "Interface font",
     to: "/settings/appearance",

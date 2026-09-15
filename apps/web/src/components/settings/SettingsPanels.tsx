@@ -405,6 +405,8 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.diffColorScheme !== DEFAULT_UNIFIED_SETTINGS.diffColorScheme
       ? ["Diff colors"]
       : []),
+    ...(settings.chatAlignment !== DEFAULT_UNIFIED_SETTINGS.chatAlignment ? ["Chat alignment"] : []),
+    ...(settings.chatLeftGutter !== DEFAULT_UNIFIED_SETTINGS.chatLeftGutter ? ["Chat left gutter"] : []),
     ...(settings.chatWidth !== DEFAULT_UNIFIED_SETTINGS.chatWidth ? ["Chat width"] : []),
     ...(settings.mathRenderingEnabled !== DEFAULT_UNIFIED_SETTINGS.mathRenderingEnabled
       ? ["Render math"]
@@ -582,6 +584,8 @@ export function useSettingsRestore(onRestored?: () => void) {
     updateSettings({
       appearanceContrast: DEFAULT_UNIFIED_SETTINGS.appearanceContrast,
       diffColorScheme: DEFAULT_UNIFIED_SETTINGS.diffColorScheme,
+      chatAlignment: DEFAULT_UNIFIED_SETTINGS.chatAlignment,
+      chatLeftGutter: DEFAULT_UNIFIED_SETTINGS.chatLeftGutter,
       chatWidth: DEFAULT_UNIFIED_SETTINGS.chatWidth,
       mathRenderingEnabled: DEFAULT_UNIFIED_SETTINGS.mathRenderingEnabled,
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
