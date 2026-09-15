@@ -617,13 +617,14 @@ function SidebarDragBoundary(props: {
   /** A hairline shown while no drag is running, so the pinned group reads as its own block. */
   restingRule?: boolean;
 }) {
+  const showRestingRule = props.restingRule && !props.visible;
   return (
     <SortableSidebarMarker
       marker={props.marker}
       data-testid={`sidebar-${props.marker}`}
-      className="pointer-events-none relative mx-0.5 -mb-px h-0"
+      className={cn("pointer-events-none relative mx-0.5 h-0", showRestingRule ? "mb-1" : "-mb-px")}
     >
-      {props.restingRule && !props.visible ? (
+      {showRestingRule ? (
         <div
           aria-hidden
           data-testid={`sidebar-${props.marker}-rule`}
