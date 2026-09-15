@@ -1450,7 +1450,7 @@ export function AppearanceSettingsPanel() {
             <div className="flex w-full items-center gap-3 sm:w-52">
               <output
                 className="min-w-14 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
-                htmlFor="chat-left-gutter"
+                htmlFor="chat-left-gutter-slider"
               >
                 {settings.chatLeftGutter} px
               </output>
@@ -1458,7 +1458,7 @@ export function AppearanceSettingsPanel() {
                 aria-label="Chat left gutter"
                 className="settings-slider min-w-0 flex-1 disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={settings.chatAlignment === "centered"}
-                id="chat-left-gutter"
+                id="chat-left-gutter-slider"
                 max={MAX_CHAT_LEFT_GUTTER}
                 min={MIN_CHAT_LEFT_GUTTER}
                 onChange={(event) => {

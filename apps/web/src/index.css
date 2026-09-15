@@ -936,11 +936,24 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 /* timeline rows and the composer share responsive edge padding. In left mode,
    this consumes the optional gutter before narrowing the reading column. */
 [data-chat-alignment="left"] .chat-reading-column {
-  --chat-effective-left-gutter: min(var(--chat-left-gutter), max(0px, calc(100% - 48rem)));
-  width: min(48rem, calc(100% - var(--chat-effective-left-gutter)));
+  --chat-width-adjustment: 0px;
+  --chat-available-width: calc(100% + var(--chat-width-adjustment));
+  --chat-effective-left-gutter: min(
+    var(--chat-left-gutter),
+    max(0px, calc(var(--chat-available-width) - 48rem))
+  );
+  width: min(48rem, calc(var(--chat-available-width) - var(--chat-effective-left-gutter)));
   max-width: none;
   margin-inline-start: var(--chat-effective-left-gutter);
   margin-inline-end: auto;
+}
+
+[data-chat-alignment="left"] .chat-timeline-scroll {
+  scrollbar-gutter: stable;
+}
+
+[data-chat-alignment="left"] .chat-reading-column-scrollbar-adjusted {
+  --chat-width-adjustment: var(--app-scrollbar-width);
 }
 
 /* Safe-area inset utilities for surfaces that opt into edge-to-edge rendering.
