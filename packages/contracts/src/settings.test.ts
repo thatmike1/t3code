@@ -463,11 +463,11 @@ describe("ClientSettings chat layout", () => {
     expect(() => decodeClientSettingsPatch({ chatAlignment: "right" })).toThrow();
   });
 
-  it.each([0, 64, 320])("accepts an 8px gutter step: %s", (chatLeftGutter) => {
+  it.each([0, 64, 320, 400, 500])("accepts a 4px gutter step: %s", (chatLeftGutter) => {
     expect(decodeClientSettingsPatch({ chatLeftGutter })).toEqual({ chatLeftGutter });
   });
 
-  it.each([-8, 328, 7, 64.5])("rejects an invalid left gutter: %s", (chatLeftGutter) => {
+  it.each([-4, 504, 3, 64.5])("rejects an invalid left gutter: %s", (chatLeftGutter) => {
     expect(() => decodeClientSettings({ chatLeftGutter })).toThrow();
     expect(() => decodeClientSettingsPatch({ chatLeftGutter })).toThrow();
   });
