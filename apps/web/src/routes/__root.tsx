@@ -36,6 +36,7 @@ import { ProjectCloneToastCoordinator } from "../components/ProjectCloneToastCoo
 import { ConnectDeviceApprovalCoordinator } from "../components/ConnectDeviceApprovalCoordinator";
 import { ChatGptWelcomeCoordinator } from "../components/settings/ChatGptWelcomeCoordinator";
 import { ThemeEditorHost } from "../components/settings/ThemeEditorHost";
+import { ThreadSwitcher } from "../components/ThreadSwitcher";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { Button } from "../components/ui/button";
 import { StandalonePage, StandalonePageHeader } from "../components/ui/standalone-page";
