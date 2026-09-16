@@ -432,6 +432,7 @@ import { useEnvironments, usePrimaryEnvironment } from "../state/environments";
 import {
   resolveThreadDetailRef,
   useEnvironmentSupportsServerBrowser,
+  readThreadShell,
   useProject,
   useProjects,
   useThreadProjection,
@@ -443,6 +444,7 @@ import {
   useThreadVisibleTurnItems,
   waitForThreadShell,
 } from "../state/entities";
+import { getRecentThreads, threadAfterClose } from "../thread-switcher.logic";
 import { environmentShell } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
@@ -7103,6 +7105,73 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
   const handleUnsettleActiveThreadStable = useStableCallback(handleUnsettleActiveThread);
+  // mod+w with no right panel open closes the thread like a browser tab: it
+  // settles through V2's own thread.settle, then lands on the most recently
+  // visited other thread that is still open. It never closes the window. The
+  // server refuses to settle a busy thread; that reason is shown and the
+  // thread stays put rather than being forced.
+  const closingThreadKeyRef = useRef<string | null>(null);
+  // the thread this view shows right now; cleared on unmount so a settle that
+  // lands after the user moved on never navigates.
+  const activeThreadKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeThreadKeyRef.current = activeThreadKey;
+    return () => {
+      activeThreadKeyRef.current = null;
+    };
+  }, [activeThreadKey]);
+  const closeActiveThread = (threadRef: ScopedThreadRef, canSettle: boolean) => {
+    const threadKey = scopedThreadKey(threadRef);
+    if (closingThreadKeyRef.current === threadKey) return;
+    const jumpToRecentThread = () => {
+      // a navigation made while the settle was in flight wins over ours.
+      if (activeThreadKeyRef.current !== threadKey) return;
+      const now = new Date().toISOString();
+      const next = threadAfterClose(getRecentThreads(), threadRef, (candidate) => {
+        const shell = readThreadShell(candidate);
+        return (
+          shell !== null &&
+          shell.archivedAt === null &&
+          shell.deletedAt === null &&
+          shell.settledOverride !== "settled" &&
+          !effectiveSnoozed(shell, { now })
+        );
+      });
+      void navigate(
+        next
+          ? {
+              to: "/$environmentId/$threadId",
+              params: { environmentId: next.environmentId, threadId: next.threadId },
+            }
+          : { to: "/" },
+      );
+    };
+    if (!canSettle || activeThreadSettled) {
+      jumpToRecentThread();
+      return;
+    }
+    closingThreadKeyRef.current = threadKey;
+    void settleThread(threadRef)
+      .then((result) => {
+        if (result._tag === "Failure") {
+          if (isAtomCommandInterrupted(result)) return;
+          const error = squashAtomCommandFailure(result);
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title: "Thread not settled",
+              description: error instanceof Error ? error.message : "An error occurred.",
+            }),
+          );
+          return;
+        }
+        jumpToRecentThread();
+      })
+      .finally(() => {
+        if (closingThreadKeyRef.current === threadKey) closingThreadKeyRef.current = null;
+      });
+  };
+  const closeActiveThreadStable = useStableCallback(closeActiveThread);
   const unsnoozeThreadMutation = useOrchestrationCommand(threadEnvironment.unsnooze, {
     reportFailure: false,
   });
@@ -8001,9 +8070,19 @@ export default function ChatView(props: ChatViewProps) {
       }
 
       if (command === "rightPanel.close") {
-        // Nothing open: leave the event alone so the shortcut keeps its
-        // native meaning (close window on desktop, close tab in a browser).
-        if (!activeRightPanelSurface) return;
+        // nothing open: close the thread like a browser tab, settling it and
+        // landing on the most recently visited thread that is still open.
+        if (!activeRightPanelSurface) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.repeat || !isServerThread || !activeThreadRef) return;
+          closeActiveThreadStable(
+            activeThreadRef,
+            supportsSettlement &&
+              readEnvironmentScope(environmentId, AuthOrchestrationOperateScope),
+          );
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         if (!event.repeat) closeRightPanelSurfaceStable(activeRightPanelSurface);
@@ -8201,6 +8280,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadPinned,
     activeThreadSettled,
     canInterruptRunningThread,
+    closeActiveThreadStable,
     terminalUiState.terminalOpen,
     terminalUiState.activeTerminalId,
     activeThreadId,
