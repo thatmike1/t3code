@@ -2400,6 +2400,7 @@ export default function ChatView(props: ChatViewProps) {
     setBranchMismatchDismissTick,
     showBranchMismatchBanner,
     threadStatusLine,
+    closeActiveThread,
     shortcuts: threadLifecycleShortcuts,
   } = useThreadLifecycle({
     environmentId,
@@ -2702,6 +2703,12 @@ export default function ChatView(props: ChatViewProps) {
       ...terminalShortcuts,
       ...rightPanelShortcuts,
       ...threadLifecycleShortcuts,
+      "rightPanel.close": ({ event }) => {
+        if (activeRightPanelSurface) return rightPanelShortcuts["rightPanel.close"]({ event });
+        if (!event.repeat && activeThreadRef) {
+          closeActiveThread(activeThreadRef, serverConfig?.threadSettlement === true && readEnvironmentScope(environmentId, AuthOrchestrationOperateScope));
+        }
+      },
       "thread.copyReference": ({ event }) => {
         if (!event.repeat) copyActiveThreadReference();
       },
