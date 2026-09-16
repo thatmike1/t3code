@@ -4,7 +4,6 @@ import type {
   EnvironmentProject,
   EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/shell";
-import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -22,8 +21,10 @@ import { useProjects, useThreadShells } from "../state/entities";
 import { primaryServerProvidersAtom } from "../state/server";
 import {
   beginThreadSwitch,
+  getRecentThreads,
   pruneThreadHistory,
   selectedSwitcherThread,
+  setRecentThreads,
   stepThreadSwitch,
   type ThreadSwitcherGesture,
   visitThread,
@@ -182,7 +183,6 @@ export function ThreadSwitcher() {
   const primaryProviders = useAtomValue(primaryServerProvidersAtom);
   const [gesture, setGesture] = useState<ThreadSwitcherGesture | null>(null);
   const gestureRef = useRef<ThreadSwitcherGesture | null>(null);
-  const historyRef = useRef<ReadonlyArray<ScopedThreadRef>>([]);
   const priorFocusRef = useRef<HTMLElement | null>(null);
 
   const threadByKey = useMemo(
@@ -226,10 +226,11 @@ export function ThreadSwitcher() {
   );
 
   useEffect(() => {
-    historyRef.current = pruneThreadHistory(historyRef.current, new Set(threadByKey.keys()));
+    let history = pruneThreadHistory(getRecentThreads(), new Set(threadByKey.keys()));
     if (routeThreadRef && threadByKey.has(scopedThreadKey(routeThreadRef))) {
-      historyRef.current = visitThread(historyRef.current, routeThreadRef);
+      history = visitThread(history, routeThreadRef);
     }
+    setRecentThreads(history);
   }, [routeThreadRef, threadByKey]);
 
   const closeGesture = useCallback((restoreFocus: boolean) => {
@@ -265,7 +266,7 @@ export function ThreadSwitcher() {
         return true;
       }
       if (!routeThreadRef) return false;
-      const next = beginThreadSwitch(historyRef.current, routeThreadRef, reverse);
+      const next = beginThreadSwitch(getRecentThreads(), routeThreadRef, reverse);
       if (!next) return false;
       priorFocusRef.current =
         document.activeElement instanceof HTMLElement ? document.activeElement : null;

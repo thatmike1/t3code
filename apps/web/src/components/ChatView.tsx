@@ -358,12 +358,14 @@ import { useProjectClone } from "../state/projectClones";
 import { projectCloneDisplayName, projectCloneProgressSummary } from "@t3tools/contracts";
 import { useEnvironments, usePrimaryEnvironment } from "../state/environments";
 import {
+  readThreadShell,
   useProject,
   useProjects,
   useThread,
   useThreadRefs,
   useThreadShell,
 } from "../state/entities";
+import { getRecentThreads, threadAfterClose } from "../thread-switcher.logic";
 import { environmentShell } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
@@ -6102,6 +6104,41 @@ export default function ChatView(props: ChatViewProps) {
       setUnsettlingThreadKey((current) => (current === threadKey ? null : current));
     }
   }, [activeThreadRef, unsettleThreadMutation]);
+  const closeActiveThread = useCallback(
+    (threadRef: ScopedThreadRef) => {
+      const now = new Date().toISOString();
+      const next = threadAfterClose(getRecentThreads(), threadRef, (candidate) => {
+        const shell = readThreadShell(candidate);
+        return (
+          shell !== null &&
+          shell.archivedAt === null &&
+          shell.settledOverride !== "settled" &&
+          !effectiveSnoozed(shell, { now })
+        );
+      });
+      void navigate(
+        next
+          ? {
+              to: "/$environmentId/$threadId",
+              params: { environmentId: next.environmentId, threadId: next.threadId },
+            }
+          : { to: "/" },
+      );
+      if (!supportsSettlement || activeThreadSettled) return;
+      void settleThread(threadRef).then((result) => {
+        if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return;
+        const error = squashAtomCommandFailure(result);
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Failed to settle thread",
+            description: error instanceof Error ? error.message : "An error occurred.",
+          }),
+        );
+      });
+    },
+    [activeThreadSettled, navigate, settleThread, supportsSettlement],
+  );
   const unsnoozeThreadMutation = useAtomCommand(threadEnvironment.unsnooze, {
     reportFailure: false,
   });
@@ -6786,9 +6823,15 @@ export default function ChatView(props: ChatViewProps) {
       }
 
       if (command === "rightPanel.close") {
-        // Nothing open: leave the event alone so the shortcut keeps its
-        // native meaning (close window on desktop, close tab in a browser).
-        if (!activeRightPanelSurface) return;
+        // nothing open: close the thread like a browser tab, settling it and
+        // landing on the most recently visited thread that is still open.
+        if (!activeRightPanelSurface) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.repeat || !isServerThread || !activeThreadRef) return;
+          closeActiveThread(activeThreadRef);
+          return;
+        }
         event.preventDefault();
         event.stopPropagation();
         if (!event.repeat) closeRightPanelSurface(activeRightPanelSurface);
@@ -6929,6 +6972,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadPinned,
     activeThreadSettled,
     canInterruptRunningThread,
+    closeActiveThread,
     activeThreadKey,
     terminalUiState.terminalOpen,
     terminalUiState.activeTerminalId,

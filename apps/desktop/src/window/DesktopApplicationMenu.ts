@@ -253,7 +253,17 @@ export const make = Effect.gen(function* () {
           { role: "togglefullscreen" },
         ],
       },
-      { role: "windowMenu" },
+      // off macOS closing the only window quits the app, so ctrl+w stays with
+      // the renderer (close panel, then close thread) instead of this menu.
+      environment.platform === "darwin"
+        ? { role: "windowMenu" }
+        : {
+            label: "Window",
+            submenu: [
+              { role: "minimize" },
+              { label: "Close Window", click: (_item, window) => window?.close() },
+            ],
+          },
       {
         role: "help",
         submenu: [
