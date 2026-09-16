@@ -7,6 +7,7 @@ import {
   pruneThreadHistory,
   selectedSwitcherThread,
   stepThreadSwitch,
+  threadAfterClose,
   visitThread,
 } from "./thread-switcher.logic";
 
@@ -76,5 +77,19 @@ describe("thread switcher MRU", () => {
       gesture = stepThreadSwitch(gesture, false);
     }
     expect(selectedSwitcherThread(gesture)).toEqual(threads[11]);
+  });
+});
+
+describe("threadAfterClose", () => {
+  it("lands on the most recent other thread that is still open", () => {
+    const history = [THREAD_A, THREAD_B, THREAD_C];
+    const closedKey = scopedThreadKey(THREAD_B);
+    expect(
+      threadAfterClose(history, THREAD_A, (thread) => scopedThreadKey(thread) !== closedKey),
+    ).toEqual(THREAD_C);
+  });
+
+  it("returns null when nothing else is open", () => {
+    expect(threadAfterClose([THREAD_A], THREAD_A, () => true)).toBeNull();
   });
 });

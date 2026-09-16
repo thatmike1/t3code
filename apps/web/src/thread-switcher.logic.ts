@@ -49,3 +49,27 @@ export function stepThreadSwitch(
 export function selectedSwitcherThread(gesture: ThreadSwitcherGesture): ScopedThreadRef | null {
   return gesture.threads[gesture.selectedIndex] ?? null;
 }
+
+/**
+ * picks where to land after closing a thread with mod+w: the most recently
+ * visited other thread that the caller still considers open.
+ */
+export function threadAfterClose(
+  history: ReadonlyArray<ScopedThreadRef>,
+  closing: ScopedThreadRef,
+  isOpen: (thread: ScopedThreadRef) => boolean,
+): ScopedThreadRef | null {
+  const closingKey = scopedThreadKey(closing);
+  return history.find((thread) => scopedThreadKey(thread) !== closingKey && isOpen(thread)) ?? null;
+}
+
+let recentThreads: ReadonlyArray<ScopedThreadRef> = [];
+
+/** the shared MRU list, written by the thread switcher and read by the close shortcut */
+export function getRecentThreads(): ReadonlyArray<ScopedThreadRef> {
+  return recentThreads;
+}
+
+export function setRecentThreads(history: ReadonlyArray<ScopedThreadRef>): void {
+  recentThreads = history;
+}
