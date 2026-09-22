@@ -884,6 +884,17 @@ describe("ChatMarkdown bead links", () => {
     expect(html).toContain('data-markdown-copy="`ccChat-general-4y6`"');
   });
 
+  it("chips a four-character bead id in prose and inline code", () => {
+    const adaptiveId = "ccChat-general-jrz2";
+    const adaptiveHref = `http://127.0.0.1:1338/#${adaptiveId}`;
+    const html = renderToStaticMarkup(
+      <ChatMarkdown cwd={undefined} text={`filed as ${adaptiveId} and \`${adaptiveId}\``} />,
+    );
+
+    expect(html.split(`href="${adaptiveHref}"`)).toHaveLength(3);
+    expect(html).toContain(`data-markdown-copy="\`${adaptiveId}\`"`);
+  });
+
   it("keeps a short id as plain code until bd-board confirms it", () => {
     const html = renderToStaticMarkup(<ChatMarkdown cwd={undefined} text="see `qju`" />);
 

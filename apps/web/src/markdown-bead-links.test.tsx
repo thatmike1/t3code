@@ -25,7 +25,7 @@ describe("remarkBeadAutolinks", () => {
   });
 
   it("leaves a longer identifier that merely starts with an id alone", () => {
-    const html = renderMarkdown("see ccChat-general-4y6x and ccChat-general-4y6-old");
+    const html = renderMarkdown("see ccChat-general-jrz2xabcd and ccChat-general-jrz2-old");
 
     expect(html).not.toContain("data-bead-id");
   });
@@ -79,10 +79,15 @@ describe("beadIdCandidate", () => {
 });
 
 describe("shortBeadIdCandidate", () => {
-  const known = new Set(["ccChat-general-qju", "ccChat-general-zye.6"]);
+  const known = new Set([
+    "ccChat-general-qju",
+    "ccChat-general-jrz2",
+    "ccChat-general-zye.6",
+  ]);
 
   it("resolves a short id bd-board knows to the full id", () => {
     expect(shortBeadIdCandidate("qju", known)).toBe("ccChat-general-qju");
+    expect(shortBeadIdCandidate("jrz2", known)).toBe("ccChat-general-jrz2");
     expect(shortBeadIdCandidate(" zye.6 ", known)).toBe("ccChat-general-zye.6");
   });
 
@@ -93,9 +98,13 @@ describe("shortBeadIdCandidate", () => {
   });
 
   it("rejects spans that are not exactly a short id", () => {
-    const loose = new Set(["ccChat-general-QJU", "ccChat-general-qjux", "ccChat-general-qju."]);
+    const loose = new Set([
+      "ccChat-general-QJU",
+      "ccChat-general-abcdefghi",
+      "ccChat-general-qju.",
+    ]);
     expect(shortBeadIdCandidate("QJU", loose)).toBeNull();
-    expect(shortBeadIdCandidate("qjux", loose)).toBeNull();
+    expect(shortBeadIdCandidate("abcdefghi", loose)).toBeNull();
     expect(shortBeadIdCandidate("qju.", loose)).toBeNull();
     expect(shortBeadIdCandidate("bd show qju", known)).toBeNull();
   });
