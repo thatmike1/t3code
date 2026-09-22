@@ -9,13 +9,13 @@ import { Tool, Toolkit } from "effect/unstable/ai";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as OrchestrationEngine from "../../../orchestration/Services/OrchestrationEngine.ts";
 import * as ProjectionSnapshotQuery from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
-import { ProviderRegistry } from "../../../provider/Services/ProviderRegistry.ts";
+import * as ProviderRegistry from "../../../provider/Services/ProviderRegistry.ts";
 
 const dependencies = [
   McpInvocationContext.McpInvocationContext,
   OrchestrationEngine.OrchestrationEngineService,
   ProjectionSnapshotQuery.ProjectionSnapshotQuery,
-  ProviderRegistry,
+  ProviderRegistry.ProviderRegistry,
 ];
 
 // Names, schemas, and descriptions follow the Orchestrator V2 toolkit (#2829),
