@@ -26,7 +26,7 @@ import * as Option from "effect/Option";
 
 import * as OrchestrationEngine from "../../../orchestration/Services/OrchestrationEngine.ts";
 import * as ProjectionSnapshotQuery from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
-import { ProviderRegistry } from "../../../provider/Services/ProviderRegistry.ts";
+import * as ProviderRegistry from "../../../provider/Services/ProviderRegistry.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import { OrchestratorToolkit } from "./tools.ts";
 
@@ -283,16 +283,22 @@ const hex = (bytes: Uint8Array) =>
 const make = Effect.gen(function* () {
   const engine = yield* OrchestrationEngine.OrchestrationEngineService;
   const snapshots = yield* ProjectionSnapshotQuery.ProjectionSnapshotQuery;
-  const providerRegistry = yield* ProviderRegistry;
+  const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
   const crypto = yield* Crypto.Crypto;
   const encoder = new TextEncoder();
 
+  // A returned failure is a normal tool result, so McpServer never logs it.
+  // Log the cause here. The agent gets the message, the same text V2 returns.
   const orchestrationError =
     (context: string) =>
     <E>(cause: Cause.Cause<E>): Effect.Effect<never, OrchestratorMcpFailure> =>
       Cause.hasInterruptsOnly(cause)
         ? Effect.failCause(cause as Cause.Cause<never>)
-        : Effect.fail(failure("orchestration_error", `${context}: ${errorMessage(cause)}`));
+        : Effect.logWarning(`create_threads: ${context}`, cause).pipe(
+            Effect.andThen(
+              Effect.fail(failure("orchestration_error", `${context}: ${errorMessage(cause)}`)),
+            ),
+          );
 
   const requireScope = Effect.gen(function* () {
     const scope = yield* McpInvocationContext.McpInvocationContext;

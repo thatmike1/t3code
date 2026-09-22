@@ -28,7 +28,7 @@ import {
   type OrchestrationEngineShape,
 } from "../../../orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
-import { ProviderRegistry } from "../../../provider/Services/ProviderRegistry.ts";
+import * as ProviderRegistry from "../../../provider/Services/ProviderRegistry.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import { OrchestratorToolkitHandlersLive } from "./handlers.ts";
 import { OrchestratorToolkit } from "./tools.ts";
@@ -188,7 +188,7 @@ const makeHarness = Effect.fn("makeOrchestratorToolkitHarness")(function* (
       streamDomainEvents: Stream.empty,
       latestSequence: Effect.succeed(0),
     }),
-    Layer.mock(ProviderRegistry)({
+    Layer.mock(ProviderRegistry.ProviderRegistry)({
       getProviders: Effect.succeed(
         options.providers ?? [
           makeProvider(CODEX, "codex", ["gpt-5", "gpt-5-mini"]),
