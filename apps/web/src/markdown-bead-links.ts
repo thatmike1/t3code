@@ -27,9 +27,9 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
-const BEAD_ID_SOURCE = `(?:${BEAD_ID_PREFIXES.map(escapeRegExp).join("|")})-[0-9a-z]{3}(?:\\.[0-9]+)?`;
-/** A bare suffix with an optional child suffix: `oup`, `zye.6`. */
-const SHORT_BEAD_ID_PATTERN = /^[0-9a-z]{3}(?:\.[0-9]+)?$/u;
+const BEAD_ID_SOURCE = `(?:${BEAD_ID_PREFIXES.map(escapeRegExp).join("|")})-[0-9a-z]{3,8}(?:\\.[0-9]+)?`;
+/** A bare suffix with an optional child suffix: `oup`, `jrz2`, `zye.6`. */
+const SHORT_BEAD_ID_PATTERN = /^[0-9a-z]{3,8}(?:\.[0-9]+)?$/u;
 const BEAD_ID_PATTERN = new RegExp(BEAD_ID_SOURCE, "gu");
 const BEAD_ID_EXACT_PATTERN = new RegExp(`^${BEAD_ID_SOURCE}$`, "u");
 /** A hyphen counts, so a longer id is never clipped down to a valid one. */
