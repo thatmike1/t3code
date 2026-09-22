@@ -27,11 +27,13 @@ and worktree while you stay in the new thread composer. This requires a Git proj
 
 ### Start from an agent
 
-An agent can start a new thread in its own project with the `start_thread` tool
-on the T3 Code MCP server. The new thread keeps the agent's provider, checkout,
-and worktree, and runs on its own. Ask for it when you want work split across
-threads, or when a follow-up should keep going after the current turn ends. Two
-threads editing one checkout can conflict, so ask the agent to split by files.
+Ask an agent to split work into separate threads and it can start them with the
+`create_threads` tool on the T3 Code MCP server. Each new thread runs in the
+agent's project, branch, and worktree. It uses the agent's provider and model
+unless the agent picks another one, and it cannot get broader permissions than
+the agent has. New threads run on their own and do not report back. Threads that
+edit one checkout at the same time can conflict, so ask the agent to split the
+work by files.
 
 ## Pin and reorder threads
 
