@@ -18,12 +18,12 @@ import {
   type ServerProvider,
   ThreadId,
 } from "@t3tools/contracts";
-import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 
+import type { OrchestrationDispatchError } from "../../../orchestration/Errors.ts";
 import * as OrchestrationEngine from "../../../orchestration/Services/OrchestrationEngine.ts";
 import * as ProjectionSnapshotQuery from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
 import * as ProviderRegistry from "../../../provider/Services/ProviderRegistry.ts";
@@ -33,15 +33,6 @@ import { OrchestratorToolkit } from "./tools.ts";
 // Ports of the matching Orchestrator V2 helpers (#2829,
 // apps/server/src/mcp/OrchestratorMcpService.ts). Keep them in step until
 // V2 replaces this file.
-
-function failure(code: OrchestratorMcpFailure["code"], message: string): OrchestratorMcpFailure {
-  return new OrchestratorMcpFailure({ code, message });
-}
-
-function errorMessage(cause: Cause.Cause<unknown>): string {
-  const error = Cause.squash(cause);
-  return error instanceof Error ? error.message : String(error);
-}
 
 function runtimeModeRank(mode: RuntimeMode): number {
   switch (mode) {
@@ -68,10 +59,10 @@ function resolveRuntimeMode(
   const resolved = requested === undefined || requested === "inherit" ? parentMode : requested;
   return runtimeModeRank(resolved) > runtimeModeRank(parentMode)
     ? Effect.fail(
-        failure(
-          "runtime_mode_escalation_denied",
-          `Child runtime mode ${resolved} is broader than parent mode ${parentMode}.`,
-        ),
+        new OrchestratorMcpFailure({
+          code: "runtime_mode_escalation_denied",
+          message: `Child runtime mode ${resolved} is broader than parent mode ${parentMode}.`,
+        }),
       )
     : Effect.succeed(resolved);
 }
@@ -83,10 +74,10 @@ function resolveInteractionMode(
   const resolved = requested === undefined || requested === "inherit" ? parentMode : requested;
   return interactionModeRank(resolved) > interactionModeRank(parentMode)
     ? Effect.fail(
-        failure(
-          "interaction_mode_escalation_denied",
-          `Child interaction mode ${resolved} is broader than parent mode ${parentMode}.`,
-        ),
+        new OrchestratorMcpFailure({
+          code: "interaction_mode_escalation_denied",
+          message: `Child interaction mode ${resolved} is broader than parent mode ${parentMode}.`,
+        }),
       )
     : Effect.succeed(resolved);
 }
@@ -171,33 +162,33 @@ function resolveTarget(input: {
         ) ?? candidates[0]
       )?.instanceId;
       if (instanceId === undefined) {
-        return yield* failure(
-          "provider_unavailable",
-          `No available provider instance for driver ${requestedDriver}.`,
-        );
+        return yield* new OrchestratorMcpFailure({
+          code: "provider_unavailable",
+          message: `No available provider instance for driver ${requestedDriver}.`,
+        });
       }
     }
     instanceId ??= input.parent.modelSelection.instanceId;
 
     const provider = input.providers.find((candidate) => candidate.instanceId === instanceId);
     if (provider === undefined) {
-      return yield* failure(
-        "provider_unavailable",
-        `Provider instance ${instanceId} is not registered.`,
-      );
+      return yield* new OrchestratorMcpFailure({
+        code: "provider_unavailable",
+        message: `Provider instance ${instanceId} is not registered.`,
+      });
     }
     if (requestedDriver !== undefined && provider.driver !== requestedDriver) {
-      return yield* failure(
-        "invalid_request",
-        `Provider instance ${instanceId} uses driver ${provider.driver}, not ${requestedDriver}.`,
-      );
+      return yield* new OrchestratorMcpFailure({
+        code: "invalid_request",
+        message: `Provider instance ${instanceId} uses driver ${provider.driver}, not ${requestedDriver}.`,
+      });
     }
     const constraints = providerConstraints(provider);
     if (constraints.length > 0) {
-      return yield* failure(
-        "provider_unavailable",
-        `Provider ${instanceId} cannot run a new thread: ${constraints.join(" ")}`,
-      );
+      return yield* new OrchestratorMcpFailure({
+        code: "provider_unavailable",
+        message: `Provider ${instanceId} cannot run a new thread: ${constraints.join(" ")}`,
+      });
     }
 
     const inherited = input.parent.modelSelection;
@@ -206,20 +197,20 @@ function resolveTarget(input: {
       requestedModel ??
       (instanceId === inherited.instanceId ? inherited.model : provider.models[0]?.slug);
     if (model === undefined) {
-      return yield* failure(
-        "model_unavailable",
-        `Provider ${instanceId} has no model available for inheritance.`,
-      );
+      return yield* new OrchestratorMcpFailure({
+        code: "model_unavailable",
+        message: `Provider ${instanceId} has no model available for inheritance.`,
+      });
     }
     if (
       requestedModel !== undefined &&
       provider.models.length > 0 &&
       !provider.models.some((candidate) => candidate.slug === requestedModel)
     ) {
-      return yield* failure(
-        "model_unavailable",
-        `Model ${requestedModel} is not advertised by provider ${instanceId}.`,
-      );
+      return yield* new OrchestratorMcpFailure({
+        code: "model_unavailable",
+        message: `Model ${requestedModel} is not advertised by provider ${instanceId}.`,
+      });
     }
 
     const requestedOptions = input.target?.options;
@@ -228,10 +219,10 @@ function resolveTarget(input: {
         ?.capabilities?.optionDescriptors;
       const invalid = invalidOptionSelections(requestedOptions, descriptors);
       if (invalid.length > 0) {
-        return yield* failure(
-          "invalid_request",
-          `Model ${model} on provider ${instanceId} rejected options: ${invalid.join(" ")}`,
-        );
+        return yield* new OrchestratorMcpFailure({
+          code: "invalid_request",
+          message: `Model ${model} on provider ${instanceId} rejected options: ${invalid.join(" ")}`,
+        });
       }
     }
 
@@ -257,6 +248,29 @@ function threadTitle(input: {
   const detail = input.title?.trim() || input.prompt?.trim();
   if (!detail) return `${input.parentTitle} thread ${input.index + 1}`;
   return detail.length > 80 ? `${detail.slice(0, 77)}...` : detail;
+}
+
+/**
+ * What the agent can do about a failed dispatch or read, from the error tag
+ * alone. The engine replays an accepted command id, so a storage failure is
+ * safe to retry with the same clientRequestId. A rejection is stored too, so
+ * retrying it needs a new clientRequestId.
+ */
+function orchestrationErrorReason(error: OrchestrationDispatchError): string {
+  switch (error._tag) {
+    case "OrchestrationCommandInvariantError":
+      return `T3 Code rejected the ${error.commandType} command.`;
+    case "OrchestrationThreadSettleBlockedError":
+      return "T3 Code rejected the command.";
+    case "OrchestrationCommandPreviouslyRejectedError":
+      return "An earlier call with this clientRequestId was rejected. Retry with a new clientRequestId.";
+    case "OrchestrationCommandIdConflictError":
+      return "This clientRequestId was already used for other work. Retry with a new clientRequestId.";
+    case "PersistenceSqlError":
+    case "PersistenceDecodeError":
+    case "OrchestrationProjectorDecodeError":
+      return "T3 Code could not read or write its database. Retry with the same clientRequestId.";
+  }
 }
 
 function createdThreadStatus(
@@ -288,36 +302,44 @@ const make = Effect.gen(function* () {
   const encoder = new TextEncoder();
 
   // A returned failure is a normal tool result, so McpServer never logs it.
-  // Log the cause here. The agent gets the message, the same text V2 returns.
+  // Log the error here, and give the agent a message built from its tag.
   const orchestrationError =
     (context: string) =>
-    <E>(cause: Cause.Cause<E>): Effect.Effect<never, OrchestratorMcpFailure> =>
-      Cause.hasInterruptsOnly(cause)
-        ? Effect.failCause(cause as Cause.Cause<never>)
-        : Effect.logWarning(`create_threads: ${context}`, cause).pipe(
-            Effect.andThen(
-              Effect.fail(failure("orchestration_error", `${context}: ${errorMessage(cause)}`)),
-            ),
-          );
+    (error: OrchestrationDispatchError): Effect.Effect<never, OrchestratorMcpFailure> =>
+      Effect.logWarning(`create_threads: ${context}`, error).pipe(
+        Effect.andThen(
+          Effect.fail(
+            new OrchestratorMcpFailure({
+              code: "orchestration_error",
+              message: `${context}: ${orchestrationErrorReason(error)}`,
+            }),
+          ),
+        ),
+      );
 
   const requireScope = Effect.gen(function* () {
     const scope = yield* McpInvocationContext.McpInvocationContext;
     if (!scope.capabilities.has("orchestration")) {
-      return yield* failure(
-        "capability_denied",
-        "This MCP credential does not grant orchestration capabilities.",
-      );
+      return yield* new OrchestratorMcpFailure({
+        code: "capability_denied",
+        message: "This MCP credential does not grant orchestration capabilities.",
+      });
     }
     return scope;
   });
 
   const loadThread = (threadId: ThreadId) =>
     snapshots.getThreadShellById(threadId).pipe(
-      Effect.catchCause(orchestrationError(`Unable to read thread ${threadId}`)),
+      Effect.catch(orchestrationError(`Unable to read thread ${threadId}`)),
       Effect.flatMap(
         Option.match({
           onNone: () =>
-            Effect.fail(failure("thread_not_found", `Thread ${threadId} was not found.`)),
+            Effect.fail(
+              new OrchestratorMcpFailure({
+                code: "thread_not_found",
+                message: `Thread ${threadId} was not found.`,
+              }),
+            ),
           onSome: Effect.succeed,
         }),
       ),
@@ -437,7 +459,7 @@ const make = Effect.gen(function* () {
                 worktreePath: parent.worktreePath,
                 createdAt,
               })
-              .pipe(Effect.catchCause(orchestrationError(`Unable to create thread ${index + 1}`)));
+              .pipe(Effect.catch(orchestrationError(`Unable to create thread ${index + 1}`)));
             if (request.prompt !== undefined) {
               yield* engine
                 .dispatch({
@@ -463,7 +485,7 @@ const make = Effect.gen(function* () {
                   interactionMode: plan.interactionMode,
                   createdAt,
                 })
-                .pipe(Effect.catchCause(orchestrationError(`Unable to start thread ${index + 1}`)));
+                .pipe(Effect.catch(orchestrationError(`Unable to start thread ${index + 1}`)));
             }
             // Read back what the engine holds: a retried request reports the
             // thread it created the first time, not this call's input.

@@ -402,7 +402,9 @@ describe("orchestrator toolkit: create_threads", () => {
       const request = { threads: [{ prompt: "Do it" }], clientRequestId: "req-1" };
       const error = yield* harness.createThreadsFailure(request);
       expect(error.code).toBe("orchestration_error");
-      expect(error.message).toContain("Unable to start thread 1");
+      expect(error.message).toBe(
+        "Unable to start thread 1: T3 Code could not read or write its database. Retry with the same clientRequestId.",
+      );
 
       storageDown = false;
       const retry = yield* harness.createThreads(request);
@@ -428,8 +430,12 @@ describe("orchestrator toolkit: create_threads", () => {
       const request = { threads: [{ prompt: "Do it" }], clientRequestId: "req-1" };
       const first = yield* harness.createThreadsFailure(request);
       const retry = yield* harness.createThreadsFailure(request);
-      expect(first.message).toContain("Thread is archived.");
-      expect(retry.message).toContain("Thread is archived.");
+      expect(first.message).toBe(
+        "Unable to start thread 1: T3 Code rejected the thread.turn.start command.",
+      );
+      // The engine stored the rejection, so the retry fails with a hint instead
+      // of reporting a thread without its first turn as started.
+      expect(retry.message).toContain("Retry with a new clientRequestId.");
     }),
   );
 });
