@@ -33,6 +33,11 @@ To change effort one step without opening the picker, bind
 **Composer: Increase Effort** and **Composer: Decrease Effort** in Keybindings.
 Both are unbound by default. Increase wraps from the highest level to the
 lowest, and decrease wraps from the lowest level to the highest.
+In a new thread, `alt+1` selects Opus 5.5, `alt+3` Sol, `alt+4` Fable 5.1,
+`alt+6` Astra, and `alt+9` Luna without opening the model picker. These model
+shortcuts leave started threads alone. Change their keys in **Settings →
+Keybindings** by searching for **Model: Select**. `alt+2` and `alt+5` continue
+to decrease and increase effort.
 
 In the model picker, press Left in an empty search field or Shift+Tab to reach
 the provider list. Use Up/Down to move and Enter to choose. Right returns to
