@@ -52,6 +52,7 @@ interface ProjectFileQueryState extends ProjectQueryState<ProjectReadFileResult>
   readonly readError: ProjectReadFileError | null;
   readonly isNotFile: boolean;
   readonly isFile: boolean;
+  readonly isMissingHostFile: boolean;
 }
 
 function getProjectEntriesQueryAtom(
@@ -290,6 +291,7 @@ export function useProjectFileQuery(
     isNotFile,
     // A folder error overrides cached contents retained across failed refreshes.
     isFile: !isNotFile && (data !== null || readError?.failure === "binary_file"),
+    isMissingHostFile: readError?.failure === "host_file_not_found",
     refresh,
   };
 }
