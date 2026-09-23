@@ -1,6 +1,8 @@
 import { DownloadIcon, CopyIcon, CheckIcon, Code2Icon, EyeIcon, Table2Icon } from "lucide-react";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { Spinner } from "~/components/ui/spinner";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import {
   AuthPreviewOperateScope,
   type EditorId,
@@ -1080,6 +1082,7 @@ export default function FilePreviewPanel({
   // Everything preview-related keys off previewPath; a folder has no preview.
   const previewPath = isFolder ? null : relativePath;
   const [explorerOpen, setExplorerOpen] = useState(initialExplorerOpen);
+  const [pathInput, setPathInput] = useState("");
   const showExplorer = shouldShowFileExplorer({
     relativePath: previewPath,
     explorerOpen,
@@ -1257,6 +1260,34 @@ export default function FilePreviewPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      {relativePath === null && attachment === undefined ? (
+        <form
+          className="flex items-center gap-2 border-b border-border/60 px-3 py-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const requestedPath = pathInput.trim();
+            if (!requestedPath) return;
+            onOpenFile(
+              requestedPath.startsWith("~/")
+                ? resolvePathLinkTarget(requestedPath, cwd)
+                : requestedPath,
+            );
+            setPathInput("");
+          }}
+        >
+          <Input
+            aria-label="File path"
+            autoComplete="off"
+            placeholder="Paste a file path, e.g. ~/.config/app/config.json"
+            size="compact"
+            value={pathInput}
+            onChange={(event) => setPathInput(event.target.value)}
+          />
+          <Button type="submit" size="sm" variant="outline" disabled={!pathInput.trim()}>
+            Open
+          </Button>
+        </form>
+      ) : null}
       {breadcrumbPath !== null && breadcrumbTrail !== null ? (
         <div className={FILE_SURFACE_SUBHEADER_CLASS} data-surface-subheader>
           <ScrollArea
@@ -1341,7 +1372,7 @@ export default function FilePreviewPanel({
           ) : null}
         </div>
       ) : null}
-      {relativePath && !attachment && !isHostFile && !canWriteFiles && !fileAccess.isPending ? (
+      {relativePath && !attachment && !canWriteFiles && !fileAccess.isPending ? (
         <div className="shrink-0 border-b px-3 py-1.5 text-2xs text-muted-foreground">
           Read-only connection. Unsaved edits are kept until write access returns.
         </div>
@@ -1502,7 +1533,7 @@ export default function FilePreviewPanel({
                 threadRef={threadRef}
                 contents={file.data.contents}
                 workspaceMutationId={workspaceMutationId}
-                readOnly={file.data.truncated || isHostFile || !canWriteFiles}
+                readOnly={file.data.truncated || !canWriteFiles}
                 onPendingChange={onPendingChange}
               />
             ) : tableDelimiter && renderTable ? (
@@ -1512,7 +1543,7 @@ export default function FilePreviewPanel({
                 text={file.data.contents}
                 delimiter={tableDelimiter}
               />
-            ) : file.data.truncated || isHostFile || !canWriteFiles ? (
+            ) : file.data.truncated || !canWriteFiles ? (
               <SourceFilePreview
                 name={relativePath}
                 text={file.data.contents}
