@@ -4,12 +4,15 @@ import { act, StrictMode } from "react";
 import { create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { writeFile, confirmFile, readScope, getUnsavedFile } = vi.hoisted(() => ({
-  writeFile: vi.fn(),
-  confirmFile: vi.fn(),
-  readScope: vi.fn(),
-  getUnsavedFile: vi.fn(),
-}));
+const { writeFile, confirmFile, readScope, getUnsavedFile, getConfirmedContents } = vi.hoisted(
+  () => ({
+    writeFile: vi.fn(),
+    confirmFile: vi.fn(),
+    readScope: vi.fn(),
+    getUnsavedFile: vi.fn(),
+    getConfirmedContents: vi.fn(),
+  }),
+);
 vi.mock("~/state/projects", () => ({ projectEnvironment: { writeFile: {} } }));
 vi.mock("~/state/session", () => ({
   readEnvironmentScope: readScope,
@@ -19,6 +22,7 @@ vi.mock("~/state/use-atom-command", () => ({ useAtomCommand: () => writeFile }))
 vi.mock("./projectFilesQueryState", () => ({
   confirmProjectFileQueryData: confirmFile,
   getUnsavedProjectFileQueryData: getUnsavedFile,
+  getConfirmedProjectFileContents: getConfirmedContents,
 }));
 
 import { setMarkdownTaskChecked } from "./filePreviewMode";
@@ -30,6 +34,7 @@ const defaultProps = {
   environmentId,
   cwd: "/workspace",
   relativePath: "file.txt",
+  initialContents: "",
   onPendingChange,
 };
 let renderer: ReactTestRenderer | null;
@@ -65,6 +70,7 @@ beforeEach(() => {
   confirmFile.mockReset();
   readScope.mockReset().mockReturnValue(true);
   getUnsavedFile.mockReset().mockReturnValue(null);
+  getConfirmedContents.mockReset().mockReturnValue(undefined);
   onPendingChange.mockReset();
 });
 
@@ -75,6 +81,53 @@ afterEach(async () => {
 });
 
 describe("file-save React lifecycle", () => {
+  it("saves host files against the last confirmed contents", async () => {
+    mount({
+      ...defaultProps,
+      relativePath: "/home/user/.config/app/config.json",
+      initialContents: "before",
+    });
+    changeHandler()("first edit");
+    await vi.advanceTimersByTimeAsync(500);
+    changeHandler()("second edit");
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(writeFile.mock.calls.map(([request]) => request.input)).toEqual([
+      {
+        cwd: "/workspace",
+        relativePath: "/home/user/.config/app/config.json",
+        contents: "first edit",
+        expectedContents: "before",
+      },
+      {
+        cwd: "/workspace",
+        relativePath: "/home/user/.config/app/config.json",
+        contents: "second edit",
+        expectedContents: "first edit",
+      },
+    ]);
+  });
+
+  it("recovers a host file draft against the contents last read from disk", async () => {
+    getUnsavedFile.mockReturnValue({ contents: "reopened draft" });
+    getConfirmedContents.mockReturnValue("on disk");
+    mount({
+      ...defaultProps,
+      relativePath: "/home/user/.config/app/config.json",
+      initialContents: "reopened draft",
+    });
+    await vi.runAllTimersAsync();
+    expect(writeFile).toHaveBeenCalledExactlyOnceWith({
+      environmentId,
+      input: {
+        cwd: "/workspace",
+        relativePath: "/home/user/.config/app/config.json",
+        contents: "reopened draft",
+        expectedContents: "on disk",
+      },
+    });
+  });
+
   it("persists editor model changes after StrictMode setup replay", async () => {
     mount();
     changeHandler()("AUDIT7907NATIVE\n");
