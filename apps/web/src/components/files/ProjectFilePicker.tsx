@@ -15,6 +15,8 @@ import {
   PROJECT_FILE_PICKER_RESULT_LIMIT,
 } from "./ProjectFilePicker.logic";
 import { useProjectFilePickerQuery } from "./projectFilesQueryState";
+import { isAbsolutePath } from "@t3tools/shared/path";
+import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 
 interface ProjectFilePickerProps {
   readonly setOpen: (open: boolean) => void;
@@ -82,29 +84,54 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const matches = getProjectFilePickerMatches(result.entries, result.matchedQuery);
   const hasMatchedQuery = /\S/.test(result.matchedQuery);
-  const items: CommandPaletteActionItem[] = matches.map((match) => ({
-    kind: "action",
-    value: `file:${match.path}`,
-    searchTerms: [match.name, match.path],
-    title: (
-      <HighlightedFuzzyText
-        active={hasMatchedQuery}
-        value={match.name}
-        indices={match.nameMatchIndices}
-      />
-    ),
-    description: (
-      <HighlightedFuzzyText
-        active={hasMatchedQuery}
-        value={match.path}
-        indices={match.pathMatchIndices}
-      />
-    ),
-    icon: <PierreEntryIcon pathValue={match.path} kind="file" theme={resolvedTheme} />,
-    run: async () => {
-      useRightPanelStore.getState().openFile(target.threadRef, match.path);
-    },
-  }));
+  const requestedPath = query.trim();
+  const directPath =
+    isAbsolutePath(requestedPath) || requestedPath.startsWith("~/")
+      ? resolvePathLinkTarget(requestedPath, target.cwd)
+      : null;
+  const items = useMemo<CommandPaletteActionItem[]>(
+    () => [
+      ...(directPath
+        ? [
+            {
+              kind: "action" as const,
+              value: `direct-file:${directPath}`,
+              searchTerms: [requestedPath],
+              title: "Open file by path",
+              description: requestedPath,
+              icon: <PierreEntryIcon pathValue={directPath} kind="file" theme={resolvedTheme} />,
+              run: async () => {
+                useRightPanelStore.getState().openFile(target.threadRef, directPath);
+              },
+            },
+          ]
+        : []),
+      ...matches.map((match) => ({
+        kind: "action" as const,
+        value: `file:${match.path}`,
+        searchTerms: [match.name, match.path],
+        title: (
+          <HighlightedFuzzyText
+            active={hasMatchedQuery}
+            value={match.name}
+            indices={match.nameMatchIndices}
+          />
+        ),
+        description: (
+          <HighlightedFuzzyText
+            active={hasMatchedQuery}
+            value={match.path}
+            indices={match.pathMatchIndices}
+          />
+        ),
+        icon: <PierreEntryIcon pathValue={match.path} kind="file" theme={resolvedTheme} />,
+        run: async () => {
+          useRightPanelStore.getState().openFile(target.threadRef, match.path);
+        },
+      })),
+    ],
+    [directPath, hasMatchedQuery, matches, requestedPath, resolvedTheme, target.threadRef],
+  );
 
   const emptyStateMessage = getEmptyStateMessage(query, result.error, result.isPending);
 
@@ -128,9 +155,20 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
       value={query}
     >
       <CommandPaletteResults
-        groups={
-          items.length > 0 ? [{ value: "project-files", label: target.projectName, items }] : []
-        }
+        groups={[
+          ...(directPath
+            ? [{ value: "file-by-path", label: "File by path", items: items.slice(0, 1) }]
+            : []),
+          ...(items.length > (directPath ? 1 : 0)
+            ? [
+                {
+                  value: "project-files",
+                  label: target.projectName,
+                  items: directPath ? items.slice(1) : items,
+                },
+              ]
+            : []),
+        ]}
         highlightedItemValue={highlightedItemValue}
         isActionsOnly={false}
         keybindings={keybindings}
