@@ -101,6 +101,22 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
       }),
     );
 
+    it.effect("identifies a missing host file when its parent directory is absent", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        const absolutePath = path.join(outsideDir, "home-base/config.json");
+
+        const error = yield* workspaceFileSystem
+          .readFile({ cwd, relativePath: absolutePath })
+          .pipe(Effect.flip);
+
+        expect(error._tag).toBe("WorkspaceHostFileNotFoundError");
+      }),
+    );
+
     // Needs mkfifo; Windows has no FIFOs to reject.
     it.effect.skipIf(HostProcessPlatform.defaultValue() === "win32")(
       "rejects a FIFO without blocking on open",
@@ -249,6 +265,51 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
   });
 
   describe("writeFile", () => {
+    it.effect("creates a requested host file and missing parent directory", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        const absolutePath = path.join(outsideDir, "home-base/config.json");
+
+        const result = yield* workspaceFileSystem.writeFile({
+          cwd,
+          relativePath: absolutePath,
+          contents: "{}\n",
+          createIfMissing: true,
+        });
+
+        expect(result).toEqual({ relativePath: absolutePath });
+        expect(yield* fileSystem.readFileString(absolutePath)).toBe("{}\n");
+      }),
+    );
+
+    it.effect("never overwrites a host file when creation is requested", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        const absolutePath = path.join(outsideDir, "config.json");
+        yield* writeTextFile(outsideDir, "config.json", "original");
+
+        const error = yield* workspaceFileSystem
+          .writeFile({
+            cwd,
+            relativePath: absolutePath,
+            contents: "replacement",
+            createIfMissing: true,
+          })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFileSystemOperationError);
+        expect(yield* fileSystem.readFileString(absolutePath)).toBe("original");
+      }),
+    );
+
     it.effect("writes files relative to the workspace root", () =>
       Effect.gen(function* () {
         const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;

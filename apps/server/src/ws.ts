@@ -322,6 +322,8 @@ function projectFileFailureContext(
       return { failure: "binary_file", resolvedPath: error.resolvedPath };
     case "WorkspaceHostFileChangedError":
       return { failure: "host_file_changed", resolvedPath: error.resolvedPath };
+    case "WorkspaceHostFileNotFoundError":
+      return { failure: "host_file_not_found", resolvedPath: error.resolvedPath };
     case "WorkspaceHostFileTooLargeError":
       return { failure: "host_file_too_large", resolvedPath: error.resolvedPath };
     default:

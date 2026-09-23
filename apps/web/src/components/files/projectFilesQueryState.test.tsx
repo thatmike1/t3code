@@ -281,6 +281,40 @@ describe("project query refresh", () => {
     }
   });
 
+  it("identifies a missing host file so the viewer can offer creation", async () => {
+    const readAtom = Atom.make(
+      Effect.fail(
+        new ProjectReadFileError({
+          cwd: "/repo",
+          relativePath: "/home/user/.config/home-base/config.json",
+          failure: "host_file_not_found",
+        }),
+      ),
+    );
+    const registry = AtomRegistry.make();
+    const unmount = registry.mount(readAtom);
+    projectMocks.readFile.mockReturnValue(readAtom);
+    projectMocks.optimisticFile.mockReturnValue(Atom.make(null));
+    atomHooks.registry = registry;
+
+    try {
+      await flushEffects();
+      reactHooks.beginRender();
+      const query = useProjectFileQuery(
+        environmentId,
+        "/repo",
+        "/home/user/.config/home-base/config.json",
+      );
+      expect(query.isMissingHostFile).toBe(true);
+      expect(query.data).toBeNull();
+      expect(query.error).toContain("File does not exist");
+    } finally {
+      unmount();
+      registry.dispose();
+      atomHooks.registry = null;
+    }
+  });
+
   it("reports a directory read as not a file", async () => {
     const readAtom = Atom.make(
       Effect.fail(

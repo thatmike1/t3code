@@ -226,8 +226,9 @@ can break the preview, so save a copy if you need to keep it.
 Open **Files** in the right panel and paste a path to open a file on the thread's
 environment, including one outside the project such as `~/.config/app/config.json`.
 You can also paste the path into the file picker with `Cmd/Ctrl+P`.
-You can edit text files there or follow an agent's file link. External files must
-already exist; T3 Code will not overwrite one that changed since you opened it.
+You can edit text files there or follow an agent's file link. If a host file does
+not exist, choose **Create empty file** to create it and its parent directory.
+T3 Code will not overwrite a file that changed since you opened it.
 An HTML file outside the workspace cannot load scripts, styles, or images from
 neighboring files.
 

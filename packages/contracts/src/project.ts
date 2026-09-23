@@ -217,6 +217,7 @@ export const ProjectFileFailure = Schema.Literals([
   "path_not_file",
   "binary_file",
   "host_file_changed",
+  "host_file_not_found",
   "host_file_too_large",
   "operation_failed",
 ]);
@@ -265,18 +266,21 @@ export class ProjectReadFileError extends Schema.TaggedError<ProjectReadFileErro
       ...props,
       message:
         decodedProjectErrorMessage(props) ??
-        `Failed to read workspace file '${props.relativePath}' in '${props.cwd}'.`,
+        (props.failure === "host_file_not_found"
+          ? `File does not exist: '${props.relativePath}'.`
+          : `Failed to read workspace file '${props.relativePath}' in '${props.cwd}'.`),
     } as any);
   }
 }
 
 export const ProjectWriteFileInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
-  // Absolute host paths update existing files only. The contents originally
-  // read by the editor are required so an external change is not overwritten.
+  // Host updates require the contents originally read by the editor. Creation
+  // requires an explicit flag and refuses to overwrite an existing file.
   relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
   contents: Schema.String,
   expectedContents: Schema.optional(Schema.String),
+  createIfMissing: Schema.optional(Schema.Literal(true)),
 });
 export type ProjectWriteFileInput = typeof ProjectWriteFileInput.Type;
 
