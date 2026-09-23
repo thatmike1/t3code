@@ -1,3 +1,4 @@
+import { QUICK_MODEL_KEYBINDING_COMMANDS } from "@t3tools/contracts";
 import type { ComposerHandleRef } from "../../composerHandleContext";
 import type { BranchToolbarHandle } from "../BranchToolbar";
 import type { ChatComposerHandle } from "./ChatComposer";
@@ -14,7 +15,16 @@ export function composerShortcutCommands(
   composerRef: ComposerHandleRef,
   branchToolbarRef: { readonly current: BranchToolbarHandle | null },
 ): ChatShortcutCommands {
+  // fork: the named-model chords, one handler per command
+  const quickModels: ChatShortcutCommands = Object.fromEntries(
+    QUICK_MODEL_KEYBINDING_COMMANDS.map((command) => [
+      command,
+      ({ event }: { readonly event: KeyboardEvent }) =>
+        event.repeat ? undefined : (composerRef.current?.selectQuickModel(command) ?? false),
+    ]),
+  );
   return {
+    ...quickModels,
     "modelPicker.toggle": ({ event }) => {
       if (!event.repeat) composerRef.current?.toggleModelPicker();
     },
