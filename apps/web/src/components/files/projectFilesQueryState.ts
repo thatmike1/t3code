@@ -53,6 +53,7 @@ interface ProjectFileQueryState extends ProjectQueryState<ProjectReadFileResult>
   readonly readError: ProjectReadFileError | null;
   /** The path exists but is not a regular file, typically a directory. */
   readonly isNotFile: boolean;
+  readonly isMissingHostFile: boolean;
 }
 
 function getProjectEntriesQueryAtom(
@@ -294,6 +295,7 @@ export function useProjectFileQuery(
     isPending: isQueryEnabled && (fileAccess.isPending || result.waiting),
     readError,
     isNotFile: readError?.failure === "path_not_file",
+    isMissingHostFile: readError?.failure === "host_file_not_found",
     refresh,
   };
 }
