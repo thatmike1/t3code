@@ -110,6 +110,15 @@ export class WorkspaceHostFileChangedError extends Schema.TaggedError<WorkspaceH
   }
 }
 
+export class WorkspaceHostFileNotFoundError extends Schema.TaggedError<WorkspaceHostFileNotFoundError>()(
+  "WorkspaceHostFileNotFoundError",
+  { resolvedPath: Schema.String },
+) {
+  override get message(): string {
+    return `Host file does not exist: ${this.resolvedPath}.`;
+  }
+}
+
 export class WorkspaceHostFileTooLargeError extends Schema.TaggedError<WorkspaceHostFileTooLargeError>()(
   "WorkspaceHostFileTooLargeError",
   { resolvedPath: Schema.String },
@@ -125,6 +134,7 @@ export const WorkspaceFileSystemError = Schema.Union([
   WorkspacePathNotFileError,
   WorkspaceBinaryFileError,
   WorkspaceHostFileChangedError,
+  WorkspaceHostFileNotFoundError,
   WorkspaceHostFileTooLargeError,
 ]);
 export type WorkspaceFileSystemError = typeof WorkspaceFileSystemError.Type;
@@ -143,7 +153,14 @@ export class WorkspaceFileSystem extends Context.Service<
       ProjectReadFileResult,
       WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
     >;
-    /** Writes inside a known workspace only. */
+    /**
+     * Write a file relative to the workspace root, or update an existing host
+     * file by absolute path when its original contents are supplied.
+     *
+     * Workspace-relative paths can create parent directories and cannot escape
+     * the workspace root. Host paths update regular files, or create one on an
+     * explicit request.
+     */
     readonly writeFile: (
       input: ProjectWriteFileInput,
     ) => Effect.Effect<
@@ -217,6 +234,8 @@ export const make = Effect.gen(function* () {
       path.isAbsolute(relative)
     );
   };
+  const isMissingPath = (cause: unknown): boolean =>
+    cause !== null && typeof cause === "object" && "code" in cause && cause.code === "ENOENT";
 
   /**
    * Git runs config and hooks from its own folders, so a write never lands in one:
@@ -274,7 +293,9 @@ export const make = Effect.gen(function* () {
       const realTargetPath = yield* Effect.tryPromise({
         try: () => NodeFSP.realpath(absolutePath),
         catch: (cause) =>
-          new WorkspaceFileSystemOperationError({
+          isMissingPath(cause) && input.allowMissing !== true
+            ? new WorkspaceHostFileNotFoundError({ resolvedPath: absolutePath })
+            : new WorkspaceFileSystemOperationError({
             workspaceRoot: input.cwd,
             relativePath: input.relativePath,
             resolvedPath: absolutePath,
@@ -569,6 +590,44 @@ export const make = Effect.gen(function* () {
       yield* HostProcess.HomeDirectory,
     );
     if (path.isAbsolute(requestedPath)) {
+      if (input.createIfMissing === true) {
+        if (Buffer.byteLength(input.contents, "utf8") > PROJECT_READ_FILE_MAX_BYTES) {
+          return yield* new WorkspaceHostFileTooLargeError({ resolvedPath: requestedPath });
+        }
+        const parent = path.dirname(requestedPath);
+        yield* Effect.tryPromise({
+          try: () => NodeFSP.mkdir(parent, { recursive: true, mode: 0o700 }),
+          catch: (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: requestedPath,
+              operationPath: parent,
+              operation: "make-directory",
+              cause,
+            }),
+        });
+        yield* Effect.tryPromise({
+          try: async () => {
+            const handle = await NodeFSP.open(requestedPath, "wx", 0o600);
+            try {
+              await handle.writeFile(input.contents, "utf8");
+            } finally {
+              await handle.close();
+            }
+          },
+          catch: (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: requestedPath,
+              operationPath: requestedPath,
+              operation: "write-file",
+              cause,
+            }),
+        });
+        return { relativePath: input.relativePath };
+      }
       const realTargetPath = yield* Effect.tryPromise({
         try: () => NodeFSP.realpath(requestedPath),
         catch: (cause) =>

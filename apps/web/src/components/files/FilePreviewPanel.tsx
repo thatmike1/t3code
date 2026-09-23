@@ -72,6 +72,7 @@ import { useEnvironmentHttpBaseUrl, usePrimaryEnvironmentId } from "~/state/envi
 import { previewEnvironment } from "~/state/preview";
 import { serverEnvironment } from "~/state/server";
 import { useEnvironmentScope } from "~/state/session";
+import { projectEnvironment } from "~/state/projects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 
@@ -1028,6 +1029,10 @@ export default function FilePreviewPanel({
   const openPreview = useAtomCommand(previewEnvironment.open, {
     reportFailure: false,
   });
+  const createHostFile = useAtomCommand(projectEnvironment.writeFile, {
+    reportFailure: false,
+  });
+  const [creatingHostFile, setCreatingHostFile] = useState(false);
   const isVideo = relativePath !== null && isWorkspaceVideoPreviewPath(relativePath);
   const isAudio = relativePath !== null && !isVideo && isWorkspaceAudioPreviewPath(relativePath);
   const isImage = relativePath !== null && !isVideo && isWorkspaceImagePreviewPath(relativePath);
@@ -1216,6 +1221,32 @@ export default function FilePreviewPanel({
     })();
   };
 
+  const refreshFile = file.refresh;
+  const handleCreateHostFile = useCallback(() => {
+    if (!relativePath || !isHostFile || creatingHostFile) return;
+    setCreatingHostFile(true);
+    void createHostFile({
+      environmentId,
+      input: { cwd, relativePath, contents: "", createIfMissing: true },
+    })
+      .then((result) => {
+        if (result._tag === "Success") {
+          refreshFile();
+          return;
+        }
+        if (isAtomCommandInterrupted(result)) return;
+        const error = squashAtomCommandFailure(result);
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Unable to create file",
+            description: error instanceof Error ? error.message : "An error occurred.",
+          }),
+        );
+      })
+      .finally(() => setCreatingHostFile(false));
+  }, [createHostFile, creatingHostFile, cwd, environmentId, refreshFile, isHostFile, relativePath]);
+
   if (attachment === undefined && !canReadFiles) {
     if (fileAccess.isPending) {
       return (
@@ -1361,7 +1392,20 @@ export default function FilePreviewPanel({
         <div
           className={cn("min-w-0 flex-1 flex-col overflow-hidden", previewPath ? "flex" : "hidden")}
         >
-          {isFolder ? null : relativePath && attachment ? (
+          {isFolder ? null : relativePath && file.isMissingHostFile && isHostFile ? (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-xs leading-relaxed">
+              <p className="text-muted-foreground">{file.error}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={creatingHostFile}
+                onClick={handleCreateHostFile}
+              >
+                {creatingHostFile ? "Creating…" : "Create empty file"}
+              </Button>
+            </div>
+          ) : relativePath && attachment ? (
             <AttachmentFilePreview
               key={`${environmentId}:${attachment.id}`}
               name={attachment.name}
