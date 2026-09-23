@@ -15,6 +15,7 @@ import {
   PROJECT_FILE_PICKER_RESULT_LIMIT,
 } from "./ProjectFilePicker.logic";
 import { useProjectFilePickerQuery } from "./projectFilesQueryState";
+import { isAbsolutePath, resolvePathLinkTarget } from "~/terminal-links";
 
 interface ProjectFilePickerProps {
   readonly setOpen: (open: boolean) => void;
@@ -85,10 +86,30 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
     [result.entries, result.matchedQuery],
   );
   const hasMatchedQuery = /\S/.test(result.matchedQuery);
+  const requestedPath = query.trim();
+  const directPath =
+    isAbsolutePath(requestedPath) || requestedPath.startsWith("~/")
+      ? resolvePathLinkTarget(requestedPath, target.cwd)
+      : null;
   const items = useMemo<CommandPaletteActionItem[]>(
-    () =>
-      matches.map((match) => ({
-        kind: "action",
+    () => [
+      ...(directPath
+        ? [
+            {
+              kind: "action" as const,
+              value: `direct-file:${directPath}`,
+              searchTerms: [requestedPath],
+              title: "Open file by path",
+              description: requestedPath,
+              icon: <PierreEntryIcon pathValue={directPath} kind="file" theme={resolvedTheme} />,
+              run: async () => {
+                useRightPanelStore.getState().openFile(target.threadRef, directPath);
+              },
+            },
+          ]
+        : []),
+      ...matches.map((match) => ({
+        kind: "action" as const,
         value: `file:${match.path}`,
         searchTerms: [match.name, match.path],
         title: (
@@ -110,7 +131,8 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
           useRightPanelStore.getState().openFile(target.threadRef, match.path);
         },
       })),
-    [hasMatchedQuery, matches, resolvedTheme, target.threadRef],
+    ],
+    [directPath, hasMatchedQuery, matches, requestedPath, resolvedTheme, target.threadRef],
   );
 
   const emptyStateMessage = getEmptyStateMessage(query, result.error, result.isPending);
@@ -135,9 +157,20 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
       value={query}
     >
       <CommandPaletteResults
-        groups={
-          items.length > 0 ? [{ value: "project-files", label: target.projectName, items }] : []
-        }
+        groups={[
+          ...(directPath
+            ? [{ value: "file-by-path", label: "File by path", items: items.slice(0, 1) }]
+            : []),
+          ...(items.length > (directPath ? 1 : 0)
+            ? [
+                {
+                  value: "project-files",
+                  label: target.projectName,
+                  items: directPath ? items.slice(1) : items,
+                },
+              ]
+            : []),
+        ]}
         highlightedItemValue={highlightedItemValue}
         isActionsOnly={false}
         keybindings={keybindings}

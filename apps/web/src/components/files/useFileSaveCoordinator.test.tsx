@@ -21,6 +21,7 @@ const defaultProps = {
   environmentId,
   cwd: "/workspace",
   relativePath: "file.txt",
+  initialContents: "",
   onPendingChange,
 };
 let renderer: ReactTestRenderer | null;
@@ -64,6 +65,33 @@ afterEach(async () => {
 });
 
 describe("file-save React lifecycle", () => {
+  it("saves host files against the last confirmed contents", async () => {
+    mount({
+      ...defaultProps,
+      relativePath: "/home/user/.config/app/config.json",
+      initialContents: "before",
+    });
+    changeHandler()("first edit");
+    await vi.advanceTimersByTimeAsync(500);
+    changeHandler()("second edit");
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(writeFile.mock.calls.map(([request]) => request.input)).toEqual([
+      {
+        cwd: "/workspace",
+        relativePath: "/home/user/.config/app/config.json",
+        contents: "first edit",
+        expectedContents: "before",
+      },
+      {
+        cwd: "/workspace",
+        relativePath: "/home/user/.config/app/config.json",
+        contents: "second edit",
+        expectedContents: "first edit",
+      },
+    ]);
+  });
+
   it("persists editor model changes after StrictMode setup replay", async () => {
     mount();
     changeHandler()("AUDIT7907NATIVE\n");
