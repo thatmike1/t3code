@@ -118,6 +118,16 @@ export function getProjectFileContents(
   return Option.getOrUndefined(AsyncResult.value(result))?.contents;
 }
 
+/** The contents last read from disk, ignoring any in-app draft over them. */
+export function getConfirmedProjectFileContents(
+  environmentId: EnvironmentId,
+  cwd: string,
+  relativePath: string,
+): string | undefined {
+  const result = appAtomRegistry.get(getProjectFileQueryAtom(environmentId, cwd, relativePath));
+  return Option.getOrUndefined(AsyncResult.value(result))?.contents;
+}
+
 export function getUnsavedProjectFileQueryData(
   environmentId: EnvironmentId,
   cwd: string,
