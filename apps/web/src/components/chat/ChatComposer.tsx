@@ -153,6 +153,7 @@ import { useEnvironmentSpeechInput } from "../../speech/useEnvironmentSpeechInpu
 import { ComposerSpeechButton, ComposerSpeechRecordingPill } from "./ComposerSpeechButton";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { shortcutLabelForCommand, type ShortcutMatchContext } from "../../keybindings";
+import { quickModelSelectionForCommand } from "../../quick-model-shortcuts";
 import {
   type TerminalContextDraft,
   type TerminalContextSelection,
@@ -338,6 +339,8 @@ export interface ChatComposerHandle {
   stepReasoningEffort: (direction: 1 | -1) => void;
   /** fork: alt+2 / alt+5, one effort level down or up, clamped, never onto ultrathink or ultracode */
   stepEffortLevel: (direction: 1 | -1) => void;
+  /** fork: alt+1/3/4/6/9 pick a named model for a thread that has not started; false lets the key through */
+  selectQuickModel: (command: KeybindingCommand) => boolean;
   toggleModelPicker: () => void;
   openControl: (command: KeybindingCommand) => void;
   isModelPickerOpen: () => boolean;
@@ -3410,6 +3413,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             model: selectedModel,
             persistSticky: true,
           });
+      },
+      selectQuickModel: (command) => {
+        if (isComposerModelPickerOpen || lockedProvider !== null || !activeThread) return false;
+        const selection = quickModelSelectionForCommand(
+          command,
+          providerInstanceEntries,
+          modelOptionsByInstance,
+        );
+        if (selection) onProviderModelSelect(selection.instanceId, selection.model);
+        return true;
       },
       toggleModelPicker: () => {
         if (isComposerModelPickerOpen) {
