@@ -46,6 +46,48 @@ function event(overrides: Partial<ShortcutEventLike> = {}): ShortcutEventLike {
   };
 }
 
+describe("quick model defaults", () => {
+  it("routes the five Alt shortcuts only while the picker is closed", () => {
+    const cases = [
+      ["1", "composer.model.opus"],
+      ["3", "composer.model.sol"],
+      ["4", "composer.model.fable"],
+      ["6", "composer.model.astra"],
+      ["9", "composer.model.luna"],
+    ] satisfies ReadonlyArray<readonly [string, KeybindingCommand]>;
+    for (const [key, command] of cases) {
+      const shortcut = event({ key, altKey: true });
+      assert.strictEqual(
+        resolveShortcutCommand(shortcut, DEFAULT_RESOLVED_KEYBINDINGS, {
+          platform: "Linux",
+          context: { terminalFocus: false, modelPickerOpen: false },
+        }),
+        command,
+      );
+      assert.isNull(
+        resolveShortcutCommand(shortcut, DEFAULT_RESOLVED_KEYBINDINGS, {
+          platform: "Linux",
+          context: { terminalFocus: false, modelPickerOpen: true },
+        }),
+      );
+    }
+    assert.strictEqual(
+      resolveShortcutCommand(event({ key: "2", altKey: true }), DEFAULT_RESOLVED_KEYBINDINGS, {
+        platform: "Linux",
+        context: { terminalFocus: false, modelPickerOpen: false },
+      }),
+      "composer.effort.decrease",
+    );
+    assert.strictEqual(
+      resolveShortcutCommand(event({ key: "5", altKey: true }), DEFAULT_RESOLVED_KEYBINDINGS, {
+        platform: "Linux",
+        context: { terminalFocus: false, modelPickerOpen: false },
+      }),
+      "composer.effort.increase",
+    );
+  });
+});
+
 function modShortcut(
   key: string,
   overrides: Partial<Omit<KeybindingShortcut, "key">> = {},
