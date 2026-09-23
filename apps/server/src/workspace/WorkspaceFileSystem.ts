@@ -4,8 +4,8 @@
  *
  * Owns workspace-root-relative file read/write operations and their associated
  * safety checks and cache invalidation hooks. Reads accept host paths outside
- * the workspace; writes to those paths require an existing file and its last
- * read contents.
+ * the workspace; host writes require an existing file and its last read
+ * contents, or an explicit create request that never overwrites a file.
  *
  * @module WorkspaceFileSystem
  */
@@ -105,6 +105,15 @@ export class WorkspaceHostFileChangedError extends Schema.TaggedError<WorkspaceH
   }
 }
 
+export class WorkspaceHostFileNotFoundError extends Schema.TaggedError<WorkspaceHostFileNotFoundError>()(
+  "WorkspaceHostFileNotFoundError",
+  { resolvedPath: Schema.String },
+) {
+  override get message(): string {
+    return `Host file does not exist: ${this.resolvedPath}.`;
+  }
+}
+
 export class WorkspaceHostFileTooLargeError extends Schema.TaggedError<WorkspaceHostFileTooLargeError>()(
   "WorkspaceHostFileTooLargeError",
   { resolvedPath: Schema.String },
@@ -120,6 +129,7 @@ export const WorkspaceFileSystemError = Schema.Union([
   WorkspacePathNotFileError,
   WorkspaceBinaryFileError,
   WorkspaceHostFileChangedError,
+  WorkspaceHostFileNotFoundError,
   WorkspaceHostFileTooLargeError,
 ]);
 export type WorkspaceFileSystemError = typeof WorkspaceFileSystemError.Type;
@@ -143,7 +153,8 @@ export class WorkspaceFileSystem extends Context.Service<
      * file by absolute path when its original contents are supplied.
      *
      * Workspace-relative paths can create parent directories and cannot escape
-     * the workspace root. Host paths must already name a regular file.
+     * the workspace root. Host paths update regular files, or create one on an
+     * explicit request.
      */
     readonly writeFile: (
       input: ProjectWriteFileInput,
@@ -161,6 +172,9 @@ export const make = Effect.gen(function* () {
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
 
+  const isMissingPath = (cause: unknown): boolean =>
+    cause !== null && typeof cause === "object" && "code" in cause && cause.code === "ENOENT";
+
   /**
    * Resolves the file a read targets. Workspace-relative paths must stay inside the
    * root, symlinks included. An absolute path reads a host file in place, such as a
@@ -174,14 +188,16 @@ export const make = Effect.gen(function* () {
       const realTargetPath = yield* Effect.tryPromise({
         try: () => NodeFSP.realpath(requestedPath),
         catch: (cause) =>
-          new WorkspaceFileSystemOperationError({
-            workspaceRoot: input.cwd,
-            relativePath: input.relativePath,
-            resolvedPath: requestedPath,
-            operationPath: requestedPath,
-            operation: "realpath-target",
-            cause,
-          }),
+          isMissingPath(cause)
+            ? new WorkspaceHostFileNotFoundError({ resolvedPath: requestedPath })
+            : new WorkspaceFileSystemOperationError({
+                workspaceRoot: input.cwd,
+                relativePath: input.relativePath,
+                resolvedPath: requestedPath,
+                operationPath: requestedPath,
+                operation: "realpath-target",
+                cause,
+              }),
       });
       return { relativePath: requestedPath, realTargetPath };
     }
@@ -329,6 +345,44 @@ export const make = Effect.gen(function* () {
   )(function* (input) {
     const requestedPath = expandHomePath(input.relativePath.trim());
     if (path.isAbsolute(requestedPath)) {
+      if (input.createIfMissing === true) {
+        if (Buffer.byteLength(input.contents, "utf8") > PROJECT_READ_FILE_MAX_BYTES) {
+          return yield* new WorkspaceHostFileTooLargeError({ resolvedPath: requestedPath });
+        }
+        const parent = path.dirname(requestedPath);
+        yield* Effect.tryPromise({
+          try: () => NodeFSP.mkdir(parent, { recursive: true, mode: 0o700 }),
+          catch: (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: requestedPath,
+              operationPath: parent,
+              operation: "make-directory",
+              cause,
+            }),
+        });
+        yield* Effect.tryPromise({
+          try: async () => {
+            const handle = await NodeFSP.open(requestedPath, "wx", 0o600);
+            try {
+              await handle.writeFile(input.contents, "utf8");
+            } finally {
+              await handle.close();
+            }
+          },
+          catch: (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: requestedPath,
+              operationPath: requestedPath,
+              operation: "write-file",
+              cause,
+            }),
+        });
+        return { relativePath: input.relativePath };
+      }
       const realTargetPath = yield* Effect.tryPromise({
         try: () => NodeFSP.realpath(requestedPath),
         catch: (cause) =>
