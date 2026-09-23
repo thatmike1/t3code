@@ -320,6 +320,10 @@ function projectFileFailureContext(
       return { failure: "path_not_file", resolvedPath: error.resolvedPath };
     case "WorkspaceBinaryFileError":
       return { failure: "binary_file", resolvedPath: error.resolvedPath };
+    case "WorkspaceHostFileChangedError":
+      return { failure: "host_file_changed", resolvedPath: error.resolvedPath };
+    case "WorkspaceHostFileTooLargeError":
+      return { failure: "host_file_too_large", resolvedPath: error.resolvedPath };
     default:
       return unexpectedCompatibilityError(error);
   }

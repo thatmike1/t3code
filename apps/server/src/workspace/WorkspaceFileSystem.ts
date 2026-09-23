@@ -3,14 +3,15 @@
  * WorkspaceFileSystem - Effect service contract for workspace file mutations.
  *
  * Owns workspace-root-relative file read/write operations and their associated
- * safety checks and cache invalidation hooks. Reads also accept absolute host
- * paths so clients can show files an agent left outside the workspace; writes
- * never leave the root.
+ * safety checks and cache invalidation hooks. Reads accept host paths outside
+ * the workspace; writes to those paths require an existing file and its last
+ * read contents.
  *
  * @module WorkspaceFileSystem
  */
 import * as NodeFS from "node:fs";
 import * as NodeFSP from "node:fs/promises";
+import { expandHomePath } from "../pathExpansion.ts";
 
 import type {
   ProjectReadFileInput,
@@ -95,11 +96,31 @@ export class WorkspaceBinaryFileError extends Schema.TaggedError<WorkspaceBinary
   }
 }
 
+export class WorkspaceHostFileChangedError extends Schema.TaggedError<WorkspaceHostFileChangedError>()(
+  "WorkspaceHostFileChangedError",
+  { resolvedPath: Schema.String },
+) {
+  override get message(): string {
+    return `Host file changed since it was opened: ${this.resolvedPath}. Reload it before editing.`;
+  }
+}
+
+export class WorkspaceHostFileTooLargeError extends Schema.TaggedError<WorkspaceHostFileTooLargeError>()(
+  "WorkspaceHostFileTooLargeError",
+  { resolvedPath: Schema.String },
+) {
+  override get message(): string {
+    return `Host file is too large to edit in T3 Code: ${this.resolvedPath}.`;
+  }
+}
+
 export const WorkspaceFileSystemError = Schema.Union([
   WorkspaceFileSystemOperationError,
   WorkspaceFilePathEscapeError,
   WorkspacePathNotFileError,
   WorkspaceBinaryFileError,
+  WorkspaceHostFileChangedError,
+  WorkspaceHostFileTooLargeError,
 ]);
 export type WorkspaceFileSystemError = typeof WorkspaceFileSystemError.Type;
 
@@ -108,8 +129,8 @@ export class WorkspaceFileSystem extends Context.Service<
   WorkspaceFileSystem,
   {
     /**
-     * Read a UTF-8 text file relative to the workspace root, or any host file by
-     * absolute path.
+     * Read a UTF-8 text file relative to the workspace root, or a host file by
+     * absolute path or a leading `~/`.
      */
     readonly readFile: (
       input: ProjectReadFileInput,
@@ -118,10 +139,11 @@ export class WorkspaceFileSystem extends Context.Service<
       WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
     >;
     /**
-     * Write a file relative to the workspace root.
+     * Write a file relative to the workspace root, or update an existing host
+     * file by absolute path when its original contents are supplied.
      *
-     * Creates parent directories as needed and rejects paths that escape the
-     * workspace root.
+     * Workspace-relative paths can create parent directories and cannot escape
+     * the workspace root. Host paths must already name a regular file.
      */
     readonly writeFile: (
       input: ProjectWriteFileInput,
@@ -147,7 +169,7 @@ export const make = Effect.gen(function* () {
   const resolveReadTarget = Effect.fn("WorkspaceFileSystem.resolveReadTarget")(function* (
     input: ProjectReadFileInput,
   ) {
-    const requestedPath = input.relativePath.trim();
+    const requestedPath = expandHomePath(input.relativePath.trim());
     if (path.isAbsolute(requestedPath)) {
       const realTargetPath = yield* Effect.tryPromise({
         try: () => NodeFSP.realpath(requestedPath),
@@ -305,6 +327,113 @@ export const make = Effect.gen(function* () {
   const writeFile: WorkspaceFileSystem["Service"]["writeFile"] = Effect.fn(
     "WorkspaceFileSystem.writeFile",
   )(function* (input) {
+    const requestedPath = expandHomePath(input.relativePath.trim());
+    if (path.isAbsolute(requestedPath)) {
+      const realTargetPath = yield* Effect.tryPromise({
+        try: () => NodeFSP.realpath(requestedPath),
+        catch: (cause) =>
+          new WorkspaceFileSystemOperationError({
+            workspaceRoot: input.cwd,
+            relativePath: input.relativePath,
+            resolvedPath: requestedPath,
+            operationPath: requestedPath,
+            operation: "realpath-target",
+            cause,
+          }),
+      });
+      return yield* Effect.acquireUseRelease(
+        Effect.tryPromise({
+          try: () =>
+            NodeFSP.open(
+              realTargetPath,
+              NodeFS.constants.O_RDWR | (NodeFS.constants.O_NONBLOCK ?? 0),
+            ),
+          catch: (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: realTargetPath,
+              operationPath: realTargetPath,
+              operation: "open",
+              cause,
+            }),
+        }),
+        (handle) =>
+          Effect.gen(function* () {
+            const stat = yield* Effect.tryPromise({
+              try: () => handle.stat(),
+              catch: (cause) =>
+                new WorkspaceFileSystemOperationError({
+                  workspaceRoot: input.cwd,
+                  relativePath: input.relativePath,
+                  resolvedPath: realTargetPath,
+                  operationPath: realTargetPath,
+                  operation: "stat",
+                  cause,
+                }),
+            });
+            if (!stat.isFile()) {
+              return yield* new WorkspacePathNotFileError({
+                workspaceRoot: input.cwd,
+                relativePath: input.relativePath,
+                resolvedPath: realTargetPath,
+              });
+            }
+            if (stat.size > PROJECT_READ_FILE_MAX_BYTES) {
+              return yield* new WorkspaceHostFileTooLargeError({ resolvedPath: realTargetPath });
+            }
+            const currentContents = yield* Effect.tryPromise({
+              try: async () => new TextDecoder("utf-8").decode(await handle.readFile()),
+              catch: (cause) =>
+                new WorkspaceFileSystemOperationError({
+                  workspaceRoot: input.cwd,
+                  relativePath: input.relativePath,
+                  resolvedPath: realTargetPath,
+                  operationPath: realTargetPath,
+                  operation: "read",
+                  cause,
+                }),
+            });
+            if (
+              input.expectedContents === undefined ||
+              currentContents !== input.expectedContents
+            ) {
+              return yield* new WorkspaceHostFileChangedError({ resolvedPath: realTargetPath });
+            }
+            const bytes = Buffer.from(input.contents, "utf8");
+            if (bytes.length > PROJECT_READ_FILE_MAX_BYTES) {
+              return yield* new WorkspaceHostFileTooLargeError({ resolvedPath: realTargetPath });
+            }
+            yield* Effect.tryPromise({
+              try: async () => {
+                let offset = 0;
+                while (offset < bytes.length) {
+                  const { bytesWritten } = await handle.write(
+                    bytes,
+                    offset,
+                    bytes.length - offset,
+                    offset,
+                  );
+                  if (bytesWritten === 0) throw new Error("Host file write made no progress.");
+                  offset += bytesWritten;
+                }
+                await handle.truncate(bytes.length);
+              },
+              catch: (cause) =>
+                new WorkspaceFileSystemOperationError({
+                  workspaceRoot: input.cwd,
+                  relativePath: input.relativePath,
+                  resolvedPath: realTargetPath,
+                  operationPath: realTargetPath,
+                  operation: "write-file",
+                  cause,
+                }),
+            });
+            return { relativePath: input.relativePath };
+          }),
+        (handle) => Effect.promise(() => handle.close()),
+      );
+    }
     const target = yield* workspacePaths.resolveRelativePathWithinRoot({
       workspaceRoot: input.cwd,
       relativePath: input.relativePath,

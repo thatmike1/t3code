@@ -81,6 +81,13 @@ describe("shouldShowFileExplorer", () => {
     ).toBe(false);
     expect(
       shouldShowFileExplorer({
+        relativePath: "~/.config/app/config.json",
+        explorerOpen: true,
+        attachmentOpen: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowFileExplorer({
         relativePath: "report.pdf",
         explorerOpen: true,
         attachmentOpen: true,

@@ -7,7 +7,11 @@ export function shouldShowFileExplorer(input: {
   readonly explorerOpen: boolean;
   readonly attachmentOpen: boolean;
 }): boolean {
-  if (input.attachmentOpen || (input.relativePath && isAbsolutePath(input.relativePath))) {
+  if (
+    input.attachmentOpen ||
+    (input.relativePath &&
+      (isAbsolutePath(input.relativePath) || input.relativePath.startsWith("~/")))
+  ) {
     return false;
   }
   return input.explorerOpen || input.relativePath === null;
