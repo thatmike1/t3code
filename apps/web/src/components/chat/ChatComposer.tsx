@@ -180,6 +180,10 @@ import { getTerminalFocusOwner } from "../../lib/terminalFocus";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../../keybindings";
 import {
+  isQuickModelShortcutCommand,
+  quickModelSelectionForCommand,
+} from "../../quick-model-shortcuts";
+import {
   type TerminalContextDraft,
   type TerminalContextSelection,
 } from "../../lib/terminalContext";
@@ -5199,6 +5203,43 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   useEffect(() => {
     setIsStashMenuOpen(false);
   }, [prompt]);
+
+  useEffect(() => {
+    const handler = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || isCommandPaletteOpen()) return;
+      const command = resolveShortcutCommand(event, keybindings, {
+        context: {
+          terminalFocus: getTerminalFocusOwner() !== null,
+          terminalOpen,
+          modelPickerOpen: isComposerModelPickerOpen,
+        },
+      });
+      if (!isQuickModelShortcutCommand(command)) return;
+      if (isComposerModelPickerOpen || lockedProvider !== null || !activeThread) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const selection = quickModelSelectionForCommand(
+        command,
+        providerInstanceEntries,
+        modelOptionsByInstance,
+      );
+      if (selection) {
+        onProviderModelSelect(selection.instanceId, selection.model);
+      }
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
+  }, [
+    activeThread,
+    isComposerModelPickerOpen,
+    keybindings,
+    lockedProvider,
+    modelOptionsByInstance,
+    onProviderModelSelect,
+    providerInstanceEntries,
+    terminalOpen,
+  ]);
 
   // alt+2 / alt+5 step the reasoning effort without opening the traits menu,
   // persisted the same way a pick from that menu is

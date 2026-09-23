@@ -34,6 +34,15 @@ export const MODEL_PICKER_JUMP_KEYBINDING_COMMANDS = [
 export type ModelPickerJumpKeybindingCommand =
   (typeof MODEL_PICKER_JUMP_KEYBINDING_COMMANDS)[number];
 
+export const QUICK_MODEL_KEYBINDING_COMMANDS = [
+  "composer.model.opus",
+  "composer.model.sol",
+  "composer.model.fable",
+  "composer.model.astra",
+  "composer.model.luna",
+] as const;
+export type QuickModelKeybindingCommand = (typeof QUICK_MODEL_KEYBINDING_COMMANDS)[number];
+
 const THREAD_KEYBINDING_COMMANDS = [
   "thread.stop",
   "thread.steerQueuedMessage",
@@ -88,6 +97,7 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "composer.branch",
   "composer.effort.decrease",
   "composer.effort.increase",
+  ...QUICK_MODEL_KEYBINDING_COMMANDS,
   "chat.new",
   "chat.newLocal",
   "editor.openFavorite",

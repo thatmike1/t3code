@@ -284,6 +284,11 @@ export function buildKeybindingCommandOptions(
 
 export function commandLabel(command: KeybindingCommand): string {
   if (command === "thread.copyReference") return "Pull Request: Copy Link or Thread ID";
+  if (command === "composer.model.opus") return "Model: Select Opus 5.5";
+  if (command === "composer.model.sol") return "Model: Select GPT-6 Sol";
+  if (command === "composer.model.fable") return "Model: Select Fable 5.1";
+  if (command === "composer.model.astra") return "Model: Select GPT-6 Astra";
+  if (command === "composer.model.luna") return "Model: Select GPT-6 Luna";
   const raw = String(command);
   if (raw.startsWith("script.") && raw.endsWith(".run")) {
     return `Run Script: ${titleCaseCommandSegment(raw.slice("script.".length, -".run".length))}`;

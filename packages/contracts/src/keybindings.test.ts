@@ -102,6 +102,13 @@ it.effect("parses keybinding rules", () =>
     });
     assert.strictEqual(parsedModelPickerJump.command, "modelPicker.jump.1");
 
+    const parsedQuickModel = yield* decode(KeybindingRule, {
+      key: "alt+1",
+      command: "composer.model.opus",
+      when: "!terminalFocus && !modelPickerOpen",
+    });
+    assert.strictEqual(parsedQuickModel.command, "composer.model.opus");
+
     const parsedThreadPrevious = yield* decode(KeybindingRule, {
       key: "mod+shift+[",
       command: "thread.previous",
