@@ -8,8 +8,10 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { FileSaveCoordinator } from "./fileSaveCoordinator";
 import {
   confirmProjectFileQueryData,
+  getConfirmedProjectFileContents,
   getUnsavedProjectFileQueryData,
 } from "./projectFilesQueryState";
+import { isAbsolutePath } from "@t3tools/shared/path";
 
 const FILE_SAVE_DEBOUNCE_MS = 500;
 
@@ -17,6 +19,7 @@ interface FileSaveOptions {
   environmentId: EnvironmentId;
   cwd: string;
   relativePath: string;
+  initialContents: string;
   onPendingChange: (relativePath: string, pending: boolean) => void;
 }
 
@@ -24,13 +27,14 @@ export function useFileSaveCoordinator({
   environmentId,
   cwd,
   relativePath,
+  initialContents,
   onPendingChange,
 }: FileSaveOptions): Pick<FileSaveCoordinator, "change"> {
   const canWriteFiles = useEnvironmentScope(environmentId, AuthFilesystemWriteScope);
   const writeFile = useProjectFileWriter();
   // A session owns the pending debounce, so it must outlive rerenders and be
   // replaced only when what it writes to changes.
-  const inputs = { environmentId, cwd, relativePath, onPendingChange, writeFile };
+  const inputs = { environmentId, cwd, relativePath, initialContents, onPendingChange, writeFile };
   const [current, setCurrent] = useState(() => ({
     inputs,
     session: createFileSaveSession(inputs),
@@ -75,10 +79,15 @@ function createFileSaveSession({
   relativePath,
   onPendingChange,
   writeFile,
+  initialContents,
 }: FileSaveOptions & {
   writeFile: ReturnType<typeof useProjectFileWriter>;
 }) {
   const coordinatorRef = createRef<FileSaveCoordinator>();
+  const hostFile = isAbsolutePath(relativePath) || relativePath.startsWith("~/");
+  let lastConfirmedContents = hostFile && getUnsavedProjectFileQueryData(environmentId, cwd, relativePath)
+    ? (getConfirmedProjectFileContents(environmentId, cwd, relativePath) ?? initialContents)
+    : initialContents;
   return {
     change: (contents: string) => coordinatorRef.current?.change(contents),
     setup: () => {
@@ -89,10 +98,12 @@ function createFileSaveSession({
         persist: (nextContents) =>
           writeFile({
             environmentId,
-            input: { cwd, relativePath, contents: nextContents },
+            input: { cwd, relativePath, contents: nextContents, ...(hostFile ? { expectedContents: lastConfirmedContents } : {}) },
           }),
-        onConfirmed: (confirmedContents) =>
-          confirmProjectFileQueryData(environmentId, cwd, relativePath, confirmedContents),
+        onConfirmed: (confirmedContents) => {
+          lastConfirmedContents = confirmedContents;
+          confirmProjectFileQueryData(environmentId, cwd, relativePath, confirmedContents);
+        },
       });
       coordinatorRef.current = coordinator;
       return () => {

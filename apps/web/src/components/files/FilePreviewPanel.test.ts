@@ -63,6 +63,48 @@ describe("file comment annotations", () => {
   });
 });
 
+describe("shouldShowFileExplorer", () => {
+  it("hides the workspace tree for host files and attachments", () => {
+    expect(
+      shouldShowFileExplorer({
+        relativePath: "/tmp/report.pdf",
+        explorerOpen: true,
+        attachmentOpen: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowFileExplorer({
+        relativePath: "~/.config/app/config.json",
+        explorerOpen: true,
+        attachmentOpen: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowFileExplorer({
+        relativePath: "report.pdf",
+        explorerOpen: true,
+        attachmentOpen: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps the saved explorer preference for workspace files", () => {
+    expect(
+      shouldShowFileExplorer({
+        relativePath: "docs/report.pdf",
+        explorerOpen: true,
+        attachmentOpen: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowFileExplorer({
+        relativePath: "docs/report.pdf",
+        explorerOpen: false,
+        attachmentOpen: false,
+      }),
+    ).toBe(false);
+  });
+});
 describe("setMarkdownTaskChecked", () => {
   const markdown = "- [ ] First\n- [x] Second\n";
 

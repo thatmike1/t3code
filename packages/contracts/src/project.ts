@@ -434,8 +434,7 @@ export class ProjectListEntriesError extends Schema.TaggedError<ProjectListEntri
 
 export const ProjectReadFileInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
-  // Workspace-relative, or an absolute host path for a file outside the
-  // workspace. Only workspace-relative paths can be written back.
+  // Workspace-relative, absolute, or home-relative (`~/`) on the host.
   relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_READ_FILE_PATH_MAX_LENGTH)),
   // Optional files can be absent without failing the read.
   allowMissing: Schema.optional(Schema.Boolean),
@@ -457,6 +456,8 @@ export const ProjectFileFailure = Schema.Literals([
   "resolved_path_outside_root",
   "path_not_file",
   "binary_file",
+  "host_file_changed",
+  "host_file_too_large",
   "operation_failed",
 ]);
 export type ProjectFileFailure = typeof ProjectFileFailure.Type;
@@ -511,8 +512,11 @@ export class ProjectReadFileError extends Schema.TaggedError<ProjectReadFileErro
 
 export const ProjectWriteFileInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
+  // Absolute host paths update existing files only. The contents originally
+  // read by the editor are required so an external change is not overwritten.
   relativePath: TrimmedNonEmptyString.check(Schema.isMaxLength(PROJECT_WRITE_FILE_PATH_MAX_LENGTH)),
   contents: Schema.String,
+  expectedContents: Schema.optional(Schema.String),
 });
 export type ProjectWriteFileInput = typeof ProjectWriteFileInput.Type;
 
@@ -559,7 +563,11 @@ export class ProjectWriteFileError extends Schema.TaggedError<ProjectWriteFileEr
       ...props,
       message:
         decodedProjectErrorMessage(props) ??
-        `Failed to write workspace file '${props.relativePath}' in '${props.cwd}'.`,
+        (props.failure === "host_file_changed"
+          ? `File changed on disk. Reopen '${props.relativePath}' before editing it again.`
+          : props.failure === "host_file_too_large"
+            ? `File is too large to edit in T3 Code: '${props.relativePath}'.`
+            : `Failed to write workspace file '${props.relativePath}' in '${props.cwd}'.`),
     } as any);
   }
 }
