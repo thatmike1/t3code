@@ -486,6 +486,11 @@ const LATE_COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "view.reopenClosed": msg("Reopen Closed Tab"),
   "preview.focusUrl": msg("Preview: Focus URL"),
   "preview.find": msg("Preview: Find on Page"),
+  "composer.model.opus": msg("Model: Select Opus 5.5"),
+  "composer.model.sol": msg("Model: Select GPT-6 Sol"),
+  "composer.model.fable": msg("Model: Select Fable 5.1"),
+  "composer.model.astra": msg("Model: Select GPT-6 Astra"),
+  "composer.model.luna": msg("Model: Select GPT-6 Luna"),
 };
 
 export function commandLabel(command: KeybindingCommand, resolve: MessageResolver = m): string {
