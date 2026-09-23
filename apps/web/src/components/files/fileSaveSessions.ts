@@ -7,8 +7,10 @@ import { projectEnvironment } from "~/state/projects";
 import { environmentSession, readEnvironmentScope, sessionHasScope } from "~/state/session";
 
 import { FileSaveCoordinator } from "./fileSaveCoordinator";
+import { isHostPath } from "@t3tools/shared/path";
 import {
   confirmProjectFileQueryData,
+  getConfirmedProjectFileContents,
   getUnsavedProjectFileQueryData,
 } from "./projectFilesQueryState";
 
@@ -31,6 +33,8 @@ export interface FileSaveSessionDeps {
   ) => Promise<AtomCommandResult<unknown, unknown>>;
   readonly confirm: (target: FileSaveTarget, contents: string) => boolean;
   readonly readUnsaved: (target: FileSaveTarget) => string | null;
+  /** fork: a new session for the file starts; host-file baselines reset here. */
+  readonly onSessionOpen?: (target: FileSaveTarget) => void;
 }
 
 interface FileSaveSession {
@@ -59,6 +63,7 @@ export function createFileSaveSessions(deps: FileSaveSessionDeps) {
   };
 
   const create = (key: string, target: FileSaveTarget): FileSaveSession => {
+    deps.onSessionOpen?.(target);
     const listeners = new Map<FilePendingListener, number>();
     const coordinator: FileSaveCoordinator = new FileSaveCoordinator({
       debounceMs: deps.debounceMs,
@@ -136,7 +141,13 @@ function fileSaveKey({ environmentId, cwd, relativePath }: FileSaveTarget): stri
   return `${environmentId}\u0000${cwd}\u0000${relativePath}`;
 }
 
+// fork: a host file (absolute or `~/` path) is written only against the contents it was read
+// with, so a change made outside T3 is never overwritten. the baseline is the file as the
+// server read it, then whatever this client last saved, and resets with each new session
+const hostFileBaselines = new Map<string, string>();
+
 const fileSaveSessions = createFileSaveSessions({
+  onSessionOpen: (target) => hostFileBaselines.delete(fileSaveKey(target)),
   debounceMs: 500,
   canPersist: ({ environmentId }) => readEnvironmentScope(environmentId, AuthFilesystemWriteScope),
   subscribeWritable: ({ environmentId }, onWritable) => {
@@ -150,13 +161,31 @@ const fileSaveSessions = createFileSaveSessions({
       },
     );
   },
-  persist: ({ environmentId, cwd, relativePath }, contents) =>
-    runAtomCommand(appAtomRegistry, projectEnvironment.writeFile, {
+  persist: (target, contents) => {
+    const { environmentId, cwd, relativePath } = target;
+    const expectedContents = isHostPath(relativePath)
+      ? (hostFileBaselines.get(fileSaveKey(target)) ??
+        getConfirmedProjectFileContents(environmentId, cwd, relativePath))
+      : undefined;
+    return runAtomCommand(appAtomRegistry, projectEnvironment.writeFile, {
       environmentId,
-      input: { cwd, relativePath, contents },
-    }),
-  confirm: ({ environmentId, cwd, relativePath }, contents) =>
-    confirmProjectFileQueryData(environmentId, cwd, relativePath, contents),
+      input: {
+        cwd,
+        relativePath,
+        contents,
+        ...(expectedContents === undefined ? {} : { expectedContents }),
+      },
+    });
+  },
+  confirm: (target, contents) => {
+    if (isHostPath(target.relativePath)) hostFileBaselines.set(fileSaveKey(target), contents);
+    return confirmProjectFileQueryData(
+      target.environmentId,
+      target.cwd,
+      target.relativePath,
+      contents,
+    );
+  },
   readUnsaved: ({ environmentId, cwd, relativePath }) =>
     getUnsavedProjectFileQueryData(environmentId, cwd, relativePath)?.contents ?? null,
 });
