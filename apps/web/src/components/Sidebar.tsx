@@ -220,6 +220,7 @@ import {
   type ProviderInstanceEntry,
 } from "../providerInstances";
 import { useThreadRunningTerminalIds } from "../state/terminalSessions";
+import { TAB_TINT_HEX, useThreadTabTint } from "../lib/tabTintState";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Button } from "./ui/button";
 import {
@@ -1075,6 +1076,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
   });
   const terminalStatus = terminalStatusFromRunningIds(runningTerminalIds);
   const terminalProcessCount = runningTerminalIds.length;
+  const tabTint = useThreadTabTint(thread.environmentId, thread.id);
   // Unsent composer text on this thread. The open thread shows its own
   // composer, so the marker only decorates rows you have navigated away from.
   const hasUnsentDraft = useThreadHasUnsentDraft(threadRef) && !props.isActive;
@@ -1558,6 +1560,21 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
       <TooltipPopup side="top">Unsent draft</TooltipPopup>
     </Tooltip>
   ) : null;
+  // The colour the user gave, in Sidebery, to browser tabs this thread
+  // opened. A quiet stripe on the leading edge; it follows the browser, so
+  // clearing the colour there clears it here.
+  const tabTintMarker = tabTint ? (
+    <span
+      aria-hidden
+      data-testid={`sidebar-tab-tint-${thread.id}`}
+      data-tab-tint={tabTint.color}
+      className={cn(
+        "pointer-events-none absolute inset-y-2 left-0 z-20 w-[3px] rounded-r-full",
+        shouldRecede && "opacity-60",
+      )}
+      style={{ backgroundColor: TAB_TINT_HEX[tabTint.color] }}
+    />
+  ) : null;
   const showPin =
     props.isPinned && (!sortable?.isDragging || (props.dragOverPinned && props.dropVerb === null));
   const pinIndicator = showPin ? (
@@ -1615,6 +1632,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
               />
             }
           >
+            {tabTintMarker}
             {/* Settled history recedes: dimmed favicon at rest, restored on
               hover so the tail stays scannable when you're hunting. */}
             <span
@@ -1768,6 +1786,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
             />
           }
         >
+          {tabTintMarker}
           <div className="relative z-10 h-[4.875rem] px-[var(--sidebar-row-content-inset)] py-[var(--sidebar-content-inset)]">
             <div className="flex h-5 min-w-0 items-center gap-1.5">
               {draftIndicator}

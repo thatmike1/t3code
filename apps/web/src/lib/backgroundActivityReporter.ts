@@ -114,7 +114,8 @@ function scopeForSubscription(
 ): BackgroundScope | null {
   if (
     observation.method === WS_METHODS.subscribeResourceTelemetry ||
-    observation.method === WS_METHODS.subscribeWidgets
+    observation.method === WS_METHODS.subscribeWidgets ||
+    observation.method === WS_METHODS.subscribeTabTints
   ) {
     return { type: "diagnostics" };
   }
