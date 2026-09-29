@@ -964,7 +964,7 @@ describe("ChatMarkdown bead links", () => {
     expect(html).toContain(`data-markdown-copy="\`${adaptiveId}\`"`);
   });
 
-  it("keeps a short id as plain code until bd-board confirms it", () => {
+  it("keeps a short id as plain code until beadside confirms it", () => {
     const html = renderToStaticMarkup(<ChatMarkdown cwd={undefined} text="see `qju`" />);
 
     expect(html).not.toContain("127.0.0.1:1338");
