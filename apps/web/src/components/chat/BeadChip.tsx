@@ -2,7 +2,7 @@ import { CircleDotIcon } from "lucide-react";
 import { ContextChip, ContextChipLabel } from "../ContextChip";
 
 /**
- * A beads issue id, linking into the local bd-board. The board is a plain web
+ * A beads issue id, linking into the local beadside. The board is a plain web
  * app, so the chip is an ordinary anchor and the runtime decides where it
  * opens.
  */

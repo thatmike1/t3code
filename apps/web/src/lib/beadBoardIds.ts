@@ -3,9 +3,9 @@ import { useSyncExternalStore } from "react";
 import { BEAD_BOARD_ORIGIN } from "../markdown-bead-links";
 
 /**
- * The ids bd-board knows, so a short id in inline code only becomes a chip
+ * The ids beadside knows, so a short id in inline code only becomes a chip
  * when it names a real bead. One fetch serves every message; a stale set is
- * refetched lazily so beads filed mid-session start linking. When bd-board is
+ * refetched lazily so beads filed mid-session start linking. When beadside is
  * down the set stays empty and short ids render as plain code.
  */
 
@@ -56,7 +56,7 @@ function getServerSnapshot(): ReadonlySet<string> {
   return EMPTY_IDS;
 }
 
-/** Every bead id bd-board reported, empty until the first fetch lands. */
+/** Every bead id beadside reported, empty until the first fetch lands. */
 export function useBeadBoardIds(): ReadonlySet<string> {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
