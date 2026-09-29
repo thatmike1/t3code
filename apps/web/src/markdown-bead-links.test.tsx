@@ -85,7 +85,7 @@ describe("shortBeadIdCandidate", () => {
     "ccChat-general-zye.6",
   ]);
 
-  it("resolves a short id bd-board knows to the full id", () => {
+  it("resolves a short id beadside knows to the full id", () => {
     expect(shortBeadIdCandidate("qju", known)).toBe("ccChat-general-qju");
     expect(shortBeadIdCandidate("jrz2", known)).toBe("ccChat-general-jrz2");
     expect(shortBeadIdCandidate(" zye.6 ", known)).toBe("ccChat-general-zye.6");
