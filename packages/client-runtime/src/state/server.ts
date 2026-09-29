@@ -1074,6 +1074,11 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.subscribeWidgets,
       idleTtlMs: 0,
     }),
+    tabTints: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+      label: "environment-data:server:tab-tints",
+      tag: WS_METHODS.subscribeTabTints,
+      idleTtlMs: 0,
+    }),
     resourceTelemetryHistory: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:server:resource-telemetry-history",
       tag: WS_METHODS.serverGetResourceTelemetryHistory,

@@ -35,6 +35,7 @@ import {
   HostPowerSnapshot,
 } from "./background.ts";
 import { WidgetsSnapshot } from "./widgets.ts";
+import { TabTintSnapshot } from "./tabTint.ts";
 import {
   FilesystemBrowseInput,
   FilesystemBrowseResult,
@@ -462,6 +463,7 @@ export const WS_METHODS = {
   subscribeAuthAccess: "subscribeAuthAccess",
   subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeWidgets: "subscribeWidgets",
+  subscribeTabTints: "subscribeTabTints",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
 } as const;
 
@@ -1451,6 +1453,13 @@ const WsSubscribeWidgetsRpc = Rpc.make(WS_METHODS.subscribeWidgets, {
   stream: true,
 });
 
+const WsSubscribeTabTintsRpc = Rpc.make(WS_METHODS.subscribeTabTints, {
+  payload: Schema.Struct({}),
+  success: TabTintSnapshot,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+
 const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeResourceTelemetry, {
   payload: Schema.Struct({}),
   success: ResourceTelemetrySnapshot,
@@ -1601,6 +1610,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeAuthAccessRpc,
   WsSubscribeBackgroundPolicyRpc,
   WsSubscribeWidgetsRpc,
+  WsSubscribeTabTintsRpc,
   WsSubscribeResourceTelemetryRpc,
   WsOrchestrationDispatchCommandRpc,
   WsOrchestrationGetWorkflowScriptRpc,

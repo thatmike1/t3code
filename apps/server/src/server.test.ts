@@ -47,6 +47,7 @@ import {
   WorktreeSetupSnapshot,
   type WorktreeSetupStageId,
   type WidgetsSnapshot,
+  type TabTintSnapshot,
 } from "@t3tools/contracts";
 import {
   computeDpopAccessTokenHash,
@@ -105,6 +106,8 @@ const TEST_WIDGETS_SNAPSHOT: WidgetsSnapshot = {
   directory: "/tmp/t3code-test-widgets",
   widgets: [],
 };
+/** No browser session is read in these tests; nothing is tinted. */
+const TEST_TAB_TINT_SNAPSHOT: TabTintSnapshot = { tints: [] };
 const decodeTransferThreadSnapshot = Schema.decodeUnknownEffect(
   Schema.fromJsonString(OrchestrationThreadDetailSnapshot),
 );
@@ -204,6 +207,7 @@ import * as ResourceAttribution from "./resourceTelemetry/ResourceAttribution.ts
 import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as Widgets from "./widgets/Widgets.ts";
+import * as TabTint from "./tabTint/TabTint.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as Data from "effect/Data";
 
@@ -1184,6 +1188,11 @@ const buildAppUnderTest = (options?: {
             latest: Effect.succeed(TEST_WIDGETS_SNAPSHOT),
             changes: Stream.empty,
             subscribe: Effect.succeed({ latest: TEST_WIDGETS_SNAPSHOT, changes: Stream.empty }),
+          }),
+          Layer.mock(TabTint.TabTint)({
+            latest: Effect.succeed(TEST_TAB_TINT_SNAPSHOT),
+            changes: Stream.empty,
+            subscribe: Effect.succeed({ latest: TEST_TAB_TINT_SNAPSHOT, changes: Stream.empty }),
           }),
           Layer.mock(ServerEnvironment.ServerEnvironment)({
             getEnvironmentId: Effect.succeed(testEnvironmentDescriptor.environmentId),
