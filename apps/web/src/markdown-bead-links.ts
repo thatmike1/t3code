@@ -5,7 +5,7 @@ import {
 } from "~/vendor/mdast-find-and-replace";
 
 /**
- * Beads issue ids in chat text become links into the local bd-board.
+ * Beads issue ids in chat text become links into the local beadside.
  *
  * In prose only the full `<prefix>-<suffix>` form is recognised. The bare
  * suffix (`oup`) is three lowercase alphanumerics, which is also `the`, `out`
@@ -14,10 +14,10 @@ import {
  * pattern also matches `front-end`, `one-off` and `sign-off`.
  *
  * Inline code is the exception: agents write `oup` in backticks, so a code
- * span that is exactly a short id links when bd-board knows that id.
+ * span that is exactly a short id links when beadside knows that id.
  */
 
-/** bd-board serves one repository, whichever it was launched in. */
+/** beadside serves one repository, whichever it was launched in. */
 export const BEAD_BOARD_ORIGIN = "http://127.0.0.1:1338";
 
 /** Add a repository's issue prefix here to link its ids too. */
@@ -48,7 +48,7 @@ export function beadIdCandidate(codeText: string): string | null {
 }
 
 /**
- * Inline code that is exactly one short id, resolved to the full id bd-board
+ * Inline code that is exactly one short id, resolved to the full id beadside
  * knows. Null when the span is not id-shaped or no known id matches.
  */
 export function shortBeadIdCandidate(
