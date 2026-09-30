@@ -18,11 +18,13 @@ import * as Stream from "effect/Stream";
 import type { Tool } from "effect/unstable/ai";
 import * as NodeCrypto from "node:crypto";
 
+import * as AgentThreads from "../../../agentThreads/AgentThreads.ts";
 import {
   OrchestrationCommandInvariantError,
   OrchestrationCommandPreviouslyRejectedError,
 } from "../../../orchestration/Errors.ts";
 import { PersistenceSqlError } from "../../../persistence/Errors.ts";
+import { SqlitePersistenceMemory } from "../../../persistence/Layers/Sqlite.ts";
 import {
   OrchestrationEngineService,
   type OrchestrationEngineShape,
@@ -121,6 +123,8 @@ function makeProvider(
   };
 }
 
+type AgentThreadLinkInput = Parameters<AgentThreads.AgentThreads["Service"]["record"]>[0];
+
 interface HarnessOptions {
   readonly parent?: OrchestrationThreadShell | null;
   readonly providers?: ReadonlyArray<ServerProvider>;
@@ -128,6 +132,8 @@ interface HarnessOptions {
   readonly reject?: (command: OrchestrationCommand) => OrchestrationCommandInvariantError | null;
   /** A storage failure. The engine stores no receipt, so a retry runs again. */
   readonly failTransiently?: (command: OrchestrationCommand) => boolean;
+  /** The real parent store, in place of the recording mock. */
+  readonly agentThreads?: AgentThreads.AgentThreads["Service"];
 }
 
 /**
@@ -139,6 +145,7 @@ const makeHarness = Effect.fn("makeOrchestratorToolkitHarness")(function* (
   options: HarnessOptions = {},
 ) {
   const commands = yield* Ref.make<ReadonlyArray<OrchestrationCommand>>([]);
+  const links = yield* Ref.make<ReadonlyArray<AgentThreadLinkInput>>([]);
   const receipts = new Map<string, { readonly rejected: string | null }>();
   const parent = options.parent === undefined ? makeThread() : options.parent;
   const threads = new Map<ThreadId, OrchestrationThreadShell>(
@@ -196,6 +203,11 @@ const makeHarness = Effect.fn("makeOrchestratorToolkitHarness")(function* (
         ],
       ),
     }),
+    options.agentThreads === undefined
+      ? Layer.mock(AgentThreads.AgentThreads)({
+          record: (link) => Ref.update(links, (recorded) => [...recorded, link]),
+        })
+      : Layer.succeed(AgentThreads.AgentThreads, options.agentThreads),
     Layer.succeed(Crypto.Crypto, testCrypto),
   );
   const toolkit = yield* OrchestratorToolkit.pipe(
@@ -230,10 +242,53 @@ const makeHarness = Effect.fn("makeOrchestratorToolkitHarness")(function* (
         return part.result as Tool.Failure<typeof OrchestratorToolkit.tools.create_threads>;
       }),
     );
-  return { commands, run, createThreads, createThreadsFailure };
+  return { commands, links, run, createThreads, createThreadsFailure };
 });
 
 describe("orchestrator toolkit: create_threads", () => {
+  it.effect("records the calling thread as the parent of every thread it creates", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness();
+      const result = yield* harness.createThreads({
+        threads: [{ prompt: "Fix the flaky auth test" }, { title: "Scratch" }],
+      });
+      expect(yield* Ref.get(harness.links)).toEqual(
+        result.threads.map((thread) => ({ threadId: thread.threadId, parentThreadId: THREAD_ID })),
+      );
+    }),
+  );
+
+  it.effect("stores the parent where clients read it, once per thread across a retry", () =>
+    Effect.gen(function* () {
+      const agentThreads = yield* AgentThreads.AgentThreads;
+      const harness = yield* makeHarness({ agentThreads });
+      const request = {
+        threads: [{ title: "One" }, { title: "Two" }],
+        clientRequestId: "retry-me",
+      };
+      const first = yield* harness.createThreads(request);
+      const retried = yield* harness.createThreads(request);
+      expect(retried.threads.map((thread) => thread.threadId)).toEqual(
+        first.threads.map((thread) => thread.threadId),
+      );
+      const { links } = yield* agentThreads.latest;
+      expect(links.map((link) => [link.threadId, link.parentThreadId])).toEqual(
+        first.threads.map((thread) => [thread.threadId, THREAD_ID]),
+      );
+      for (const link of links) expect(link.threadId).toMatch(/^mcp-[0-9a-f]{32}$/u);
+    }).pipe(Effect.provide(AgentThreads.layer.pipe(Layer.provide(SqlitePersistenceMemory)))),
+  );
+
+  it.effect("records no parent when the batch is refused", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness();
+      yield* harness.createThreadsFailure({
+        threads: [{ title: "Fine" }, { title: "Escalates", runtimeMode: "full-access" }],
+      });
+      expect(yield* Ref.get(harness.links)).toEqual([]);
+    }),
+  );
+
   it.effect("refuses a credential without the orchestration capability", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness();

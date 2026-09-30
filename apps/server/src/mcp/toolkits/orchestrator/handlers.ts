@@ -23,6 +23,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 
+import * as AgentThreads from "../../../agentThreads/AgentThreads.ts";
 import type { OrchestrationDispatchError } from "../../../orchestration/Errors.ts";
 import * as OrchestrationEngine from "../../../orchestration/Services/OrchestrationEngine.ts";
 import * as ProjectionSnapshotQuery from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
@@ -298,6 +299,7 @@ const make = Effect.gen(function* () {
   const engine = yield* OrchestrationEngine.OrchestrationEngineService;
   const snapshots = yield* ProjectionSnapshotQuery.ProjectionSnapshotQuery;
   const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
+  const agentThreads = yield* AgentThreads.AgentThreads;
   const crypto = yield* Crypto.Crypto;
   const encoder = new TextEncoder();
 
@@ -460,6 +462,8 @@ const make = Effect.gen(function* () {
                 createdAt,
               })
               .pipe(Effect.catch(orchestrationError(`Unable to create thread ${index + 1}`)));
+            // fork: the engine keeps no parent, so the link is stored beside it
+            yield* agentThreads.record({ threadId, parentThreadId: scope.threadId });
             if (request.prompt !== undefined) {
               yield* engine
                 .dispatch({
