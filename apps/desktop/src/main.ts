@@ -72,6 +72,7 @@ import * as DesktopTelemetryPublisher from "./telemetry/DesktopTelemetryPublishe
 import * as DesktopRendererHistory from "./telemetry/DesktopRendererHistory.ts";
 import * as DesktopUpdatePolicy from "./updates/DesktopUpdatePolicy.ts";
 import * as DesktopUpdates from "./updates/DesktopUpdates.ts";
+import { upstreamBaseVersion } from "./updates/forkVersion.ts";
 import * as BrowserImport from "./preview/BrowserImport/BrowserImport.ts";
 import * as LinuxBrowserSecret from "./preview/BrowserImport/LinuxBrowserSecret.ts";
 import * as BrowserSession from "./preview/BrowserSession.ts";
@@ -119,7 +120,7 @@ const resolveDesktopSshCliRunner = (
       nodeEngineRange: serverPackageJson.engines.node,
     };
   }
-  return { archiveVersion: environment.appVersion };
+  return { archiveVersion: upstreamBaseVersion(environment.appVersion) };
 };
 
 const layerDesktopSshEnvironment = Layer.unwrap(
