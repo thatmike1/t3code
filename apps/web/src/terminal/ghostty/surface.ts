@@ -1,3 +1,4 @@
+import type { DesktopBridge } from "@t3tools/contracts";
 import { isMacPlatform } from "../../lib/utils";
 import { SELECTION_MULTI_CLICK_INTERVAL_MS } from "../../lib/selectionActions";
 import { collectWrappedTerminalLinkLine, extractTerminalLinks } from "../../terminal-links";
@@ -545,6 +546,8 @@ export interface GhosttyTerminalSurfaceOptions {
   readonly onData: (data: string) => void;
   readonly onResize: (cols: number, rows: number) => void;
   readonly onSelectionChange: () => void;
+  /** the desktop host supplies Linux PRIMARY; browsers keep the internal selection fallback. */
+  readonly primarySelection?: DesktopBridge["primarySelection"];
   readonly beforeKey: (event: KeyboardEvent) => boolean;
   readonly onLinkActivate: (text: string, event: MouseEvent) => void;
   /**
@@ -948,14 +951,17 @@ export class GhosttyTerminalSurface {
   }
 
   /**
-   * Middle-click pastes the terminal's own selection, which is the only
-   * primary-selection-like buffer a browser can read. It goes through
-   * pasteFromClipboard so it joins the same paste race as every other path.
-   * With nothing selected here there is no buffer to paste, and CLIPBOARD is
-   * deliberately not substituted: middle-click must never emit text the user
-   * only ever copied.
+   * pastes the host's PRIMARY selection, or the terminal selection in a browser.
+   * the ordinary clipboard is independent and must never be substituted here.
    */
   private pasteTerminalSelection(): void {
+    const primarySelection = this.options.primarySelection;
+    if (primarySelection) {
+      void this.pasteFromClipboard(() => primarySelection.readText()).catch(() => {
+        // a denied or unavailable selection clipboard should not paste stale terminal text.
+      });
+      return;
+    }
     const selection = this.getSelection();
     if (selection.length === 0) return;
     void this.pasteFromClipboard(() => Promise.resolve(selection));
@@ -1551,6 +1557,12 @@ export class GhosttyTerminalSurface {
     if (event.button !== 0) return;
     if (!this.selectionMoved && this.selectionMode === "cell") {
       this.clearSelection();
+    }
+    const selection = this.getSelection();
+    if (event.type !== "pointercancel" && selection.length > 0 && isMiddleClickPastePlatform()) {
+      void this.options.primarySelection?.writeText(selection).catch(() => {
+        // selection clipboard availability depends on the Linux desktop session.
+      });
     }
     this.options.onSelectionChange();
   };

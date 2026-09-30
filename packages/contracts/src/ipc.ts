@@ -1242,6 +1242,11 @@ export interface DesktopBridge {
   probeRemoteEditors?: () => Promise<readonly EditorId[]>;
   /** Present when the desktop shell can perform an ordered plain-text paste. */
   pasteAsText?: () => Promise<void>;
+  /** local Linux selection clipboard; absent in browsers and older desktop shells. */
+  primarySelection?: {
+    readText: () => Promise<string>;
+    writeText: (text: string) => Promise<void>;
+  };
   onMenuAction: (listener: (action: string) => void) => () => void;
   onSnapShotEvent?: (listener: (event: DesktopSnapShotEvent) => void) => () => void;
   /**

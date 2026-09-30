@@ -42,6 +42,14 @@ vi.mock("./vendor/ghostty-write-pty.wasm?url&no-inline", async () => ({
 describe("GhosttyTerminalSurface visibility", () => {
   const surfaces = new Set<GhosttyTerminalSurface>();
 
+  function deferredText() {
+    let resolve = (_text: string) => {};
+    const promise = new Promise<string>((complete) => {
+      resolve = complete;
+    });
+    return { promise, resolve };
+  }
+
   // Keep the real surface, renderer, and WASM core. Only browser layout and
   // scheduling are replaced so tests can count work while the terminal is hidden.
   function createHarness() {
@@ -303,6 +311,124 @@ describe("GhosttyTerminalSurface visibility", () => {
     surface.clearSelection();
     harness.pointer("pointerdown", 5, 4, false, 1);
     expect(readText).not.toHaveBeenCalled();
+  });
+
+  it("pastes another app's PRIMARY instead of a stale terminal selection, with bracketed paste", async () => {
+    const harness = createHarness();
+    vi.stubGlobal("navigator", { platform: "Linux x86_64" });
+    const primarySelection = {
+      readText: vi.fn(async () => "external\nselection"),
+      writeText: vi.fn(async (_text: string) => {}),
+    };
+    const surface = await harness.create({ primarySelection });
+    surface.write("hello world\x1b[?2004h");
+    harness.flushFrame();
+    harness.pointer("pointerdown", 5, 1);
+    harness.pointer("pointermove", 37, 1);
+    harness.pointer("pointerup", 37, 0);
+    harness.onData.mockClear();
+    harness.pointer("pointerdown", 5, 4, false, 1);
+    await vi.waitFor(() => expect(harness.onData).toHaveBeenCalledTimes(1));
+    expect(harness.onData).toHaveBeenCalledWith("\x1b[200~external\nselection\x1b[201~");
+  });
+
+  it("publishes a completed selection once, without writing during dragging or clearing", async () => {
+    const harness = createHarness();
+    vi.stubGlobal("navigator", { platform: "Linux x86_64" });
+    const primarySelection = {
+      readText: vi.fn(async () => ""),
+      writeText: vi.fn(async (_text: string) => {}),
+    };
+    const surface = await harness.create({ primarySelection });
+    surface.write("hello world");
+    harness.flushFrame();
+    harness.pointer("pointerdown", 5, 1);
+    harness.pointer("pointermove", 29, 1);
+    harness.pointer("pointermove", 37, 1);
+    expect(primarySelection.writeText).not.toHaveBeenCalled();
+    harness.pointer("pointerup", 37, 0);
+    expect(primarySelection.writeText).toHaveBeenCalledExactlyOnceWith("hello");
+    surface.clearSelection();
+    expect(primarySelection.writeText).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads PRIMARY without an internal selection and suppresses native middle-mouse paste", async () => {
+    const harness = createHarness();
+    vi.stubGlobal("navigator", { platform: "Linux x86_64" });
+    const surface = await harness.create({
+      primarySelection: {
+        readText: async () => "external selection",
+        writeText: async () => {},
+      },
+    });
+    harness.pointer("pointerdown", 5, 4, false, 1);
+    const mouseup = Object.assign(new Event("mouseup", { cancelable: true }), { button: 1 });
+    surface.canvas.dispatchEvent(mouseup);
+    expect(mouseup.defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(harness.onData).toHaveBeenCalledTimes(1));
+    expect(harness.onData).toHaveBeenCalledWith("external selection");
+  });
+
+  it("discards an outstanding PRIMARY read after a newer paste or terminal disposal", async () => {
+    const harness = createHarness();
+    vi.stubGlobal("navigator", { platform: "Linux x86_64" });
+    const pending = deferredText();
+    const surface = await harness.create({
+      primarySelection: { readText: () => pending.promise, writeText: async () => {} },
+    });
+    harness.pointer("pointerdown", 5, 4, false, 1);
+    await surface.pasteFromClipboard(async () => "newer paste");
+    pending.resolve("stale PRIMARY");
+    await pending.promise;
+    expect(harness.onData.mock.calls).toEqual([["newer paste"]]);
+    surface.dispose();
+
+    const disposedRead = deferredText();
+    const other = await harness.create({
+      primarySelection: { readText: () => disposedRead.promise, writeText: async () => {} },
+    });
+    harness.onData.mockClear();
+    harness.pointer("pointerdown", 5, 4, false, 1);
+    other.dispose();
+    disposedRead.resolve("closed terminal");
+    await disposedRead.promise;
+    expect(harness.onData).not.toHaveBeenCalled();
+  });
+
+  it("leaves empty or rejected PRIMARY reads empty instead of substituting the clipboard", async () => {
+    const harness = createHarness();
+    const readText = vi.fn(async () => "");
+    const clipboardRead = vi.fn(async () => "ordinary clipboard");
+    vi.stubGlobal("navigator", {
+      platform: "Linux x86_64",
+      clipboard: { readText: clipboardRead },
+    });
+    await harness.create({ primarySelection: { readText, writeText: async () => {} } });
+    harness.pointer("pointerdown", 5, 4, false, 1);
+    await vi.waitFor(() => expect(readText).toHaveBeenCalledTimes(1));
+    readText.mockRejectedValueOnce(new Error("PRIMARY unavailable"));
+    harness.pointer("pointerdown", 5, 4, false, 1);
+    await vi.waitFor(() => expect(readText).toHaveBeenCalledTimes(2));
+    expect(harness.onData).not.toHaveBeenCalled();
+    expect(clipboardRead).not.toHaveBeenCalled();
+  });
+
+  it("reports the middle button to mouse-aware apps, with Shift bypassing reporting for paste", async () => {
+    const harness = createHarness();
+    vi.stubGlobal("navigator", { platform: "Linux x86_64" });
+    const readText = vi.fn(async () => "PRIMARY");
+    const surface = await harness.create({
+      primarySelection: { readText, writeText: async () => {} },
+    });
+    surface.write("\x1b[?1000h\x1b[?1006h");
+    harness.onData.mockClear();
+    harness.pointer("pointerdown", 5, 4, false, 1);
+    harness.pointer("pointerup", 5, 0, false, 1);
+    expect(harness.onData.mock.calls).toEqual([["\x1b[<1;1;1M"], ["\x1b[<1;1;1m"]]);
+    expect(readText).not.toHaveBeenCalled();
+    harness.onData.mockClear();
+    harness.pointer("pointerdown", 5, 4, true, 1);
+    await vi.waitFor(() => expect(harness.onData).toHaveBeenCalledExactlyOnceWith("PRIMARY"));
   });
 
   it("starts a selection when dragging from a link", async () => {

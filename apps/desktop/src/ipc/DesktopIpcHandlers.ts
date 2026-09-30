@@ -55,6 +55,7 @@ import {
   showContextMenu,
 } from "./methods/window.ts";
 import { openTabFocus } from "./methods/tabFocus.ts";
+import { readPrimarySelection, writePrimarySelection } from "./methods/primary-selection.ts";
 import {
   acknowledgeSnapShot,
   checkSnapShotShortcut,
@@ -139,6 +140,8 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handle(openSystemSettings);
   yield* ipc.handle(checkSystemPermission);
   yield* ipc.handle(pasteAsText);
+  yield* ipc.handle(readPrimarySelection);
+  yield* ipc.handle(writePrimarySelection);
   yield* ipc.handle(probeRemoteEditors);
   yield* ipc.handle(getUpdateState);
   yield* ipc.handle(setUpdateChannel);
