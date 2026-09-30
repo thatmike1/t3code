@@ -32,6 +32,7 @@ import * as Option from "effect/Option";
 import serverPackageJson from "../../../server/package.json" with { type: "json" };
 
 import type * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
+import { upstreamBaseVersion } from "../updates/forkVersion.ts";
 
 import * as DesktopSshPasswordPrompts from "./DesktopSshPasswordPrompts.ts";
 
@@ -92,7 +93,7 @@ export const resolveDesktopSshCliRunner = (
   }
   const releaseBaseUrl = env[CLI_RELEASE_BASE_URL_ENV]?.trim() || undefined;
   return {
-    archiveVersion: environment.appVersion,
+    archiveVersion: upstreamBaseVersion(environment.appVersion),
     ...(releaseBaseUrl === undefined ? {} : { releaseBaseUrl }),
   };
 };
