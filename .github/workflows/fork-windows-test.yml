@@ -1,0 +1,174 @@
+name: Fork Windows x64 test installer
+
+on:
+  push:
+    branches: [release-feed]
+    paths:
+      - .github/workflows/fork-windows-test.yml
+      - .github/workflows/release-desktop.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    name: Build shared JS bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      clerk_publishable_key: ${{ steps.config.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ steps.config.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ steps.config.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ steps.config.outputs.relay_url }}
+    steps:
+      - name: Checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git sparse-checkout set --no-cone '/*' '!/.repos/'
+          git checkout --detach FETCH_HEAD
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: false
+
+      - name: Install bundle dependencies
+        run: vp install --filter=t3... --filter=@t3tools/web... --filter=@t3tools/desktop... --filter=@t3tools/scripts...
+
+      - name: Set test version and public client configuration
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="0.0.42-fork.20260930.1000${GITHUB_RUN_NUMBER}"
+          node scripts/update-release-package-versions.ts "$version"
+          cp .env.example .env
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Export public client configuration
+        id: config
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in T3CODE_CLERK_PUBLISHABLE_KEY T3CODE_CLERK_JWT_TEMPLATE T3CODE_CLERK_CLI_OAUTH_CLIENT_ID T3CODE_RELAY_URL; do
+            value="$(sed -n "s/^${name}=//p" .env.example | head -n 1)"
+            [[ -n "$value" ]] || { echo "Missing $name in .env.example" >&2; exit 1; }
+            key="$(tr '[:upper:]' '[:lower:]' <<< "${name#T3CODE_}")"
+            echo "$key=$value" >> "$GITHUB_OUTPUT"
+          done
+
+      - uses: ./.github/actions/setup-apt-mirrors
+
+      - name: Install Linux build libraries
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
+
+      - name: Build JS bundle
+        run: vp run build:desktop
+
+      - name: Upload JS bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: js-bundle
+          path: |
+            apps/server/dist
+            apps/desktop/dist-electron
+          if-no-files-found: error
+
+  linux_cli:
+    name: Build Linux x64 CLI for WSL
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git sparse-checkout set --no-cone '/*' '!/.repos/'
+          git checkout --detach FETCH_HEAD
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: false
+
+      - name: Install CLI dependencies
+        run: vp install --filter=t3... --filter=@t3tools/scripts...
+
+      - name: Align package versions
+        run: node scripts/update-release-package-versions.ts "${{ needs.bundle.outputs.version }}"
+
+      - name: Download JS bundle
+        uses: actions/download-artifact@v8
+        with:
+          name: js-bundle
+          path: apps
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Build resource monitor
+        run: cargo build --locked --release --manifest-path native/resource-monitor/Cargo.toml --target x86_64-unknown-linux-gnu
+
+      - name: Build CLI single-executable
+        env:
+          VP_NODE_VERSION: "26.8.2"
+        run: node apps/server/scripts/cli.ts build-exe --verbose
+
+      - name: Build and smoke-test Linux CLI archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cli-resource-monitor/linux-x64"
+          cp native/resource-monitor/target/x86_64-unknown-linux-gnu/release/t3-resource-monitor "$RUNNER_TEMP/cli-resource-monitor/linux-x64/"
+          node scripts/build-cli-archive.ts \
+            --platform linux --arch x64 \
+            --version "${{ needs.bundle.outputs.version }}" \
+            --resource-monitor-dir "$RUNNER_TEMP/cli-resource-monitor" \
+            --output-dir release-cli
+          node scripts/smoke-cli-archive.ts --archive release-cli/* --expect-version "${{ needs.bundle.outputs.version }}"
+
+      - name: Upload WSL runtime archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: cli-linux-x64
+          path: release-cli/*
+          if-no-files-found: error
+
+  windows:
+    name: Package Windows x64 installer
+    needs: [bundle, linux_cli]
+    uses: ./.github/workflows/release-desktop.yml
+    with:
+      version: ${{ needs.bundle.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: stable
+      relay_client_tracing: false
+      clerk_publishable_key: ${{ needs.bundle.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ needs.bundle.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ needs.bundle.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ needs.bundle.outputs.relay_url }}
+      label: fork Windows x64 test
+      runner: windows-2025
+      platform: win
+      target: nsis
+      arch: x64
+      rust_target: x86_64-pc-windows-msvc
+      resource_key: win32-x64
+      cli_archive: false
