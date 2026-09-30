@@ -167,7 +167,9 @@ export const make = Effect.fn("tabTint.make")(function* (options: TabTintOptions
     `;
     const maxRow = top?.max ?? 0;
     while (activityCursor < maxRow) {
-      const upper = activityCursor + ACTIVITY_BATCH_ROWS;
+      // clamped to the newest row: running the cursor past it would skip every
+      // activity written before the table grows to the overshoot.
+      const upper = Math.min(activityCursor + ACTIVITY_BATCH_ROWS, maxRow);
       // The instr() filter is only a cheap prefilter; the shell lexer decides.
       const rows = yield* sql<ActivityRow>`
         SELECT rowid AS row, thread_id AS "threadId", payload_json AS payload,
