@@ -54,6 +54,7 @@ import {
   setTheme,
   showContextMenu,
 } from "./methods/window.ts";
+import { openTabFocus } from "./methods/tabFocus.ts";
 import {
   acknowledgeSnapShot,
   checkSnapShotShortcut,
@@ -134,6 +135,7 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handle(openExternal);
   yield* ipc.handle(receiveProviderAuthCallback);
   yield* ipc.handle(cancelProviderAuthCallback);
+  yield* ipc.handle(openTabFocus);
   yield* ipc.handle(openSystemSettings);
   yield* ipc.handle(checkSystemPermission);
   yield* ipc.handle(pasteAsText);
