@@ -12,6 +12,7 @@ import * as Stream from "effect/Stream";
 import { McpProtocol, McpSchema, McpServer } from "effect/unstable/ai";
 import { HttpBody, HttpClient, HttpRouter, HttpServerResponse } from "effect/unstable/http";
 
+import * as AgentThreads from "../agentThreads/AgentThreads.ts";
 import { OrchestrationEngineService } from "../orchestration/Services/OrchestrationEngine.ts";
 import * as ProviderRegistry from "../provider/Services/ProviderRegistry.ts";
 import { ProjectionSnapshotQuery } from "../orchestration/Services/ProjectionSnapshotQuery.ts";
@@ -71,6 +72,7 @@ const OrchestratorTestLayer = McpHttpServer.OrchestratorToolkitRegistrationLive.
       Layer.mock(ProjectionSnapshotQuery)({}),
       Layer.mock(OrchestrationEngineService)({}),
       Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+      Layer.mock(AgentThreads.AgentThreads)({}),
       NodeServices.layer,
     ),
   ),

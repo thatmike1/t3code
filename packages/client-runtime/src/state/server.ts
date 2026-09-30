@@ -1079,6 +1079,11 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.subscribeTabTints,
       idleTtlMs: 0,
     }),
+    agentThreads: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
+      label: "environment-data:server:agent-threads",
+      tag: WS_METHODS.subscribeAgentThreads,
+      idleTtlMs: 0,
+    }),
     resourceTelemetryHistory: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:server:resource-telemetry-history",
       tag: WS_METHODS.serverGetResourceTelemetryHistory,

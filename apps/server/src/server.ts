@@ -107,6 +107,7 @@ import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
 import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
 import * as Widgets from "./widgets/Widgets.ts";
 import * as TabTint from "./tabTint/TabTint.ts";
+import * as AgentThreads from "./agentThreads/AgentThreads.ts";
 import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
 import * as VcsDriverRegistry from "./vcs/VcsDriverRegistry.ts";
 import * as VcsProjectConfig from "./vcs/VcsProjectConfig.ts";
@@ -231,6 +232,8 @@ const BackgroundLayerLive = BackgroundPolicy.layer.pipe(
 const WidgetsLayerLive = Widgets.layer;
 
 const TabTintLayerLive = TabTint.layer.pipe(Layer.provide(SqlitePersistenceLayerLive));
+
+const AgentThreadsLayerLive = AgentThreads.layer.pipe(Layer.provide(SqlitePersistenceLayerLive));
 
 const UsageLayerLive = UsageService.layer.pipe(Layer.provide(ServerSettingsLayerLive));
 
@@ -584,6 +587,7 @@ const RuntimeDependenciesLive = RuntimeCoreDependenciesLive.pipe(
   Layer.provideMerge(BackgroundLayerLive),
   Layer.provideMerge(WidgetsLayerLive),
   Layer.provideMerge(TabTintLayerLive),
+  Layer.provideMerge(AgentThreadsLayerLive),
   Layer.provideMerge(ResourceDiagnosticsLayerLive),
   Layer.provideMerge(UsageLayerLive),
   Layer.provideMerge(TraceDiagnostics.layer),

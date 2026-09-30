@@ -36,6 +36,7 @@ import {
 } from "./background.ts";
 import { WidgetsSnapshot } from "./widgets.ts";
 import { TabTintSnapshot } from "./tabTint.ts";
+import { AgentThreadsSnapshot } from "./agentThreads.ts";
 import {
   FilesystemBrowseInput,
   FilesystemBrowseResult,
@@ -464,6 +465,7 @@ export const WS_METHODS = {
   subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeWidgets: "subscribeWidgets",
   subscribeTabTints: "subscribeTabTints",
+  subscribeAgentThreads: "subscribeAgentThreads",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
 } as const;
 
@@ -1460,6 +1462,13 @@ const WsSubscribeTabTintsRpc = Rpc.make(WS_METHODS.subscribeTabTints, {
   stream: true,
 });
 
+const WsSubscribeAgentThreadsRpc = Rpc.make(WS_METHODS.subscribeAgentThreads, {
+  payload: Schema.Struct({}),
+  success: AgentThreadsSnapshot,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+
 const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeResourceTelemetry, {
   payload: Schema.Struct({}),
   success: ResourceTelemetrySnapshot,
@@ -1611,6 +1620,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeBackgroundPolicyRpc,
   WsSubscribeWidgetsRpc,
   WsSubscribeTabTintsRpc,
+  WsSubscribeAgentThreadsRpc,
   WsSubscribeResourceTelemetryRpc,
   WsOrchestrationDispatchCommandRpc,
   WsOrchestrationGetWorkflowScriptRpc,

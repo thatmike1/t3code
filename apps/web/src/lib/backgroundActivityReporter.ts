@@ -115,7 +115,8 @@ function scopeForSubscription(
   if (
     observation.method === WS_METHODS.subscribeResourceTelemetry ||
     observation.method === WS_METHODS.subscribeWidgets ||
-    observation.method === WS_METHODS.subscribeTabTints
+    observation.method === WS_METHODS.subscribeTabTints ||
+    observation.method === WS_METHODS.subscribeAgentThreads
   ) {
     return { type: "diagnostics" };
   }
