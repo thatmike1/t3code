@@ -1131,6 +1131,11 @@ export interface DesktopBridge {
   checkSystemPermission: (pane: SystemSettingsPane) => Promise<boolean>;
   probeRemoteEditors: () => Promise<readonly EditorId[]>;
   pasteAsText: () => Promise<void>;
+  /** fork: local Linux selection clipboard; absent in browsers and older desktop shells. */
+  primarySelection?: {
+    readText: () => Promise<string>;
+    writeText: (text: string) => Promise<void>;
+  };
   onMenuAction: (listener: (action: string) => void) => () => void;
   onSnapShotEvent: (listener: (event: DesktopSnapShotEvent) => void) => () => void;
   onQuitShortcut: (listener: (event: QuitShortcutHintEvent) => void) => () => void;
