@@ -15,6 +15,7 @@ import { primaryServerKeybindingsAtom } from "../../state/server";
 import { cn } from "../../lib/utils";
 import { usePullRequestsSupported } from "../../state/environments";
 import { T3Wordmark } from "../T3Wordmark";
+import { ForkMark } from "./ForkMark";
 import {
   resolveEnvironmentIdentificationPillLabel,
   resolveSidebarStageBackdropVariant,
@@ -75,6 +76,12 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
       <div className="relative z-10 flex h-8 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden py-0.5">
         <div className="flex shrink-0 items-center gap-1">
           <SidebarBrand onBackdrop={backdropVariant !== null} />
+          <ForkMark
+            className={cn(
+              "hidden shrink-0 md:inline-block",
+              backdropVariant ? "text-white/70" : "text-muted-foreground",
+            )}
+          />
           {isElectron ? (
             <div className="hidden items-center md:flex">
               <HistoryNavigationButton direction="back" onBackdrop={backdropVariant !== null} />
