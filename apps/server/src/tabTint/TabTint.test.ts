@@ -136,6 +136,22 @@ it.live("tints the live thread that opened a coloured tab, and follows the brows
         { threadId: ThreadId.make("thread-live"), color: "red", tabCount: 2 },
       ]);
 
+      // a command run after the first scan is still picked up
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`
+        INSERT INTO projection_thread_activities (activity_id, thread_id, tone, kind, summary, payload_json, created_at)
+        VALUES ('a5', 'thread-live', 'tool', 'tool.completed', 'Command run',
+          ${claudeCommand("xdg-open http://127.0.0.1:1360/later")}, '2026-09-29T10:05:00.000Z')
+      `;
+      yield* fs.writeFile(
+        sessionFile,
+        sessionWith([{ url: "http://127.0.0.1:1360/later", color: "blue" }]),
+      );
+      const later = yield* awaitSnapshot(service, (s) => s.tints[0]?.color === "blue");
+      assert.deepEqual(later.tints, [
+        { threadId: ThreadId.make("thread-live"), color: "blue", tabCount: 1 },
+      ]);
+
       // clearing the colour in the browser clears the marker
       yield* fs.writeFile(
         sessionFile,
