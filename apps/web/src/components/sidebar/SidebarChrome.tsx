@@ -7,6 +7,7 @@ import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { useEnvironments } from "../../state/environments";
 import { T3Wordmark } from "../T3Wordmark";
+import { ForkMark } from "./ForkMark";
 import {
   resolveEnvironmentIdentificationPillLabel,
   resolveSidebarStageBackdropVariant,
@@ -62,6 +63,12 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
         className="relative top-auto z-10 translate-y-0 md:hidden"
       />
       <SidebarBrand onBackdrop={backdropVariant !== null} />
+      <ForkMark
+        className={cn(
+          "relative z-10 ml-2 hidden md:inline-block",
+          backdropVariant ? "text-white/70" : "text-muted-foreground",
+        )}
+      />
       {pillLabel ? (
         <Badge
           className="relative z-10 ml-1 hidden @[15rem]/sidebar-header:inline-flex"
