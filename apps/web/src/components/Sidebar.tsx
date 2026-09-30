@@ -44,6 +44,7 @@ import type { TimestampFormat } from "@t3tools/contracts/settings";
 import {
   AlarmClockIcon,
   AlarmClockOffIcon,
+  BotIcon,
   CheckIcon,
   ChevronDownIcon,
   CircleAlertIcon,
@@ -222,6 +223,14 @@ import {
 import { useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { focusTintedTab, TAB_TINT_HEX, useThreadTabTint } from "../lib/tabTintState";
 import { tabFocusLabel } from "@t3tools/shared/tabFocus";
+import { useAgentThreadLinks } from "../lib/agentThreadsState";
+import { SidebarAgentGroup } from "./sidebar/SidebarAgentGroup";
+import {
+  groupAgentThreads,
+  isAgentLaunchedThread,
+  visibleAgentChildren,
+  withVisibleAgentChildren,
+} from "./sidebar/SidebarAgentThreads.logic";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Button } from "./ui/button";
 import {
@@ -256,6 +265,12 @@ const SETTLED_TAIL_PAGE_COUNT = 25;
 // Fresh keys deliberately reset both shelves to collapsed for existing users.
 const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar:settled-expanded";
 const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
+// Agent groups are open unless collapsed, so the stored set is the collapsed hosts.
+const AGENT_GROUPS_COLLAPSED_KEY = "t3code:sidebar:agent-groups-collapsed";
+const AgentGroupsCollapsed = Schema.Array(Schema.String);
+const NO_COLLAPSED_AGENT_GROUPS: readonly string[] = [];
+const sidebarThreadKey = (thread: EnvironmentThreadShell): string =>
+  scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
 
 function compactSidebarTimeLabel(label: string): string {
   if (label === "just now") return "now";
@@ -993,6 +1008,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
   // rows. The marker can unpin the thread when the server supports pinning.
   pinningSupported: boolean;
   isPinned: boolean;
+  // A thread an agent started: "nested" rows sit in the group under the
+  // thread that launched them, "launched" rows stand alone and carry a mark.
+  agentMark?: "nested" | "launched" | undefined;
+  // The threads this thread's agent started, rendered under the row and
+  // inside its list item so the group moves and drags with it.
+  agentGroup?: ReactNode;
   // Present on rows whose server supports every drop outcome: dnd-kit
   // sortable bag applied to the row root so the whole row drags (the
   // pointer sensor's distance constraint keeps plain clicks working).
@@ -1525,7 +1546,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                   ? "text-foreground"
                   : isUnread
                     ? "text-muted-foreground"
-                    : "text-secondary-label/70",
+                    : props.agentMark === "nested"
+                      ? "text-foreground/80"
+                      : "text-secondary-label/70",
             ),
         isRegeneratingTitle && "opacity-[0.55]",
       )}
@@ -1619,6 +1642,52 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
       <TooltipPopup side="top">Show tab: {tabFocusLabel(tabTint.focusUrl)}</TooltipPopup>
     </Tooltip>
   ) : null;
+  const isNestedAgentRow = props.agentMark === "nested";
+  const agentLaunchedMark =
+    props.agentMark === "launched" ? (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              role="img"
+              aria-label="Started by an agent"
+              data-testid="sidebar-agent-launched-mark"
+              className="inline-flex shrink-0 items-center text-muted-foreground/65"
+            />
+          }
+        >
+          <BotIcon aria-hidden className="size-3.5" />
+        </TooltipTrigger>
+        <TooltipPopup side="top">Started by an agent</TooltipPopup>
+      </Tooltip>
+    ) : null;
+  // A nested row has no card to carry its status, so it shows the same pill
+  // the card would, icon first.
+  const nestedAgentStatus =
+    isNestedAgentRow && topStatus ? (
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center gap-1 text-xs font-medium",
+          topStatus.className,
+        )}
+      >
+        {topStatus.icon === "working" ? (
+          <CircleDashedIcon aria-hidden className="size-3.5 shrink-0" />
+        ) : topStatus.icon === "input" ? (
+          <MessageCircleQuestionIcon aria-hidden className="size-3.5 shrink-0" />
+        ) : topStatus.icon === "approval" ? (
+          <ShieldQuestionIcon aria-hidden className="size-3.5 shrink-0" />
+        ) : topStatus.icon === "failed" ? (
+          <CircleAlertIcon aria-hidden className="size-3.5 shrink-0" />
+        ) : topStatus.icon === "monitoring" ? (
+          <EyeIcon aria-hidden className="size-3.5 shrink-0" />
+        ) : topStatus.icon === "done" ? (
+          <CircleCheckIcon aria-hidden className="size-3.5 shrink-0" />
+        ) : null}
+        {/* Woke keeps its own dismiss button in the time slot. */}
+        {isWokeStatus ? null : <span role="status">{topStatus.label}</span>}
+      </span>
+    ) : null;
   const showPin =
     props.isPinned && (!sortable?.isDragging || (props.dragOverPinned && props.dropVerb === null));
   const pinIndicator = showPin ? (
@@ -1655,7 +1724,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
         {...(fileDropHandlers ?? {})}
         className={cn(
           // Matches the h-9 row so unrendered rows never shift the list when they paint.
-          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_36px]",
+          "list-none [content-visibility:auto]",
+          isNestedAgentRow
+            ? "[contain-intrinsic-size:auto_32px]"
+            : "[contain-intrinsic-size:auto_36px]",
           sortable?.isDragging && "relative z-20",
         )}
       >
@@ -1666,9 +1738,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                 ref={rowRef}
                 role="button"
                 tabIndex={0}
-                data-testid="sidebar-row-slim"
+                data-testid={isNestedAgentRow ? "sidebar-row-agent" : "sidebar-row-slim"}
                 aria-busy={isRegeneratingTitle || undefined}
-                className={cn(rowSurfaceClassName, "flex h-9 items-center gap-2.5 px-2.5")}
+                className={cn(
+                  rowSurfaceClassName,
+                  "flex items-center",
+                  isNestedAgentRow ? "h-8 gap-2 px-2" : "h-9 gap-2.5 px-2.5",
+                )}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
                 onKeyDown={handleKeyDown}
@@ -1682,15 +1758,37 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
             <span
               className={cn(
                 "shrink-0 transition-opacity",
-                (!props.isActive || variantAction === "unsettle") &&
+                !isNestedAgentRow &&
+                  (!props.isActive || variantAction === "unsettle") &&
                   "opacity-40 grayscale group-focus-within/sidebar-row:opacity-100 group-focus-within/sidebar-row:grayscale-0 group-hover/sidebar-row:opacity-100 group-hover/sidebar-row:grayscale-0",
               )}
             >
-              {props.project ? <ProjectFavicon project={props.project} className="size-4" /> : null}
+              {isNestedAgentRow ? (
+                // The host row above already names the project; what differs
+                // between siblings is who is doing the work.
+                driverKind ? (
+                  <ProviderInstanceIcon
+                    driverKind={driverKind}
+                    displayName={
+                      providerEntry?.displayName ?? thread.session?.providerName ?? modelInstanceId
+                    }
+                    accentColor={providerEntry?.accentColor}
+                    showBadge={showInstanceBadge}
+                    iconClassName="size-3.5"
+                    badgeClassName="right-[-0.1875rem] bottom-[-0.1875rem] h-3 min-w-3 px-0.5 text-[7px]"
+                  />
+                ) : (
+                  <BotIcon aria-hidden className="size-3.5" />
+                )
+              ) : props.project ? (
+                <ProjectFavicon project={props.project} className="size-4" />
+              ) : null}
             </span>
             {draftIndicator}
             {title}
+            {agentLaunchedMark}
             {pinIndicator}
+            {nestedAgentStatus}
             {terminalStatusIcon}
             {isRegeneratingTitle ? (
               <span role="status" className="sr-only">
@@ -1849,6 +1947,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
               ) : (
                 <span className="flex-1" />
               )}
+              {agentLaunchedMark}
               {pinIndicator}
               {/* The visible state owns this slot's width: status at rest,
                   actions on hover/keyboard focus or while the popover is open. Keeping
@@ -2055,6 +2154,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
         </TooltipTrigger>
         {detailsTooltip}
       </Tooltip>
+      {props.agentGroup}
     </li>
   );
 });
@@ -2606,7 +2706,7 @@ export default function Sidebar() {
     pinnedThreads,
     draggableThreadKeys,
     activeReorderableThreadKeys,
-    activeThreads,
+    activeThreads: classifiedActiveThreads,
     snoozedThreads,
     settledThreads,
     snoozeNow,
@@ -2709,13 +2809,68 @@ export default function Sidebar() {
     };
   }, [nowMinute, optimisticDrop, scopedProjectKeys, serverConfigs, snoozeWakeTick, threads]);
 
+  // Threads an agent started leave the active list and sit in a group under
+  // the thread that launched them. Everything below that reads
+  // `activeThreads` sees only the top-level rows.
+  const agentThreadLinks = useAgentThreadLinks();
+  const agentParentKeyByChildKey = useMemo(
+    () => new Map(agentThreadLinks.map((link) => [link.childKey, link.parentKey])),
+    [agentThreadLinks],
+  );
+  const { active: activeThreads, childrenByHostKey: agentChildrenByHostKey } = useMemo(
+    () =>
+      groupAgentThreads({
+        pinned: pinnedThreads,
+        active: classifiedActiveThreads,
+        links: agentThreadLinks,
+        keyOf: sidebarThreadKey,
+      }),
+    [agentThreadLinks, classifiedActiveThreads, pinnedThreads],
+  );
+  const [collapsedAgentGroups, setCollapsedAgentGroups] = useLocalStorage(
+    AGENT_GROUPS_COLLAPSED_KEY,
+    NO_COLLAPSED_AGENT_GROUPS,
+    AgentGroupsCollapsed,
+  );
+  const toggleAgentGroup = useCallback(
+    (hostKey: string) =>
+      setCollapsedAgentGroups((collapsed) =>
+        collapsed.includes(hostKey)
+          ? collapsed.filter((key) => key !== hostKey)
+          : [...collapsed, hostKey],
+      ),
+    [setCollapsedAgentGroups],
+  );
+  const visibleAgentChildrenByHostKey = useMemo(() => {
+    const visible = new Map<string, readonly EnvironmentThreadShell[]>();
+    for (const [hostKey, children] of agentChildrenByHostKey) {
+      const shown = visibleAgentChildren({
+        children,
+        collapsed: collapsedAgentGroups.includes(hostKey),
+        routeThreadKey,
+        keyOf: sidebarThreadKey,
+      });
+      if (shown.length > 0) visible.set(hostKey, shown);
+    }
+    return visible;
+  }, [agentChildrenByHostKey, collapsedAgentGroups, routeThreadKey]);
+  // Group rows change the height of their host, which the list motion has to
+  // measure even though the order of top-level rows did not change.
+  const agentGroupLayoutKey = useMemo(
+    () =>
+      [...agentChildrenByHostKey.keys()]
+        .map((hostKey) => `${hostKey}:${visibleAgentChildrenByHostKey.get(hostKey)?.length ?? 0}`)
+        .join("\0"),
+    [agentChildrenByHostKey, visibleAgentChildrenByHostKey],
+  );
+
   const threadSearchInputRef = useRef<HTMLInputElement>(null);
   const [threadSearchQuery, setThreadSearchQuery] = useState("");
   const [activeSearchResultIndex, setActiveSearchResultIndex] = useState(0);
   const isSearchingThreads = threadSearchQuery.trim().length > 0;
   const searchableThreads = useMemo(
-    () => [...pinnedThreads, ...activeThreads, ...snoozedThreads, ...settledThreads],
-    [activeThreads, pinnedThreads, settledThreads, snoozedThreads],
+    () => [...pinnedThreads, ...classifiedActiveThreads, ...snoozedThreads, ...settledThreads],
+    [classifiedActiveThreads, pinnedThreads, settledThreads, snoozedThreads],
   );
   const searchEnvironmentIds = useMemo(
     () =>
@@ -2852,8 +3007,21 @@ export default function Sidebar() {
   }, [routeThreadKey, snoozedShelfExpanded, snoozedThreads]);
 
   const orderedThreads = useMemo(
-    () => [...pinnedThreads, ...activeThreads, ...visibleSnoozedThreads, ...renderedSettledThreads],
-    [pinnedThreads, activeThreads, visibleSnoozedThreads, renderedSettledThreads],
+    () => [
+      // Shown group rows follow their host, so jump hints, range selection
+      // and the row handlers' lookup all cover them in rendered order.
+      ...withVisibleAgentChildren(pinnedThreads, visibleAgentChildrenByHostKey, sidebarThreadKey),
+      ...withVisibleAgentChildren(activeThreads, visibleAgentChildrenByHostKey, sidebarThreadKey),
+      ...visibleSnoozedThreads,
+      ...renderedSettledThreads,
+    ],
+    [
+      pinnedThreads,
+      activeThreads,
+      visibleAgentChildrenByHostKey,
+      visibleSnoozedThreads,
+      renderedSettledThreads,
+    ],
   );
   const orderedThreadKeys = useMemo(
     () =>
@@ -3505,8 +3673,10 @@ export default function Sidebar() {
     // Later thread actions can animate while writes settle.
     // Draft navigation can reveal a frozen row without changing the draft count.
     void sidebarListOrderKey;
+    void agentGroupLayoutKey;
     listMotionRef.current?.update(!listMotionPaused && sidebarListHasRows);
   }, [
+    agentGroupLayoutKey,
     listMotionPaused,
     routeDraftIdForRows,
     sidebarListHasRows,
@@ -4755,15 +4925,19 @@ export default function Sidebar() {
                         thread: EnvironmentThreadShell,
                         section: SidebarSection,
                         sortable?: SortableThreadRowBag,
-                      ) => {
+                        nested = false,
+                      ): ReactNode => {
                         const threadKey = scopedThreadKey(
                           scopeThreadRef(thread.environmentId, thread.id),
                         );
+                        const agentChildren = nested
+                          ? undefined
+                          : agentChildrenByHostKey.get(threadKey);
                         // Settled and snoozed are the ONLY things that collapse a
                         // row: every other thread is a full card. Density comes
                         // from users (or the auto rules) actually parking work,
                         // not from the sidebar second-guessing what still matters.
-                        const isCard = section === "active" || section === "pinned";
+                        const isCard = !nested && (section === "active" || section === "pinned");
                         const rowVariant = isCard ? "card" : "slim";
                         return (
                           <SidebarThreadRow
@@ -4793,6 +4967,33 @@ export default function Sidebar() {
                                 .threadPinning === true
                             }
                             isPinned={thread.pinnedAt != null}
+                            agentMark={
+                              nested
+                                ? "nested"
+                                : isAgentLaunchedThread(
+                                      thread.id,
+                                      threadKey,
+                                      agentParentKeyByChildKey,
+                                    )
+                                  ? "launched"
+                                  : undefined
+                            }
+                            agentGroup={
+                              agentChildren === undefined ? undefined : (
+                                <SidebarAgentGroup
+                                  hostKey={threadKey}
+                                  count={agentChildren.length}
+                                  collapsed={collapsedAgentGroups.includes(threadKey)}
+                                  onToggle={toggleAgentGroup}
+                                >
+                                  {visibleAgentChildrenByHostKey
+                                    .get(threadKey)
+                                    ?.map((child) =>
+                                      renderThreadRowInner(child, "active", undefined, true),
+                                    )}
+                                </SidebarAgentGroup>
+                              )
+                            }
                             sortable={sortable}
                             dropVerb={
                               dragState?.activeKey === threadKey
