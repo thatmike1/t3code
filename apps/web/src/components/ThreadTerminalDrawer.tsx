@@ -727,6 +727,8 @@ function TerminalSessionViewport({
         onReply: (data) => void sendTerminalInput(data, "Terminal write failed", "reply"),
         onResize: (cols, rows) => void resizeTerminal(cols, rows),
         onSelectionChange: () => {},
+        primarySelection:
+          typeof window === "undefined" ? undefined : window.desktopBridge?.primarySelection,
         beforeKey: (event) => handleBeforeKey(event),
         onLinkActivate: (text, event) => handleLinkActivate(text, event),
         canActivateLink: (text) => canActivateTerminalLink(text),
