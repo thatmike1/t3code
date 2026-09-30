@@ -51,6 +51,13 @@ the agent has. New threads run on their own and do not report back. Threads that
 edit one checkout at the same time can conflict, so ask the agent to split the
 work by files.
 
+Threads an agent started sit under the thread that launched them, in a group
+labelled with their count. Each row shows the provider, title, status, and age.
+Click the label to collapse the group; the open thread stays visible. A thread
+you pin, snooze, or settle leaves the group and follows the usual rules, as does
+one whose launching thread is settled or archived. Outside a group, a robot icon
+marks a thread an agent started.
+
 ## Pin and reorder threads
 
 Pin a thread from its menu to keep it above your active work.
