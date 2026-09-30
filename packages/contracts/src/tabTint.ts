@@ -26,6 +26,12 @@ export const ThreadTabTint = Schema.Struct({
   color: TabTintColor,
   /** how many coloured tabs this thread claims, across every colour */
   tabCount: Schema.Finite,
+  /**
+   * the current URL, exactly as the browser reports it, of the tab to bring
+   * forward when the marker is clicked: among this thread's tabs in `color`,
+   * the one the thread opened most recently
+   */
+  focusUrl: Schema.String,
 });
 export type ThreadTabTint = typeof ThreadTabTint.Type;
 

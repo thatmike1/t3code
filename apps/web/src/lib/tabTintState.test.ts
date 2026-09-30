@@ -6,7 +6,9 @@ import { findThreadTabTint } from "./tabTintState";
 const LOCAL = EnvironmentId.make("env-local");
 const REMOTE = EnvironmentId.make("env-remote");
 const THREAD = ThreadId.make("thread-1");
-const SNAPSHOT: TabTintSnapshot = { tints: [{ threadId: THREAD, color: "red", tabCount: 2 }] };
+const SNAPSHOT: TabTintSnapshot = {
+  tints: [{ threadId: THREAD, color: "red", tabCount: 2, focusUrl: "http://127.0.0.1:1344/" }],
+};
 
 describe("findThreadTabTint", () => {
   it("finds the thread's tint in the primary environment's snapshot", () => {

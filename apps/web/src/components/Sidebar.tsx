@@ -220,7 +220,8 @@ import {
   type ProviderInstanceEntry,
 } from "../providerInstances";
 import { useThreadRunningTerminalIds } from "../state/terminalSessions";
-import { TAB_TINT_HEX, useThreadTabTint } from "../lib/tabTintState";
+import { focusTintedTab, TAB_TINT_HEX, useThreadTabTint } from "../lib/tabTintState";
+import { tabFocusLabel } from "@t3tools/shared/tabFocus";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Button } from "./ui/button";
 import {
@@ -1354,6 +1355,29 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
     },
     [onUnsnooze, threadRef],
   );
+  const tabFocusUrl = tabTint?.focusUrl ?? null;
+  const handleTabTintClick = useCallback(
+    (event: ReactMouseEvent) => {
+      // the stripe sits inside the row: a click on it must not open the thread
+      event.preventDefault();
+      event.stopPropagation();
+      if (tabFocusUrl === null) return;
+      void focusTintedTab(tabFocusUrl)
+        .then(
+          (opened) => opened,
+          () => false,
+        )
+        .then((opened) => {
+          if (opened) return;
+          toastManager.add({
+            type: "error",
+            title: "Could not show the tab",
+            description: tabFocusLabel(tabFocusUrl),
+          });
+        });
+    },
+    [tabFocusUrl],
+  );
   const handleUnpinClick = useCallback(
     (event: ReactMouseEvent) => {
       event.preventDefault();
@@ -1562,18 +1586,38 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
   ) : null;
   // The colour the user gave, in Sidebery, to browser tabs this thread
   // opened. A quiet stripe on the leading edge; it follows the browser, so
-  // clearing the colour there clears it here.
+  // clearing the colour there clears it here. Clicking it brings the browser
+  // forward on that tab. The stripe is 3 px, so the button around it is a
+  // wider invisible strip and the stripe only thickens under the pointer.
+  // It stays out of the tab order (the row is the keyboard target), and only
+  // `click` is stopped: pointer-down still reaches the row for dragging and
+  // a right click still opens the row's menu.
   const tabTintMarker = tabTint ? (
-    <span
-      aria-hidden
-      data-testid={`sidebar-tab-tint-${thread.id}`}
-      data-tab-tint={tabTint.color}
-      className={cn(
-        "pointer-events-none absolute inset-y-2 left-0 z-20 w-[3px] rounded-r-full",
-        shouldRecede && "opacity-60",
-      )}
-      style={{ backgroundColor: TAB_TINT_HEX[tabTint.color] }}
-    />
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-label={`Show tab in browser: ${tabFocusLabel(tabTint.focusUrl)}`}
+            data-testid={`sidebar-tab-tint-${thread.id}`}
+            data-tab-tint={tabTint.color}
+            onClick={handleTabTintClick}
+            className="group/tab-tint absolute inset-y-0 left-0 z-20 w-2.5 cursor-pointer outline-none"
+          />
+        }
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "absolute inset-y-2 left-0 w-[3px] rounded-r-full transition-[width,opacity] duration-100 group-hover/tab-tint:w-[5px] group-hover/tab-tint:opacity-100",
+            shouldRecede && "opacity-60",
+          )}
+          style={{ backgroundColor: TAB_TINT_HEX[tabTint.color] }}
+        />
+      </TooltipTrigger>
+      <TooltipPopup side="top">Show tab: {tabFocusLabel(tabTint.focusUrl)}</TooltipPopup>
+    </Tooltip>
   ) : null;
   const showPin =
     props.isPinned && (!sortable?.isDragging || (props.dragOverPinned && props.dropVerb === null));

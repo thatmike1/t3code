@@ -133,7 +133,13 @@ it.live("tints the live thread that opened a coloured tab, and follows the brows
       // the echo only mentions a URL; the root belongs to nobody.
       const tinted = yield* awaitSnapshot(service, (s) => s.tints.length > 0);
       assert.deepEqual(tinted.tints, [
-        { threadId: ThreadId.make("thread-live"), color: "red", tabCount: 2 },
+        {
+          threadId: ThreadId.make("thread-live"),
+          color: "red",
+          tabCount: 2,
+          // of the two red tabs, the one under the /proto/ open, which came later
+          focusUrl: "http://127.0.0.1:1344/proto/y",
+        },
       ]);
 
       // a command run after the first scan is still picked up
@@ -149,7 +155,12 @@ it.live("tints the live thread that opened a coloured tab, and follows the brows
       );
       const later = yield* awaitSnapshot(service, (s) => s.tints[0]?.color === "blue");
       assert.deepEqual(later.tints, [
-        { threadId: ThreadId.make("thread-live"), color: "blue", tabCount: 1 },
+        {
+          threadId: ThreadId.make("thread-live"),
+          color: "blue",
+          tabCount: 1,
+          focusUrl: "http://127.0.0.1:1360/later",
+        },
       ]);
 
       // clearing the colour in the browser clears the marker

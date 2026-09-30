@@ -397,6 +397,11 @@ function claimStrength(opened: ParsedUrl, tab: ParsedUrl): number | null {
  * an archived one also opened. A thread whose tabs carry several colours
  * shows the colour most of them carry, ties going to Sidebery's palette
  * order. Tabs no live thread claims are ignored.
+ *
+ * `focusUrl` is the tab a click on the marker brings forward: among the
+ * thread's tabs in the colour it shows, the one whose winning claim the
+ * thread opened most recently, ties going to the smaller URL string so the
+ * choice does not depend on tab order in the browser.
  */
 export function matchTabTints(
   tabs: ReadonlyArray<ColoredTab>,
@@ -409,7 +414,10 @@ export function matchTabTints(
     return parsed === null ? [] : [{ claim, parsed }];
   });
 
-  const colorsByThread = new Map<string, Map<TabTintColor, number>>();
+  const tabsByThread = new Map<
+    string,
+    Array<{ readonly url: string; readonly color: TabTintColor; readonly openedAt: number }>
+  >();
   for (const tab of tabs) {
     const parsedTab = parseUrl(tab.url);
     if (parsedTab === null) continue;
@@ -429,13 +437,15 @@ export function matchTabTints(
       }
     }
     if (best === null) continue;
-    const counts = colorsByThread.get(best.threadId) ?? new Map<TabTintColor, number>();
-    counts.set(tab.color, (counts.get(tab.color) ?? 0) + 1);
-    colorsByThread.set(best.threadId, counts);
+    const won = tabsByThread.get(best.threadId) ?? [];
+    won.push({ url: tab.url, color: tab.color, openedAt: best.openedAt });
+    tabsByThread.set(best.threadId, won);
   }
 
   const tints: Array<ThreadTabTint> = [];
-  for (const [threadId, counts] of colorsByThread) {
+  for (const [threadId, won] of tabsByThread) {
+    const counts = new Map<TabTintColor, number>();
+    for (const tab of won) counts.set(tab.color, (counts.get(tab.color) ?? 0) + 1);
     let color: TabTintColor = COLOR_ORDER[0]!;
     let top = 0;
     let tabCount = 0;
@@ -447,7 +457,20 @@ export function matchTabTints(
         color = candidate;
       }
     }
-    tints.push({ threadId: ThreadId.make(threadId), color, tabCount });
+    let focus: (typeof won)[number] | null = null;
+    for (const tab of won) {
+      if (tab.color !== color) continue;
+      if (
+        focus === null ||
+        tab.openedAt > focus.openedAt ||
+        (tab.openedAt === focus.openedAt && tab.url < focus.url)
+      ) {
+        focus = tab;
+      }
+    }
+    // the shown colour always has at least one tab behind it
+    if (focus === null) continue;
+    tints.push({ threadId: ThreadId.make(threadId), color, tabCount, focusUrl: focus.url });
   }
   return tints.toSorted((left, right) =>
     left.threadId < right.threadId ? -1 : left.threadId > right.threadId ? 1 : 0,

@@ -1214,6 +1214,13 @@ export interface DesktopBridge {
   ) => Promise<T | null>;
   openExternal: (url: string) => Promise<boolean>;
   /**
+   * Hand the system browser a tab-focus request: an http(s) or `file:` URL
+   * that ends in the `t3-focus` marker. Unlike `openExternal` it takes local
+   * files, and nothing without the marker. Optional: older desktop builds
+   * lack it.
+   */
+  openTabFocus?: (url: string) => Promise<boolean>;
+  /**
    * Open a System Settings pane by identifier. Optional: older desktop builds
    * lack it, and callers no-op when it is missing.
    */

@@ -123,7 +123,12 @@ describe("matchTabTints", () => {
       tab("http://127.0.0.1:1344/protocol", "green"),
     ];
     expect(matchTabTints(tabs, claims, live("proto"))).toEqual([
-      { threadId: "proto", color: "red", tabCount: 1 },
+      {
+        threadId: "proto",
+        color: "red",
+        tabCount: 1,
+        focusUrl: "http://127.0.0.1:1344/proto/y?q=1#h",
+      },
     ]);
   });
 
@@ -131,7 +136,14 @@ describe("matchTabTints", () => {
     const claims = [claim("t1", "http://localhost:1346/", "2026-09-29T10:00:00Z")];
     expect(
       matchTabTints([tab("http://127.0.0.1:1346/deep/page", "orange")], claims, live("t1")),
-    ).toEqual([{ threadId: "t1", color: "orange", tabCount: 1 }]);
+    ).toEqual([
+      {
+        threadId: "t1",
+        color: "orange",
+        tabCount: 1,
+        focusUrl: "http://127.0.0.1:1346/deep/page",
+      },
+    ]);
     expect(matchTabTints([tab("http://127.0.0.1:1347/", "orange")], claims, live("t1"))).toEqual(
       [],
     );
@@ -144,7 +156,12 @@ describe("matchTabTints", () => {
       tab("file:///home/mike/site/other.html", "red"),
     ];
     expect(matchTabTints(tabs, claims, live("t1"))).toEqual([
-      { threadId: "t1", color: "green", tabCount: 1 },
+      {
+        threadId: "t1",
+        color: "green",
+        tabCount: 1,
+        focusUrl: "file:///home/mike/site/index.html#top",
+      },
     ]);
   });
 
@@ -155,7 +172,9 @@ describe("matchTabTints", () => {
     ];
     expect(
       matchTabTints([tab("http://127.0.0.1:1344/proto/a", "pink")], claims, live("old", "new")),
-    ).toEqual([{ threadId: "new", color: "pink", tabCount: 1 }]);
+    ).toEqual([
+      { threadId: "new", color: "pink", tabCount: 1, focusUrl: "http://127.0.0.1:1344/proto/a" },
+    ]);
   });
 
   it("prefers the exact page, then the narrower claim, over a newer broad one", () => {
@@ -170,9 +189,14 @@ describe("matchTabTints", () => {
       tab("http://127.0.0.1:1344/", "green"),
     ];
     expect(matchTabTints(tabs, claims, live("page", "section", "root"))).toEqual([
-      { threadId: "page", color: "red", tabCount: 1 },
-      { threadId: "root", color: "green", tabCount: 1 },
-      { threadId: "section", color: "blue", tabCount: 1 },
+      { threadId: "page", color: "red", tabCount: 1, focusUrl: "http://127.0.0.1:1344/proto/a" },
+      { threadId: "root", color: "green", tabCount: 1, focusUrl: "http://127.0.0.1:1344/" },
+      {
+        threadId: "section",
+        color: "blue",
+        tabCount: 1,
+        focusUrl: "http://127.0.0.1:1344/proto/c",
+      },
     ]);
   });
 
@@ -183,7 +207,12 @@ describe("matchTabTints", () => {
     ];
     const tabs = [tab("http://127.0.0.1:1344/proto/a", "purple")];
     expect(matchTabTints(tabs, claims, live("live"))).toEqual([
-      { threadId: "live", color: "purple", tabCount: 1 },
+      {
+        threadId: "live",
+        color: "purple",
+        tabCount: 1,
+        focusUrl: "http://127.0.0.1:1344/proto/a",
+      },
     ]);
     expect(matchTabTints(tabs, claims.slice(1), live("live"))).toEqual([]);
   });
@@ -200,14 +229,57 @@ describe("matchTabTints", () => {
         claims,
         live("t1"),
       ),
-    ).toEqual([{ threadId: "t1", color: "red", tabCount: 3 }]);
+    ).toEqual([{ threadId: "t1", color: "red", tabCount: 3, focusUrl: "http://127.0.0.1:1344/a" }]);
     expect(
       matchTabTints(
         [tab("http://127.0.0.1:1344/a", "purple"), tab("http://127.0.0.1:1344/b", "green")],
         claims,
         live("t1"),
       ),
-    ).toEqual([{ threadId: "t1", color: "green", tabCount: 2 }]);
+    ).toEqual([
+      { threadId: "t1", color: "green", tabCount: 2, focusUrl: "http://127.0.0.1:1344/b" },
+    ]);
+  });
+
+  it("focuses the shown colour's tab the thread opened most recently", () => {
+    const claims = [
+      claim("t1", "http://127.0.0.1:1344/old", "2026-09-29T09:00:00Z"),
+      claim("t1", "file:///home/mike/hub/index.html", "2026-09-29T11:00:00Z"),
+      claim("t1", "http://127.0.0.1:1350/newest", "2026-09-29T12:00:00Z"),
+    ];
+    const tabs = [
+      tab("http://127.0.0.1:1344/old", "red"),
+      tab("file:///home/mike/hub/index.html", "red"),
+      // opened last, but not in the colour the thread shows
+      tab("http://127.0.0.1:1350/newest", "blue"),
+    ];
+    expect(matchTabTints(tabs, claims, live("t1"))).toEqual([
+      { threadId: "t1", color: "red", tabCount: 3, focusUrl: "file:///home/mike/hub/index.html" },
+    ]);
+  });
+
+  it("uses the tab's current URL, not the one the command opened", () => {
+    const claims = [claim("t1", "http://localhost:1344/proto/x", "2026-09-29T09:00:00Z")];
+    expect(
+      matchTabTints([tab("http://127.0.0.1:1344/proto/y?q=1#h", "red")], claims, live("t1")),
+    ).toEqual([
+      {
+        threadId: "t1",
+        color: "red",
+        tabCount: 1,
+        focusUrl: "http://127.0.0.1:1344/proto/y?q=1#h",
+      },
+    ]);
+  });
+
+  it("breaks an opened-at tie by URL, whatever order the browser lists the tabs in", () => {
+    const claims = [claim("t1", "http://127.0.0.1:1344/", "2026-09-29T09:00:00Z")];
+    const tabs = [tab("http://127.0.0.1:1344/b", "red"), tab("http://127.0.0.1:1344/a", "red")];
+    const expected = [
+      { threadId: "t1", color: "red", tabCount: 2, focusUrl: "http://127.0.0.1:1344/a" },
+    ];
+    expect(matchTabTints(tabs, claims, live("t1"))).toEqual(expected);
+    expect(matchTabTints(tabs.toReversed(), claims, live("t1"))).toEqual(expected);
   });
 
   it("ignores coloured tabs no thread opened", () => {

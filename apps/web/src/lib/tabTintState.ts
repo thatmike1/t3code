@@ -6,6 +6,8 @@ import type {
   ThreadTabTint,
 } from "@t3tools/contracts";
 
+import { appendTabFocusMarker } from "@t3tools/shared/tabFocus";
+
 import { usePrimaryEnvironmentId } from "../state/environments";
 import { useEnvironmentQuery } from "../state/query";
 import { serverEnvironment } from "../state/server";
@@ -47,4 +49,21 @@ export function useThreadTabTint(
       : serverEnvironment.tabTints({ environmentId: primaryEnvironmentId, input: {} }),
   );
   return findThreadTabTint(query.data, primaryEnvironmentId, environmentId, threadId);
+}
+
+/**
+ * Asks the system browser to bring the tab showing `focusUrl` forward, by
+ * opening that URL with the focus marker on it; a hook in the browser swaps
+ * the new tab for the one already open. Goes through the desktop shell, the
+ * way an external link does, so the desktop hands window focus to the
+ * browser. Resolves false when nothing could be opened.
+ */
+export async function focusTintedTab(focusUrl: string): Promise<boolean> {
+  const marked = appendTabFocusMarker(focusUrl);
+  const openTabFocus = window.desktopBridge?.openTabFocus;
+  if (openTabFocus) return openTabFocus(marked);
+  // outside the desktop app a page can open web URLs but never local files
+  if (window.desktopBridge || !/^https?:/iu.test(marked)) return false;
+  window.open(marked, "_blank", "noopener,noreferrer");
+  return true;
 }
