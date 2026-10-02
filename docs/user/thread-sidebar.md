@@ -39,7 +39,8 @@ Threads an agent started sit under the thread that launched them, in a group
 labelled with their count. Each row shows the provider, title, status, and age.
 Click the label to collapse the group; the open thread stays visible. A thread
 you pin, snooze, or settle leaves the group and follows the usual rules, as does
-one whose launching thread is settled or archived. Outside a group, a robot icon
+one whose launching thread is archived. Settling the launching thread also settles
+its nested jobs and their descendants. Outside a group, a robot icon
 marks a thread an agent started.
 
 ## Pin and reorder threads
@@ -107,7 +108,11 @@ Choose **Settle thread** from its menu to move finished work out of the active l
 without deleting the conversation. **Un-settle thread** restores it to active work
 and prevents automatic settlement until new activity resumes the usual rules.
 Manually settling an idle thread dismisses unanswered async questions without
-sending an answer or restarting the agent.
+sending an answer or restarting the agent. Settlement also moves nested jobs and their
+descendants to the settled list, including jobs that are still running. This does
+not stop or interrupt those jobs. Archived jobs keep their state, and unrelated
+threads are unaffected. Each settled job can be reopened independently; later
+activity can also wake it under the usual rules.
 
 By default, environments settle inactive threads after three days and settle
 threads whose pull request merged. A closed pull request can also settle an idle

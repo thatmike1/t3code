@@ -851,3 +851,61 @@ it.layer(NodeServices.layer)("settled thread decider", (it) => {
     }),
   );
 });
+
+it.effect(
+  "settles descendants for automatic and manual commands, handles cycles and keeps archived jobs untouched",
+  () =>
+    Effect.gen(function* () {
+      for (const automatic of [false, true]) {
+        const original = makeReadModel(null);
+        const root = original.threads[0]!;
+        const child = {
+          ...root,
+          id: ThreadId.make("child"),
+          pinnedAt: NOW,
+          snoozedUntil: "2027-01-01T00:00:00.000Z",
+          session: makeSession("running"),
+        };
+        const grandchild = { ...root, id: ThreadId.make("grandchild") };
+        const archived = { ...root, id: ThreadId.make("archived"), archivedAt: NOW };
+        const unrelated = { ...root, id: ThreadId.make("unrelated") };
+        const readModel = { ...original, threads: [root, child, grandchild, archived, unrelated] };
+        const result = yield* decideOrchestrationCommand({
+          readModel,
+          command: automatic
+            ? {
+                type: "thread.auto-settle",
+                commandId: CommandId.make("cascade-auto"),
+                threadId: root.id,
+                snapshotSequence: 0,
+                settledAt: NOW,
+              }
+            : {
+                type: "thread.settle",
+                commandId: CommandId.make("cascade-manual"),
+                threadId: root.id,
+              },
+          agentThreadLinks: [
+            { threadId: child.id, parentThreadId: root.id, createdAt: NOW },
+            { threadId: grandchild.id, parentThreadId: child.id, createdAt: NOW },
+            { threadId: root.id, parentThreadId: grandchild.id, createdAt: NOW },
+            { threadId: archived.id, parentThreadId: root.id, createdAt: NOW },
+          ],
+        }).pipe(Effect.provide(NodeServices.layer));
+        const events = Array.isArray(result) ? result : [result];
+        expect(
+          events
+            .filter((event) => event.type === "thread.settled")
+            .map((event) => event.aggregateId),
+        ).toEqual([root.id, child.id, grandchild.id]);
+        expect(
+          events.filter((event) => event.aggregateId === child.id).map((event) => event.type),
+        ).toEqual(["thread.settled", "thread.unpinned", "thread.unsnoozed"]);
+        expect(
+          events
+            .filter((event) => event.type === "thread.settled" && event.aggregateId !== root.id)
+            .every((event) => event.metadata.sidebarOnlySettlement === true),
+        ).toBe(true);
+      }
+    }),
+);

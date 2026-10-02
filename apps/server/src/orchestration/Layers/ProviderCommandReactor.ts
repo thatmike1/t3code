@@ -1822,6 +1822,7 @@ const make = Effect.gen(function* () {
         yield* processSessionStopRequested(event);
         return;
       case "thread.settled": {
+        if (event.metadata.sidebarOnlySettlement === true) return;
         const thread = yield* projectionSnapshotQuery.getThreadShellById(event.payload.threadId);
         if (
           Option.isNone(thread) ||
