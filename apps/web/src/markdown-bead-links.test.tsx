@@ -79,11 +79,7 @@ describe("beadIdCandidate", () => {
 });
 
 describe("shortBeadIdCandidate", () => {
-  const known = new Set([
-    "ccChat-general-qju",
-    "ccChat-general-jrz2",
-    "ccChat-general-zye.6",
-  ]);
+  const known = new Set(["ccChat-general-qju", "ccChat-general-jrz2", "ccChat-general-zye.6"]);
 
   it("resolves a short id beadside knows to the full id", () => {
     expect(shortBeadIdCandidate("qju", known)).toBe("ccChat-general-qju");
@@ -108,4 +104,16 @@ describe("shortBeadIdCandidate", () => {
     expect(shortBeadIdCandidate("qju.", loose)).toBeNull();
     expect(shortBeadIdCandidate("bd show qju", known)).toBeNull();
   });
+});
+
+it("recognizes configured project prefixes in prose and inline code", () => {
+  const boards = [{ prefix: "nexiflow", origin: "http://localhost:1339" }];
+  const html = renderToStaticMarkup(
+    <ReactMarkdown remarkPlugins={[[remarkBeadAutolinks, boards]]}>
+      {"nexiflow-ab12 and ccChat-general-ab12"}
+    </ReactMarkdown>,
+  );
+  expect(html).toContain('href="http://localhost:1339/#nexiflow-ab12"');
+  expect(html).not.toContain('data-bead-id="ccChat-general-ab12"');
+  expect(beadIdCandidate("nexiflow-ab12", boards)).toBe("nexiflow-ab12");
 });

@@ -8,13 +8,13 @@ import {
 import type { AppModelOption } from "./modelSelection";
 import type { ProviderInstanceEntry } from "./providerInstances";
 
-const QUICK_MODELS = [
+export const QUICK_MODELS = [
   {
     command: "composer.model.opus",
     driver: ProviderDriverKind.make("claudeAgent"),
     model: "claude-opus-5-5",
   },
-  { command: "composer.model.sol", driver: ProviderDriverKind.make("codex"), model: "gpt-6-sol" },
+  { command: "composer.model.sol", driver: ProviderDriverKind.make("codex"), model: "gpt-6.1-sol" },
   {
     command: "composer.model.fable",
     driver: ProviderDriverKind.make("claudeAgent"),
@@ -42,14 +42,16 @@ export function isQuickModelShortcutCommand(command: KeybindingCommand | null): 
   return QUICK_MODELS.some((candidate) => candidate.command === command);
 }
 
-/** Resolves a named model command to an available instance in the current environment. */
+/** resolves a named model command to an available instance in the current environment. */
 export function quickModelSelectionForCommand(
   command: KeybindingCommand | null,
   instances: ReadonlyArray<QuickModelInstance>,
   optionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<QuickModelOption>>,
+  targets: Readonly<Record<string, string>> = {},
 ): ModelSelection | null {
   const target = QUICK_MODELS.find((candidate) => candidate.command === command);
   if (!target) return null;
+  const model = targets[target.command]?.trim() || target.model;
 
   const matches = instances.filter(
     (instance) =>
@@ -59,8 +61,8 @@ export function quickModelSelectionForCommand(
       instance.status === "ready" &&
       optionsByInstance
         .get(instance.instanceId)
-        ?.some((option) => option.slug === target.model && option.isUnavailable !== true),
+        ?.some((option) => option.slug === model && option.isUnavailable !== true),
   );
   const instance = matches.find((candidate) => candidate.isDefault) ?? matches[0];
-  return instance ? { instanceId: instance.instanceId, model: target.model } : null;
+  return instance ? { instanceId: instance.instanceId, model } : null;
 }

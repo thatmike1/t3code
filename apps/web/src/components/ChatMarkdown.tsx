@@ -1082,6 +1082,8 @@ const CHAT_MARKDOWN_COMPONENTS = {
     );
   },
   a: function MarkdownAnchor({ node, href, children, title: _title, ...props }) {
+    const beadBoards = useClientSettings((settings) => settings.beadBoards);
+
     const {
       canOperateHost,
       canOperatePreview,
@@ -1128,7 +1130,12 @@ const CHAT_MARKDOWN_COMPONENTS = {
     }
     const beadId = String((props as Record<string, unknown>)["data-bead-id"] ?? "");
     if (beadId.length > 0) {
-      return <BeadChip id={beadId} href={href ?? beadBoardHref(beadId)} copyText={beadId} />;
+      const boardHref = beadBoardHref(beadId, beadBoards);
+      return boardHref ? (
+        <BeadChip id={beadId} href={boardHref} copyText={beadId} />
+      ) : (
+        <>{children}</>
+      );
     }
     const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
     const fileLinkMeta = normalizedHref
@@ -1362,7 +1369,8 @@ const CHAT_MARKDOWN_COMPONENTS = {
   code: function MarkdownCode({ node, children, className, ...props }) {
     const { cwd, imageBaseDir, inlineCodeFileLinkMetaByText, fileLinkChip, mathEnabled, inline } =
       use(ChatMarkdownRendererContext);
-    const knownBeadIds = useBeadBoardIds();
+    const beadBoards = useClientSettings((settings) => settings.beadBoards);
+    const knownBeadIds = useBeadBoardIds(beadBoards);
     const math = mathEnabled ? mathKind(className) : null;
     if (math) {
       return (
@@ -1375,12 +1383,14 @@ const CHAT_MARKDOWN_COMPONENTS = {
     }
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
-      const beadId = beadIdCandidate(codeText) ?? shortBeadIdCandidate(codeText, knownBeadIds);
-      if (beadId) {
+      const beadId =
+        beadIdCandidate(codeText, beadBoards) ?? shortBeadIdCandidate(codeText, knownBeadIds);
+      const boardHref = beadId ? beadBoardHref(beadId, beadBoards) : null;
+      if (beadId && boardHref) {
         return (
           <BeadChip
             id={beadId}
-            href={beadBoardHref(beadId)}
+            href={boardHref}
             copyText={`\`${codeText}\``}
             label={codeText.trim()}
           />
@@ -1696,12 +1706,21 @@ const CHAT_MARKDOWN_COMPONENTS = {
 const REMARK_MATH: Pluggable = [remarkMath, { singleDollarTextMath: true }];
 // Shared lists, so every message with the same options shares a processor and its cache.
 const CHAT_MARKDOWN_REMARK_PLUGIN_SETS = {
-  // the fork's bead-id autolinks run right after the shared plugins, as before the plugin sets existed
-  plain: [...CHAT_MARKDOWN_REMARK_PLUGINS, remarkBeadAutolinks],
-  breaks: [...CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS, remarkBeadAutolinks],
-  math: [REMARK_MATH, ...CHAT_MARKDOWN_REMARK_PLUGINS, remarkBeadAutolinks],
-  mathBreaks: [REMARK_MATH, ...CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS, remarkBeadAutolinks],
+  plain: CHAT_MARKDOWN_REMARK_PLUGINS,
+  breaks: CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS,
+  math: [REMARK_MATH, ...CHAT_MARKDOWN_REMARK_PLUGINS],
+  mathBreaks: [REMARK_MATH, ...CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS],
 } satisfies Record<string, PluggableList>;
+
+// fork: the bead-id autolinks run right after the shared plugins. one list per boards setting,
+// so messages keep sharing a renderer and its parse cache while the setting stays the same
+const beadAutolinkPlugins = new WeakMap<object, PluggableList>();
+function beadAutolinkPluginList(boards: Parameters<typeof remarkBeadAutolinks>[0]): PluggableList {
+  if (boards === undefined) return [remarkBeadAutolinks];
+  let list = beadAutolinkPlugins.get(boards);
+  if (!list) beadAutolinkPlugins.set(boards, (list = [[remarkBeadAutolinks, boards]]));
+  return list;
+}
 
 const combinedPlugins = new WeakMap<PluggableList, WeakMap<PluggableList, PluggableList>>();
 
@@ -1789,6 +1808,7 @@ function ChatMarkdown({
     streamingBlocks === null &&
     extraRemarkPlugins.length === 0 &&
     /(?:^|\n) {0,3}(?:`{3}|~{3})/.test(text);
+  const beadBoards = useClientSettings((settings) => settings.beadBoards);
   const Root = inline ? "span" : "div";
   const bindMarkdownRef = (node: HTMLElement | null) => {
     markdownRef.current = node;
@@ -1805,9 +1825,15 @@ function ChatMarkdown({
     ];
   // The incremental parser keeps per-instance state, so its output is not shared.
   const uncachedPlugins = incrementalParsing;
+  const beadRemarkPlugins = beadAutolinkPluginList(beadBoards);
   const remarkPlugins = incrementalParsing
-    ? [...sharedRemarkPlugins, ...extraRemarkPlugins, createIncrementalMarkdownPlugin()]
-    : withExtraPlugins(sharedRemarkPlugins, extraRemarkPlugins);
+    ? [
+        ...sharedRemarkPlugins,
+        ...beadRemarkPlugins,
+        ...extraRemarkPlugins,
+        createIncrementalMarkdownPlugin(),
+      ]
+    : withExtraPlugins(withExtraPlugins(sharedRemarkPlugins, beadRemarkPlugins), extraRemarkPlugins);
   const blocks = streamingBlocks ?? [text];
 
   return (
