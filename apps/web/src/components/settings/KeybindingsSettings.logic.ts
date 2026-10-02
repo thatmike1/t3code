@@ -487,7 +487,7 @@ const LATE_COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "preview.focusUrl": msg("Preview: Focus URL"),
   "preview.find": msg("Preview: Find on Page"),
   "composer.model.opus": msg("Model: Select Opus 5.5"),
-  "composer.model.sol": msg("Model: Select GPT-6 Sol"),
+  "composer.model.sol": msg("Model: Select Sol (default GPT-6.1 Sol)"),
   "composer.model.fable": msg("Model: Select Fable 5.1"),
   "composer.model.astra": msg("Model: Select GPT-6 Astra"),
   "composer.model.luna": msg("Model: Select GPT-6 Luna"),

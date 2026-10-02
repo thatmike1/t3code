@@ -1,6 +1,7 @@
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { m as resolveMessage } from "~/i18n/messages";
 import { useAtomValue } from "@effect/atom-react";
+import { ForkPreferences } from "./fork-preferences";
 import { NotificationSettings } from "./NotificationSettings";
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
 import { CheckIcon } from "lucide-react";
@@ -857,6 +858,8 @@ export function GeneralSettingsPanel() {
           }
         />
       </SettingsSection>
+
+      <ForkPreferences />
 
       <SettingsSection id="sidebar" title={gt("Sidebar")}>
         <SettingsRow

@@ -3213,6 +3213,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           command,
           providerInstanceEntries,
           modelOptionsByInstance,
+          settings.quickModelTargets,
         );
         if (selection) onProviderModelSelect(selection.instanceId, selection.model);
         return true;
