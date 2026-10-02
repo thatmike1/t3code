@@ -372,7 +372,7 @@ export function commandLabel(command: KeybindingCommand): string {
   if (command === "view.reopenClosed") return "Reopen Closed Tab";
   if (command === "preview.focusUrl") return "Preview: Focus URL";
   if (command === "composer.model.opus") return "Model: Select Opus 5.5";
-  if (command === "composer.model.sol") return "Model: Select GPT-6 Sol";
+  if (command === "composer.model.sol") return "Model: Select Sol (default GPT-6.1 Sol)";
   if (command === "composer.model.fable") return "Model: Select Fable 5.1";
   if (command === "composer.model.astra") return "Model: Select GPT-6 Astra";
   if (command === "composer.model.luna") return "Model: Select GPT-6 Luna";

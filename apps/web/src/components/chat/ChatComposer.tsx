@@ -5623,6 +5623,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         command,
         providerInstanceEntries,
         modelOptionsByInstance,
+        settings.quickModelTargets,
       );
       if (selection) {
         onProviderModelSelect(selection.instanceId, selection.model);
@@ -5639,6 +5640,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onProviderModelSelect,
     providerInstanceEntries,
     terminalOpen,
+    settings.quickModelTargets,
   ]);
 
   // alt+2 / alt+5 step the reasoning effort without opening the traits menu,

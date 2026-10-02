@@ -318,7 +318,19 @@ export type ModelPreferences = {
   readonly providerModelPreferences: typeof ProviderModelPreferences.Type;
 };
 
+/** fork: direct model shortcut targets and per-project beadside boards, kept per client. */
+export const QuickModelTargets = Schema.Record(Schema.String, Schema.String);
+export const BeadBoards = Schema.Array(
+  Schema.Struct({
+    prefix: Schema.String.check(Schema.isPattern(/^[A-Za-z0-9_-]+$/)),
+    origin: Schema.String.check(Schema.isPattern(/^https?:\/\/[^/?#@\s]+\/?$/)),
+  }),
+);
+export const DEFAULT_BEAD_BOARDS = [{ prefix: "ccChat-general", origin: "http://127.0.0.1:1338" }];
+
 export const ClientSettingsSchema = Schema.Struct({
+  quickModelTargets: QuickModelTargets.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  beadBoards: BeadBoards.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_BEAD_BOARDS))),
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
   ),
@@ -1705,6 +1717,8 @@ export function requiredScopesForProjectMutation(
 }
 
 export const ClientSettingsPatch = Schema.Struct({
+  quickModelTargets: Schema.optionalKey(QuickModelTargets),
+  beadBoards: Schema.optionalKey(BeadBoards),
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),
