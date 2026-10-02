@@ -42,7 +42,7 @@ const options: Map<
   ProviderInstanceId,
   ReadonlyArray<Pick<AppModelOption, "slug" | "isUnavailable">>
 > = new Map([
-  [codex, [{ slug: "gpt-6-astra" }, { slug: "gpt-6-sol" }, { slug: "gpt-6-luna" }]],
+  [codex, [{ slug: "gpt-6-astra" }, { slug: "gpt-6.1-sol" }, { slug: "gpt-6-luna" }]],
   [claude, [{ slug: "claude-opus-5-5" }, { slug: "claude-fable-5-1" }]],
   [customClaude, [{ slug: "claude-opus-5-5" }]],
 ]);
@@ -51,7 +51,7 @@ describe("quick model shortcuts", () => {
   it("selects each named model on the default instance", () => {
     const cases = [
       ["composer.model.opus", claude, "claude-opus-5-5"],
-      ["composer.model.sol", codex, "gpt-6-sol"],
+      ["composer.model.sol", codex, "gpt-6.1-sol"],
       ["composer.model.fable", claude, "claude-fable-5-1"],
       ["composer.model.astra", codex, "gpt-6-astra"],
       ["composer.model.luna", codex, "gpt-6-luna"],
@@ -76,8 +76,31 @@ describe("quick model shortcuts", () => {
       quickModelSelectionForCommand(
         "composer.model.fable",
         instances,
-        new Map([[codex, [{ slug: "gpt-6-sol" }]]]),
+        new Map([[codex, [{ slug: "gpt-6.1-sol" }]]]),
       ),
     );
   });
+});
+
+it("uses a configured catalog model and refuses unavailable targets", () => {
+  assert.deepEqual(
+    quickModelSelectionForCommand("composer.model.sol", instances, options, {
+      "composer.model.sol": "gpt-6-astra",
+    }),
+    { instanceId: codex, model: "gpt-6-astra" },
+  );
+  assert.equal(
+    quickModelSelectionForCommand("composer.model.sol", instances, options, {
+      "composer.model.sol": "missing-model",
+    }),
+    null,
+  );
+  assert.equal(
+    quickModelSelectionForCommand(
+      "composer.model.sol",
+      instances,
+      new Map([[codex, [{ slug: "gpt-6.1-sol", isUnavailable: true }]]]),
+    ),
+    null,
+  );
 });
