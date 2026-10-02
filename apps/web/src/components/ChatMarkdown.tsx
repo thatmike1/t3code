@@ -499,7 +499,6 @@ const CHAT_MARKDOWN_REMARK_PLUGINS = [
   remarkCodexDirectives,
   remarkPreserveCodeMeta,
   remarkNormalizeLinksAndTagInlineCode,
-  remarkBeadAutolinks,
 ] satisfies NonNullable<ReactMarkdownOptions["remarkPlugins"]>;
 
 const CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS = [
@@ -510,7 +509,6 @@ const CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS = [
   remarkBreaks,
   remarkPreserveCodeMeta,
   remarkNormalizeLinksAndTagInlineCode,
-  remarkBeadAutolinks,
 ] satisfies NonNullable<ReactMarkdownOptions["remarkPlugins"]>;
 
 const CHAT_MARKDOWN_REHYPE_PLUGINS = [
@@ -2848,6 +2846,8 @@ const CHAT_MARKDOWN_COMPONENTS = {
     );
   },
   a: function MarkdownAnchor({ node, href, children, title: _title, ...props }) {
+    const beadBoards = useClientSettings((settings) => settings.beadBoards);
+
     const {
       cwd,
       environmentId,
@@ -2880,7 +2880,12 @@ const CHAT_MARKDOWN_COMPONENTS = {
     }
     const beadId = String((props as Record<string, unknown>)["data-bead-id"] ?? "");
     if (beadId.length > 0) {
-      return <BeadChip id={beadId} href={href ?? beadBoardHref(beadId)} copyText={beadId} />;
+      const boardHref = beadBoardHref(beadId, beadBoards);
+      return boardHref ? (
+        <BeadChip id={beadId} href={boardHref} copyText={beadId} />
+      ) : (
+        <>{children}</>
+      );
     }
     const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
     const fileLinkMeta = normalizedHref
@@ -3097,15 +3102,18 @@ const CHAT_MARKDOWN_COMPONENTS = {
     const { cwd, imageBaseDir, inlineCodeFileLinkMetaByText, fileLinkChip } = use(
       ChatMarkdownRendererContext,
     );
-    const knownBeadIds = useBeadBoardIds();
+    const beadBoards = useClientSettings((settings) => settings.beadBoards);
+    const knownBeadIds = useBeadBoardIds(beadBoards);
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
-      const beadId = beadIdCandidate(codeText) ?? shortBeadIdCandidate(codeText, knownBeadIds);
-      if (beadId) {
+      const beadId =
+        beadIdCandidate(codeText, beadBoards) ?? shortBeadIdCandidate(codeText, knownBeadIds);
+      const boardHref = beadId ? beadBoardHref(beadId, beadBoards) : null;
+      if (beadId && boardHref) {
         return (
           <BeadChip
             id={beadId}
-            href={beadBoardHref(beadId)}
+            href={boardHref}
             copyText={`\`${codeText}\``}
             label={codeText.trim()}
           />
@@ -3326,13 +3334,17 @@ function ChatMarkdown({
     props.isStreaming === true &&
     extraRemarkPlugins.length === 0 &&
     /(?:^|\n) {0,3}(?:`{3}|~{3})/.test(text);
+  const beadBoards = useClientSettings((settings) => settings.beadBoards);
   const remarkPlugins = useMemo(
     () => [
       ...(lineBreaks ? CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS : CHAT_MARKDOWN_REMARK_PLUGINS),
+      [remarkBeadAutolinks, beadBoards] satisfies NonNullable<
+        ReactMarkdownOptions["remarkPlugins"]
+      >[number],
       ...extraRemarkPlugins,
       ...(incrementalParsing ? [createIncrementalMarkdownPlugin()] : []),
     ],
-    [extraRemarkPlugins, incrementalParsing, lineBreaks],
+    [extraRemarkPlugins, incrementalParsing, lineBreaks, beadBoards],
   );
 
   // react-markdown converts unparsed HTML nodes to text when skipHtml is false.
