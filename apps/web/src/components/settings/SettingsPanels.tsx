@@ -1,3 +1,4 @@
+import { ForkPreferences } from "./fork-preferences";
 import { SettingsGroup } from "./SettingsGroup";
 import { NotificationSettings } from "./NotificationSettings";
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
@@ -860,6 +861,7 @@ export function GeneralSettingsPanel() {
   return (
     <SettingsPageContainer>
       <ProjectDefaultsSettings category="general" />
+      <ForkPreferences />
       <SettingsSection id="organization" title="Organization">
         <SettingsRow
           {...searchableSetting("project-grouping")}
