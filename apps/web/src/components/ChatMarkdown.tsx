@@ -1274,6 +1274,8 @@ const CHAT_MARKDOWN_COMPONENTS = {
   },
   a: function MarkdownAnchor({ node, href, children, title: _title, ...props }) {
     const gt = useGT();
+    const beadBoards = useClientSettings((settings) => settings.beadBoards);
+
     const {
       canOperateHost,
       canOperatePreview,
@@ -1335,7 +1337,12 @@ const CHAT_MARKDOWN_COMPONENTS = {
     }
     const beadId = String((props as Record<string, unknown>)["data-bead-id"] ?? "");
     if (beadId.length > 0) {
-      return <BeadChip id={beadId} href={href ?? beadBoardHref(beadId)} copyText={beadId} />;
+      const boardHref = beadBoardHref(beadId, beadBoards);
+      return boardHref ? (
+        <BeadChip id={beadId} href={boardHref} copyText={beadId} />
+      ) : (
+        <>{children}</>
+      );
     }
     const normalizedHref = href ? normalizeMarkdownLinkHrefKey(href) : "";
     const fileLinkMeta = normalizedHref
@@ -1623,15 +1630,18 @@ const CHAT_MARKDOWN_COMPONENTS = {
     const { cwd, imageBaseDir, inlineCodeFileLinkMetaByText, fileLinkChip } = use(
       ChatMarkdownRendererContext,
     );
-    const knownBeadIds = useBeadBoardIds();
+    const beadBoards = useClientSettings((settings) => settings.beadBoards);
+    const knownBeadIds = useBeadBoardIds(beadBoards);
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
-      const beadId = beadIdCandidate(codeText) ?? shortBeadIdCandidate(codeText, knownBeadIds);
-      if (beadId) {
+      const beadId =
+        beadIdCandidate(codeText, beadBoards) ?? shortBeadIdCandidate(codeText, knownBeadIds);
+      const boardHref = beadId ? beadBoardHref(beadId, beadBoards) : null;
+      if (beadId && boardHref) {
         return (
           <BeadChip
             id={beadId}
-            href={beadBoardHref(beadId)}
+            href={boardHref}
             copyText={`\`${codeText}\``}
             label={codeText.trim()}
           />

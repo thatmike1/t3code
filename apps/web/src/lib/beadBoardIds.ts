@@ -1,62 +1,87 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+import type { ClientSettings } from "@t3tools/contracts/settings";
 
-import { BEAD_BOARD_ORIGIN } from "../markdown-bead-links";
-
-/**
- * The ids beadside knows, so a short id in inline code only becomes a chip
- * when it names a real bead. One fetch serves every message; a stale set is
- * refetched lazily so beads filed mid-session start linking. When beadside is
- * down the set stays empty and short ids render as plain code.
- */
-
-const STALE_AFTER_MS = 60_000;
 const EMPTY_IDS: ReadonlySet<string> = new Set();
+const STALE_AFTER_MS = 60_000;
 
-let knownIds: ReadonlySet<string> = EMPTY_IDS;
-let fetchedAt = 0;
-let inFlight = false;
-const listeners = new Set<() => void>();
-
-function refreshIfStale(): void {
-  if (inFlight || Date.now() - fetchedAt < STALE_AFTER_MS) {
-    return;
-  }
-  inFlight = true;
-  fetch(`${BEAD_BOARD_ORIGIN}/api/issue-ids`)
-    .then((response) => (response.ok ? response.json() : null))
-    .then((body: unknown) => {
-      const ids = typeof body === "object" && body !== null && "ids" in body ? body.ids : null;
-      if (Array.isArray(ids)) {
-        knownIds = new Set(ids.filter((id): id is string => typeof id === "string"));
-        for (const listener of listeners) {
-          listener();
+/** fetches all configured boards; a missing board makes short-id ownership uncertain. */
+export async function fetchBeadBoardIds(
+  boards: ClientSettings["beadBoards"],
+): Promise<ReadonlySet<string>> {
+  try {
+    const results = await Promise.all(
+      boards.map(async (board) => {
+        const response = await fetch(`${board.origin.replace(/\/+$/, "")}/api/issue-ids`, {
+          signal: AbortSignal.timeout(3_000),
+        });
+        if (!response.ok) throw new Error("board unavailable");
+        const body: unknown = await response.json();
+        if (
+          typeof body !== "object" ||
+          body === null ||
+          !("ids" in body) ||
+          !Array.isArray(body.ids) ||
+          !body.ids.every((id: unknown) => typeof id === "string")
+        ) {
+          throw new Error("invalid board response");
         }
-      }
-    })
-    .catch(() => undefined)
-    .finally(() => {
-      inFlight = false;
-      fetchedAt = Date.now();
-    });
+        const ids = body.ids.filter((id: string) => id.startsWith(`${board.prefix}-`));
+        if (body.ids.length > 0 && ids.length === 0)
+          throw new Error("board belongs to another repository");
+        return ids;
+      }),
+    );
+    return new Set(results.flat());
+  } catch {
+    return EMPTY_IDS;
+  }
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  refreshIfStale();
-  return () => {
-    listeners.delete(listener);
+function createStore(boards: ClientSettings["beadBoards"]) {
+  let ids = EMPTY_IDS;
+  let inFlight = false;
+  let fetchedAt = 0;
+  let timer: ReturnType<typeof setInterval> | undefined;
+  const listeners = new Set<() => void>();
+  const refresh = () => {
+    if (inFlight || Date.now() - fetchedAt < STALE_AFTER_MS) return;
+    inFlight = true;
+    void fetchBeadBoardIds(boards).then((next) => {
+      ids = next;
+      fetchedAt = Date.now();
+      inFlight = false;
+      for (const listener of listeners) listener();
+    });
+  };
+  return {
+    getSnapshot: () => ids,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      if (!timer) timer = setInterval(refresh, STALE_AFTER_MS);
+      refresh();
+      return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+          clearInterval(timer);
+          timer = undefined;
+        }
+      };
+    },
   };
 }
 
-function getSnapshot(): ReadonlySet<string> {
-  return knownIds;
-}
+const stores = new Map<string, ReturnType<typeof createStore>>();
 
-function getServerSnapshot(): ReadonlySet<string> {
-  return EMPTY_IDS;
-}
-
-/** Every bead id beadside reported, empty until the first fetch lands. */
-export function useBeadBoardIds(): ReadonlySet<string> {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+/** shares one refreshed id index across all messages for a board configuration. */
+export function useBeadBoardIds(boards: ClientSettings["beadBoards"]): ReadonlySet<string> {
+  const store = useMemo(() => {
+    const key = JSON.stringify(boards);
+    let entry = stores.get(key);
+    if (!entry) {
+      entry = createStore(boards);
+      stores.set(key, entry);
+    }
+    return entry;
+  }, [boards]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, () => EMPTY_IDS);
 }
