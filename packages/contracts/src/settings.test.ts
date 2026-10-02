@@ -1036,3 +1036,33 @@ it("validates remote device hosts and rejects ambiguous host ids", () => {
   ).toThrow();
   expect(() => decodeDeviceHostSettings({ deviceHosts: [{ ...host, port: 0 }] })).toThrow();
 });
+
+describe("fork client preferences", () => {
+  it("retains defaults when reading an older client settings file", () => {
+    const decoded = decodeClientSettings({});
+    expect(decoded.quickModelTargets).toEqual({});
+    expect(decoded.beadBoards).toEqual([
+      { prefix: "ccChat-general", origin: "http://127.0.0.1:1338" },
+    ]);
+  });
+  it("round trips model targets and project boards independently of keys", () => {
+    const patch = {
+      quickModelTargets: { "composer.model.sol": "gpt-6-astra" },
+      beadBoards: [{ prefix: "nexiflow", origin: "http://127.0.0.1:1339" }],
+    };
+    expect(decodeClientSettingsPatch(patch)).toEqual(patch);
+    expect(decodeClientSettings(encodeClientSettings(decodeClientSettings(patch)))).toMatchObject(
+      patch,
+    );
+    expect(() =>
+      decodeClientSettingsPatch({
+        beadBoards: [{ prefix: "nexiflow", origin: "javascript:alert(1)" }],
+      }),
+    ).toThrow();
+    expect(() =>
+      decodeClientSettingsPatch({
+        beadBoards: [{ prefix: "bad prefix", origin: "http://localhost:1" }],
+      }),
+    ).toThrow();
+  });
+});

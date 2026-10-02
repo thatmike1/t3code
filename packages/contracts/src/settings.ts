@@ -311,8 +311,18 @@ export const DiffColorScheme = Schema.Literals(["red-green", "blue-orange"]);
 /** Maximum width of the chat timeline and composer on wide screens. */
 export const ChatWidth = Schema.Literals(["comfortable", "wide", "full"]);
 export type ChatWidth = typeof ChatWidth.Type;
+export const QuickModelTargets = Schema.Record(Schema.String, Schema.String);
+export const BeadBoards = Schema.Array(
+  Schema.Struct({
+    prefix: Schema.String.check(Schema.isPattern(/^[A-Za-z0-9_-]+$/)),
+    origin: Schema.String.check(Schema.isPattern(/^https?:\/\/[^/?#@\s]+\/?$/)),
+  }),
+);
+export const DEFAULT_BEAD_BOARDS = [{ prefix: "ccChat-general", origin: "http://127.0.0.1:1338" }];
 
 export const ClientSettingsSchema = Schema.Struct({
+  quickModelTargets: QuickModelTargets.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  beadBoards: BeadBoards.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_BEAD_BOARDS))),
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
   ),
@@ -1622,6 +1632,8 @@ export const ServerSettingsPatch = Schema.Struct({
 export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;
 
 export const ClientSettingsPatch = Schema.Struct({
+  quickModelTargets: Schema.optionalKey(QuickModelTargets),
+  beadBoards: Schema.optionalKey(BeadBoards),
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),

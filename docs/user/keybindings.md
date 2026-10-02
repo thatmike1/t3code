@@ -20,11 +20,14 @@ workspace, and `mod+shift+g` for the Git branch. The workspace menu includes the
 current checkout, a new worktree, and the previous worktree when available.
 Use `mod+shift+l` to reuse the previous worktree directly.
 
-In a new thread, `alt+1` selects Opus 5.5, `alt+3` Sol, `alt+4` Fable 5.1,
+In a new thread, `alt+1` selects Opus 5.5, `alt+3` GPT-6.1 Sol, `alt+4` Fable 5.1,
 `alt+6` Astra, and `alt+9` Luna without opening the model picker. These model
 shortcuts leave started threads alone. Change their keys in **Settings →
 Keybindings** by searching for **Model: Select**. `alt+2` and `alt+5` continue
-to decrease and increase effort.
+to decrease and increase effort. In **Settings → General → Model shortcut targets**,
+change each shortcut's model ID within its provider family. Suggestions come from the
+selected environment's catalog. An unavailable model is ignored; clearing the field
+restores the default. Targets are saved for this client, separately from the keys.
 
 In the model picker, press Left in an empty search field or Shift+Tab to reach
 the provider list. Use Up/Down to move and Enter to choose. Right returns to

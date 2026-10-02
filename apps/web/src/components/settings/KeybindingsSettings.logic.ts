@@ -312,7 +312,7 @@ export function commandLabel(command: KeybindingCommand): string {
   const usagePeriod = WINDOW_OPTIONS.find((option) => option.command === command);
   if (usagePeriod) return `Usage: Period: ${usagePeriod.label}`;
   if (command === "composer.model.opus") return "Model: Select Opus 5.5";
-  if (command === "composer.model.sol") return "Model: Select GPT-6 Sol";
+  if (command === "composer.model.sol") return "Model: Select Sol (default GPT-6.1 Sol)";
   if (command === "composer.model.fable") return "Model: Select Fable 5.1";
   if (command === "composer.model.astra") return "Model: Select GPT-6 Astra";
   if (command === "composer.model.luna") return "Model: Select GPT-6 Luna";

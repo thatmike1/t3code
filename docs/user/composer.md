@@ -243,3 +243,16 @@ automatically. HTML previews cannot access your T3 Code session.
 
 On mobile, select a PDF attachment or link to open it. iOS uses the native viewer;
 Android opens a compatible installed file viewer.
+
+## Beadside links
+
+On web and desktop, add a repository's issue prefix and running beadside URL in
+**Settings → General → Beadside boards**. For example, map `nexiflow` to the URL
+of the board serving that repository. Mappings are saved for this client; use an
+address reachable from the device where you read the conversation.
+
+Full issue IDs link through their configured prefix. A short ID links only from
+an inline code span after every configured board answers and the suffix matches
+exactly one issue. Ambiguous or unverified suffixes remain plain code. If a board
+is unavailable, full IDs still use its configured URL; they never fall back to
+another project's board.
