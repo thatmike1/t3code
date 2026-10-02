@@ -1,4 +1,6 @@
 import {
+  type AgentThreadsSnapshot,
+  type ThreadId,
   EventId,
   MAX_SCRIPT_ID_LENGTH,
   SCRIPT_RUN_COMMAND_PATTERN,
@@ -212,10 +214,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
   command,
   readModel,
   userInputActivity,
+  agentThreadLinks = [],
 }: {
   readonly command: OrchestrationCommand;
   readonly readModel: OrchestrationReadModel;
   readonly userInputActivity?: OrchestrationThreadActivity;
+  readonly agentThreadLinks?: AgentThreadsSnapshot["links"];
 }): Effect.fn.Return<
   DecideOrchestrationCommandResult,
   OrchestrationCommandRejection | PlatformError.PlatformError,
@@ -598,6 +602,69 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
             updatedAt: occurredAt,
           },
         });
+      }
+      // nested jobs share the parent's sidebar disposition, never its provider lifecycle.
+      // walking links independently of live threads also covers descendants of deleted parents.
+      const childrenByParent = new Map<ThreadId, ThreadId[]>();
+      for (const link of agentThreadLinks) {
+        const children = childrenByParent.get(link.parentThreadId) ?? [];
+        children.push(link.threadId);
+        childrenByParent.set(link.parentThreadId, children);
+      }
+      const descendants = new Set([command.threadId]);
+      const pending = [command.threadId];
+      while (pending.length > 0) {
+        const parentId = pending.pop();
+        if (parentId === undefined) break;
+        for (const childId of childrenByParent.get(parentId) ?? []) {
+          if (descendants.has(childId)) continue;
+          descendants.add(childId);
+          pending.push(childId);
+        }
+      }
+      descendants.delete(command.threadId);
+      for (const child of readModel.threads) {
+        if (!descendants.has(child.id) || child.archivedAt !== null || child.deletedAt !== null)
+          continue;
+        const childBase = yield* withEventBase({
+          aggregateKind: "thread",
+          aggregateId: child.id,
+          occurredAt,
+          commandId: command.commandId,
+          metadata: { sidebarOnlySettlement: true },
+        });
+        companionEvents.push({
+          ...childBase,
+          type: "thread.settled",
+          payload: {
+            threadId: child.id,
+            settledAt:
+              child.settledOverride === "settled" ? (child.settledAt ?? occurredAt) : occurredAt,
+            updatedAt: child.settledOverride === "settled" ? child.updatedAt : occurredAt,
+          },
+        });
+        if (child.pinnedAt !== null)
+          companionEvents.push({
+            ...(yield* withEventBase({
+              aggregateKind: "thread",
+              aggregateId: child.id,
+              occurredAt,
+              commandId: command.commandId,
+            })),
+            type: "thread.unpinned",
+            payload: { threadId: child.id, updatedAt: occurredAt },
+          });
+        if (child.snoozedUntil !== null)
+          companionEvents.push({
+            ...(yield* withEventBase({
+              aggregateKind: "thread",
+              aggregateId: child.id,
+              occurredAt,
+              commandId: command.commandId,
+            })),
+            type: "thread.unsnoozed",
+            payload: { threadId: child.id, reason: "user", updatedAt: occurredAt },
+          });
       }
       return companionEvents.length > 0 ? [settledEvent, ...companionEvents] : settledEvent;
     }

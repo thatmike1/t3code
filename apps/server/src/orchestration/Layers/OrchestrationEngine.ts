@@ -1,3 +1,4 @@
+import { AgentThreads } from "../../agentThreads/AgentThreads.ts";
 import type {
   OrchestrationClientOrigin,
   OrchestrationEvent,
@@ -83,6 +84,7 @@ function commandToAggregateRef(command: OrchestrationCommand): {
 
 const makeOrchestrationEngine = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
+  const agentThreads = yield* Effect.serviceOption(AgentThreads);
   const eventStore = yield* OrchestrationEventStore;
   const commandReceiptRepository = yield* OrchestrationCommandReceiptRepository;
   const projectionPipeline = yield* OrchestrationProjectionPipeline;
@@ -242,7 +244,14 @@ const makeOrchestrationEngine = Effect.gen(function* () {
           envelope.command.type === "thread.user-input.dismiss"
             ? yield* projectionSnapshotQuery.getUserInputActivity(envelope.command)
             : Option.none();
+        const agentThreadLinks =
+          (envelope.command.type === "thread.settle" ||
+            envelope.command.type === "thread.auto-settle") &&
+          Option.isSome(agentThreads)
+            ? (yield* agentThreads.value.latest).links
+            : [];
         const eventBase = yield* decideOrchestrationCommand({
+          agentThreadLinks,
           command: envelope.command,
           readModel: commandReadModel,
           ...(Option.isSome(userInputActivity)

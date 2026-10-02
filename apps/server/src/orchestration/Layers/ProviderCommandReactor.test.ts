@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off
+import * as AgentThreads from "../../agentThreads/AgentThreads.ts";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -118,6 +119,7 @@ async function waitFor(
 
 describe("ProviderCommandReactor", () => {
   let runtime: ManagedRuntime.ManagedRuntime<
+    | AgentThreads.AgentThreads
     | OrchestrationEngineService
     | ProviderCommandReactor
     | ProjectionSnapshotQuery
@@ -493,6 +495,7 @@ describe("ProviderCommandReactor", () => {
         }),
       ),
       Layer.provideMerge(Layer.mock(TerminalManager)({ closeIdle: closeIdleTerminals })),
+      Layer.provideMerge(AgentThreads.layer),
       Layer.provideMerge(ServerSettingsService.layerTest()),
       Layer.provideMerge(SqlitePersistenceMemory),
       Layer.provideMerge(ServerConfig.layerTest(process.cwd(), baseDir)),
@@ -501,6 +504,7 @@ describe("ProviderCommandReactor", () => {
     runtime = ManagedRuntime.make(layer);
 
     const engine = await runtime.runPromise(Effect.service(OrchestrationEngineService));
+    const agentThreads = await runtime.runPromise(Effect.service(AgentThreads.AgentThreads));
     const snapshotQuery = await runtime.runPromise(Effect.service(ProjectionSnapshotQuery));
     const reactor = await runtime.runPromise(Effect.service(ProviderCommandReactor));
     const runEffect = <A, E>(effect: Effect.Effect<A, E>) => runtime!.runPromise(effect);
@@ -600,6 +604,8 @@ describe("ProviderCommandReactor", () => {
 
     return {
       engine,
+      recordParent: (input: Parameters<AgentThreads.AgentThreads["Service"]["record"]>[0]) =>
+        runEffect(agentThreads.record(input)),
       snapshotQuery,
       readModel: () => Effect.runPromise(snapshotQuery.getSnapshot()),
       readPendingTurnStarts: () =>
@@ -4498,6 +4504,88 @@ describe("ProviderCommandReactor", () => {
         yield* Effect.promise(() => harness.drain());
 
         expect(harness.closeIdleTerminals).toHaveBeenCalledTimes(1);
+      }),
+  );
+
+  effectIt.effect(
+    "settles nested jobs through the engine without stopping or interrupting them",
+    () =>
+      Effect.gen(function* () {
+        const harness = yield* Effect.promise(() => createHarness());
+        const root = ThreadId.make("thread-1");
+        const children = ["child-running", "grandchild-ready", "unrelated"].map((value) =>
+          ThreadId.make(value),
+        );
+        for (const child of children) {
+          yield* harness.engine.dispatch({
+            type: "thread.create",
+            commandId: CommandId.make(`create:${child}`),
+            threadId: child,
+            projectId: asProjectId("project-1"),
+            title: child,
+            modelSelection: { instanceId: ProviderInstanceId.make("codex_work"), model: "gpt-5.4" },
+            interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+            runtimeMode: "approval-required",
+            branch: null,
+            worktreePath: null,
+            createdAt: "2026-01-01T00:00:00.000Z",
+          });
+          yield* harness.engine.dispatch({
+            type: "thread.session.set",
+            commandId: CommandId.make(`session:${child}`),
+            threadId: child,
+            session: {
+              threadId: child,
+              status: child === children[0] ? "running" : "ready",
+              providerName: "codex",
+              providerInstanceId: ProviderInstanceId.make("codex_work"),
+              runtimeMode: "approval-required",
+              activeTurnId: null,
+              lastError: null,
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+            createdAt: "2026-01-01T00:00:00.000Z",
+          });
+        }
+        yield* Effect.promise(() =>
+          harness.recordParent({ threadId: children[0]!, parentThreadId: root }),
+        );
+        yield* Effect.promise(() =>
+          harness.recordParent({ threadId: children[1]!, parentThreadId: children[0]! }),
+        );
+        yield* harness.engine.dispatch({
+          type: "thread.settle",
+          commandId: CommandId.make("settle-parent"),
+          threadId: root,
+        });
+        yield* Effect.promise(() => harness.drain());
+        const model = yield* Effect.promise(() => harness.readModel());
+        expect(model.threads.find((thread) => thread.id === children[0])).toMatchObject({
+          settledOverride: "settled",
+          session: { status: "running" },
+        });
+        expect(model.threads.find((thread) => thread.id === children[1])).toMatchObject({
+          settledOverride: "settled",
+          session: { status: "ready" },
+        });
+        expect(
+          model.threads.find((thread) => thread.id === children[2])?.settledOverride,
+        ).toBeNull();
+        expect(harness.stopSession).not.toHaveBeenCalled();
+        expect(harness.interruptTurn).not.toHaveBeenCalled();
+        yield* harness.engine.dispatch({
+          type: "thread.unsettle",
+          commandId: CommandId.make("reopen-child"),
+          threadId: children[0]!,
+          reason: "user",
+        });
+        const reopened = yield* Effect.promise(() => harness.readModel());
+        expect(reopened.threads.find((thread) => thread.id === children[0])?.settledOverride).toBe(
+          "active",
+        );
+        expect(reopened.threads.find((thread) => thread.id === root)?.settledOverride).toBe(
+          "settled",
+        );
       }),
   );
 });
