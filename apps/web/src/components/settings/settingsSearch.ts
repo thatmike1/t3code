@@ -243,11 +243,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["conversation layout margin offset widescreen"],
   },
   {
-    id: "panel-animations",
-    title: "Panel animations",
-    to: "/settings/appearance",
-  },
-  {
     id: "interface-font",
     title: "Interface font",
     to: "/settings/appearance",
