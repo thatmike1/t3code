@@ -25,9 +25,9 @@ In a new thread, `alt+1` selects Opus 5.5, `alt+3` GPT-6.1 Sol, `alt+4` Fable 5.
 shortcuts leave started threads alone. Change their keys in **Settings →
 Keybindings** by searching for **Model: Select**. `alt+2` and `alt+5` continue
 to decrease and increase effort. In **Settings → General → Model shortcut targets**,
-change each shortcut's model ID within its provider family. Suggestions come from the
-selected environment's catalog. An unavailable model is ignored; clearing the field
-restores the default. Targets are saved for this client, separately from the keys.
+each row shows its key and a model picker limited to that shortcut's provider family,
+listing the selected environment's catalog. The reset arrow beside a row restores the
+default. Targets are saved for this client, separately from the keys.
 
 In the model picker, press Left in an empty search field or Shift+Tab to reach
 the provider list. Use Up/Down to move and Enter to choose. Right returns to
