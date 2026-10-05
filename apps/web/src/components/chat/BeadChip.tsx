@@ -1,9 +1,5 @@
 import { CircleDotIcon } from "lucide-react";
-import { cn } from "~/lib/utils";
-import {
-  CHAT_INLINE_CHIP_CLASS_NAME,
-  CHAT_INLINE_CHIP_LABEL_CLASS_NAME,
-} from "../composerInlineChip";
+import { ContextChip, ContextChipLabel } from "../ContextChip";
 
 /**
  * A beads issue id, linking into the local beadside. The board is a plain web
@@ -18,21 +14,15 @@ export function BeadChip(props: {
   label?: string;
 }) {
   return (
-    <a
-      href={props.href}
-      target="_blank"
-      rel="noopener noreferrer"
+    // the element kind carries the amber hue the bead chip has always had
+    <ContextChip
+      kind="element"
+      render={<a href={props.href} target="_blank" rel="noopener noreferrer" />}
       data-markdown-copy={props.copyText}
-      className={cn(
-        CHAT_INLINE_CHIP_CLASS_NAME,
-        "border-amber-500/25 bg-amber-500/12 font-mono text-amber-700 no-underline hover:bg-amber-500/20 dark:text-amber-300",
-      )}
+      className="font-mono no-underline"
     >
-      <CircleDotIcon
-        aria-hidden="true"
-        className="block size-[1.17em] shrink-0 self-center opacity-85"
-      />
-      <span className={CHAT_INLINE_CHIP_LABEL_CLASS_NAME}>{props.label ?? props.id}</span>
-    </a>
+      <CircleDotIcon aria-hidden="true" className="opacity-85" />
+      <ContextChipLabel>{props.label ?? props.id}</ContextChipLabel>
+    </ContextChip>
   );
 }
