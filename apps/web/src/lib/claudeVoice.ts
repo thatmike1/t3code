@@ -141,7 +141,8 @@ export interface LiveVoiceMessage {
 export interface LiveVoiceTracker {
   readonly threadKey: string | null;
   readonly enabled: boolean;
-  /** When the current baseline was taken (thread mounted or toggle switched on), in ms. */
+  readonly ready: boolean;
+  /** When the current baseline was taken (thread caught up or toggle switched on), in ms. */
   readonly baselineAt: number;
   /** Ids that are never spoken again: history at baseline and messages already queued. */
   readonly settledIds: ReadonlySet<string>;
@@ -152,6 +153,11 @@ export interface LiveVoiceTracker {
 export interface LiveVoiceInput {
   readonly threadKey: string | null;
   readonly enabled: boolean;
+  /**
+   * Whether the thread's history has finished loading and catching up with the
+   * server. Until it has, everything that shows up is history, never spoken.
+   */
+  readonly ready: boolean;
   readonly messages: ReadonlyArray<LiveVoiceMessage>;
   /**
    * The thread's latest run when it has completed, else null. A message of
@@ -171,6 +177,7 @@ function baseline(input: LiveVoiceInput): LiveVoiceTracker {
   return {
     threadKey: input.threadKey,
     enabled: input.enabled,
+    ready: input.ready,
     baselineAt: input.now,
     settledIds: new Set(input.messages.map((message) => message.id)),
     streamingIds: new Set(),
@@ -183,7 +190,9 @@ function baseline(input: LiveVoiceInput): LiveVoiceTracker {
  * went on: its streaming flag flips off, it arrives already finished with a
  * timestamp after the baseline, or it is still flagged streaming but has been
  * superseded by a later assistant message or its run has settled (providers
- * can leave the flag stuck). History present at the baseline is never spoken.
+ * can leave the flag stuck). History present at the baseline is never spoken,
+ * and the baseline is only taken once the thread is ready, so whatever loads
+ * or catches up before that counts as history.
  */
 export function advanceLiveVoice(
   previous: LiveVoiceTracker | null,
@@ -193,7 +202,9 @@ export function advanceLiveVoice(
     previous === null ||
     previous.threadKey !== input.threadKey ||
     previous.enabled !== input.enabled ||
-    !input.enabled
+    !input.enabled ||
+    !previous.ready ||
+    !input.ready
   ) {
     return { tracker: baseline(input), toSpeak: [] };
   }

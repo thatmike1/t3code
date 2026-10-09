@@ -147,6 +147,7 @@ describe("advanceLiveVoice", () => {
     const result = advanceLiveVoice(tracker, {
       threadKey: "env:thread-1",
       enabled: true,
+      ready: true,
       settledRunId: null,
       now: T0,
       ...input,
@@ -247,6 +248,27 @@ describe("advanceLiveVoice", () => {
     expect(on.spoken).toEqual([]);
     const later = [...msgs, message("b", { createdAt: iso(5000) })];
     expect(step(on.tracker, { messages: later, now: T0 + 5000 }).spoken).toEqual(["b"]);
+  });
+
+  it("never speaks what loads or catches up before the thread is ready", () => {
+    let { tracker } = step(null, { messages: [], ready: false });
+    // a sync catching up brings replies that finished moments ago, inside the clock slack
+    const caughtUp = [message("a", { createdAt: iso(1) }), message("b", { createdAt: iso(2) })];
+    const syncing = step(tracker, { messages: caughtUp, ready: false });
+    expect(syncing.spoken).toEqual([]);
+    ({ tracker } = syncing);
+    const live = step(tracker, { messages: caughtUp, ready: true });
+    expect(live.spoken).toEqual([]);
+    const next = [...caughtUp, message("c", { createdAt: iso(3) })];
+    expect(step(live.tracker, { messages: next }).spoken).toEqual(["c"]);
+  });
+
+  it("treats everything as history again after the thread falls back to syncing", () => {
+    let { tracker } = step(null, { messages: [] });
+    ({ tracker } = step(tracker, { messages: [], ready: false }));
+    const resynced = [message("a", { createdAt: iso(1) })];
+    ({ tracker } = step(tracker, { messages: resynced, ready: false }));
+    expect(step(tracker, { messages: resynced }).spoken).toEqual([]);
   });
 
   it("re-baselines on a thread switch", () => {

@@ -1,3 +1,4 @@
+import { useLiveVoice } from "../../hooks/useLiveVoice";
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { type ComponentProps, useLayoutEffect } from "react";
 import { useIncrementalTimelineEntries } from "../../hooks/useIncrementalTimelineEntries";
@@ -18,6 +19,7 @@ import { MessagesTimeline } from "./MessagesTimeline";
  * assistant text reaches only its own row, through useAssistantMessageText.
  */
 export function ThreadTimeline({
+  liveVoiceSettledRunId,
   threadDetailRef,
   entriesInput,
   draftEntries,
@@ -27,6 +29,7 @@ export function ThreadTimeline({
   ...timelineProps
 }: Omit<ComponentProps<typeof MessagesTimeline>, "timelineEntries"> & {
   /** Null until the thread's detail may load; see resolveThreadDetailRef. */
+  liveVoiceSettledRunId: string | null;
   threadDetailRef: ScopedThreadRef | null;
   entriesInput: Omit<TimelineEntriesInput, "visibleTurnItems">;
   /** A local draft's optimistic rows; null for a server thread. */
@@ -39,6 +42,12 @@ export function ThreadTimeline({
   const serverEntries = useIncrementalTimelineEntries(activeThreadKey, {
     ...entriesInput,
     visibleTurnItems,
+  });
+  useLiveVoice({
+    threadRef: draftEntries === null ? threadDetailRef : null,
+    ready: draftEntries === null && !syncing,
+    timelineEntries: serverEntries,
+    settledRunId: liveVoiceSettledRunId,
   });
   const entries = draftEntries ?? serverEntries;
   const displayedEntries = resolveThreadSwitchTimeline({
