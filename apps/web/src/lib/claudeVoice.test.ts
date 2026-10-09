@@ -6,6 +6,7 @@ import {
   extractSay,
   LIVE_VOICE_FULL_TEXT_LIMIT,
   liveSpokenText,
+  speakPreview,
   spokenText,
   stripSayComments,
   type LiveVoiceInput,
@@ -253,5 +254,22 @@ describe("advanceLiveVoice", () => {
     const { tracker } = step(null, { messages: [] });
     const other = [message("x", { createdAt: iso(1) })];
     expect(step(tracker, { messages: other, threadKey: "env:thread-2" }).spoken).toEqual([]);
+  });
+});
+
+describe("speakPreview", () => {
+  it("previews the say part, which is exactly what gets spoken", () => {
+    const text = "# Report\n\nDetails.\n\n<!-- say: Tests pass,\nall green. -->";
+    expect(speakPreview(text)).toEqual({ kind: "say", text: "Tests pass,\nall green." });
+    expect(speakPreview(text)).toEqual({ kind: "say", text: spokenText(text) });
+  });
+
+  it("notes the whole message is read when there is no say part", () => {
+    expect(speakPreview("Just a reply. <!-- note: hidden -->")).toEqual({ kind: "whole-message" });
+  });
+
+  it("treats an empty or unclosed say comment as no say part", () => {
+    expect(speakPreview("Reply <!-- say:   -->")).toEqual({ kind: "whole-message" });
+    expect(speakPreview("Reply <!-- say: still streaming")).toEqual({ kind: "whole-message" });
   });
 });
