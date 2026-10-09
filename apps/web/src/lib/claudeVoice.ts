@@ -46,6 +46,15 @@ export function spokenText(text: string): string {
   return extractSay(text) ?? stripHtmlComments(text).trim();
 }
 
+/** What the speak button's tooltip previews: the say part verbatim, or a note that the whole message is read. */
+export type SpeakPreview = { kind: "say"; text: string } | { kind: "whole-message" };
+
+/** Tooltip preview for the speak button, matching what {@link spokenText} reads. */
+export function speakPreview(text: string): SpeakPreview {
+  const say = extractSay(text);
+  return say === null ? { kind: "whole-message" } : { kind: "say", text: say };
+}
+
 /**
  * What live mode reads for a finished message: the say part when present,
  * the whole text when it is short, otherwise only its first paragraph.
