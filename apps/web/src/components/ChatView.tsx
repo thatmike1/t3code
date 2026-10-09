@@ -3657,6 +3657,7 @@ export default function ChatView(props: ChatViewProps) {
             >
               <WorkspaceMutationIdContext value={workspaceMutationId}>
                 <ThreadTimeline
+                  liveVoiceSettledRunId={latestRunSettled ? (activeLatestRun?.runId ?? null) : null}
                   pendingApprovals={pendingApprovals}
                   heldApprovalRequestIds={heldApprovalRequestIds}
                   respondingRequestIds={respondingRequestIds}
