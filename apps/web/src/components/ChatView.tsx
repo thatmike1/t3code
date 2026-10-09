@@ -532,6 +532,7 @@ import {
   supportsServerUpdateThreadContinuation,
 } from "../versionSkew";
 import { useAssetUrls } from "../assets/assetUrls";
+import { useLiveVoice } from "../hooks/useLiveVoice";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   recallableComposerPrompt,
@@ -3376,6 +3377,11 @@ export default function ChatView(props: ChatViewProps) {
       ),
     );
   }, [projectServerMessagePreviews, serverAttachmentUrlById, serverMessages]);
+  useLiveVoice({
+    threadRef: activeThreadRef,
+    messages: displayServerMessages,
+    settledTurnId: latestTurnSettled ? (activeLatestTurn?.turnId ?? null) : null,
+  });
   useEffect(() => {
     if (typeof Image === "undefined" || displayServerMessages.length === 0) {
       return;

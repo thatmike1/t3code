@@ -33,6 +33,7 @@ import ProjectScriptsControl, {
   type ProjectScriptActionResult,
 } from "../ProjectScriptsControl";
 import { OpenInPicker } from "./OpenInPicker";
+import { LiveVoiceToggle } from "./LiveVoiceToggle";
 import { useRemoteOpenState, type RemoteOpenMode } from "../../remoteOpen";
 import { usePrimaryEnvironmentId } from "../../state/environments";
 import { useT3ProjectFileScripts } from "~/hooks/useT3ProjectFileScripts";
@@ -393,6 +394,14 @@ export const ChatHeader = memo(function ChatHeader({
           />
         </>
       )}
+      {actionsCollapsed &&
+        (activeProjectScripts || showOpenInPicker || (activeProjectName && gitCwd)) && (
+          <MenuSeparator />
+        )}
+      <LiveVoiceToggle
+        threadRef={activeThreadRef}
+        presentation={actionsCollapsed ? "menu" : "toolbar"}
+      />
     </>
   );
   return (
@@ -502,12 +511,8 @@ export const ChatHeader = memo(function ChatHeader({
       >
         <Menu open={actionsCollapsed && actionsOpen} onOpenChange={setActionsOpen}>
           <MenuTrigger
-            className={
-              actionsCollapsed &&
-              (activeProjectScripts || showOpenInPicker || (activeProjectName && gitCwd))
-                ? undefined
-                : "hidden"
-            }
+            // the live voice toggle is always in the cluster, so a collapsed header always has a menu
+            className={actionsCollapsed ? undefined : "hidden"}
             render={<Button size="icon-sm" variant="ghost" aria-label="More header actions" />}
           >
             <EllipsisIcon className="size-4" />
