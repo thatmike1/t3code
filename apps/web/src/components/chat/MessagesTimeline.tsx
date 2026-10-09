@@ -165,6 +165,7 @@ import {
   timelineContentOverflowsViewport,
 } from "./timelineScrollAnchoring";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { MessageSpeakButton } from "./MessageSpeakButton";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { inferEntryKindFromPath } from "../../pierre-icons";
 import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
@@ -2473,6 +2474,11 @@ function AssistantMessageMeta({
         showCopyButton={showCopyButton}
         streaming={copyStreaming}
       />
+      <AssistantSpeakButton
+        message={message}
+        showSpeakButton={showCopyButton}
+        streaming={copyStreaming}
+      />
       {!message.streaming && (
         <Tooltip>
           <TooltipTrigger render={<p className="text-muted-foreground text-xs tabular-nums" />}>
@@ -2507,6 +2513,25 @@ function AssistantCopyButton({
   }
 
   return <MessageCopyButton text={assistantCopyState.text ?? ""} variant="ghost" />;
+}
+
+function AssistantSpeakButton({
+  message,
+  showSpeakButton,
+  streaming,
+}: {
+  message: ChatMessage;
+  showSpeakButton: boolean;
+  streaming: boolean;
+}) {
+  // shown exactly when the copy button is: a settled, non-empty final answer
+  const { visible } = resolveAssistantMessageCopyState({
+    text: message.text ?? null,
+    showCopyButton: showSpeakButton,
+    streaming,
+  });
+  if (!visible) return null;
+  return <MessageSpeakButton messageId={message.id} text={message.text} />;
 }
 
 function ProposedPlanTimelineRow({
