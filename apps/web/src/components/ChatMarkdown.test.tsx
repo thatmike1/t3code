@@ -1347,3 +1347,28 @@ describe("ChatMarkdown in-page links", () => {
     },
   );
 });
+
+describe("ChatMarkdown say comments", () => {
+  const cases = [
+    ["on its own block", "All done, tests pass.\n\n<!-- say: All done. The tests pass. -->"],
+    [
+      "right under a paragraph line",
+      "All done, tests pass.\n<!-- say: All done. The tests pass. -->",
+    ],
+    ["inline in a sentence", "All done <!-- say: All done. --> and tests pass."],
+    ["spanning several lines", "All done.\n\n<!-- say: All done.\nThe tests pass. -->"],
+    ["still open while streaming", "All done, tests pass.\n\n<!-- say: All done. The te"],
+  ] as const;
+
+  it.each(cases)("keeps a say comment invisible when it is %s", (_name, text) => {
+    for (const isStreaming of [false, true]) {
+      const html = renderToStaticMarkup(
+        <ChatMarkdown cwd={undefined} text={text} isStreaming={isStreaming} />,
+      );
+      expect(html).toContain("All done");
+      expect(html).not.toContain("say:");
+      expect(html).not.toContain("&lt;!--");
+      expect(html).not.toContain("<!--");
+    }
+  });
+});
