@@ -14,6 +14,7 @@ import {
   commandDisplayText,
   commandProgramName,
 } from "@t3tools/client-runtime/work-log/command-label";
+import { stripSayComments } from "~/lib/claudeVoice";
 import {
   liveActivityToolStatus,
   normalizeCompactToolLabel,
@@ -696,7 +697,7 @@ export function resolveAssistantMessageCopyState({
   const hasText = text !== null && text.trim().length > 0;
   const visible = showCopyButton && hasText && !streaming;
   return {
-    text: hasText ? (visible ? renderCodexDirectivesForCopy(text) : text) : null,
+    text: hasText ? (visible ? renderCodexDirectivesForCopy(stripSayComments(text)) : text) : null,
     visible,
   };
 }

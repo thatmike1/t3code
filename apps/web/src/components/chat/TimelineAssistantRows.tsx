@@ -1,3 +1,4 @@
+import { MessageSpeakButton } from "./MessageSpeakButton";
 import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/markdownPipeline";
 import { type RunId } from "@t3tools/contracts";
 import { canForkProjectedAssistantItem } from "@t3tools/client-runtime/state/thread-workflows";
@@ -175,6 +176,7 @@ function AssistantMessageMeta({
         showCopyButton={showCopyButton}
         streaming={copyStreaming}
       />
+      <AssistantSpeakButton message={message} showSpeakButton={showCopyButton} streaming={copyStreaming} />
       {projectedItem?.item.type === "assistant_message" ? (
         <AssistantForkButton projectedItem={projectedItem} />
       ) : null}
@@ -363,4 +365,23 @@ function AssistantChangedFilesSectionInner({
       }
     />
   );
+}
+
+function AssistantSpeakButton({
+  message,
+  showSpeakButton,
+  streaming,
+}: {
+  message: ChatMessage;
+  showSpeakButton: boolean;
+  streaming: boolean;
+}) {
+  // shown exactly when the copy button is: a settled, non-empty final answer
+  const { visible } = resolveAssistantMessageCopyState({
+    text: message.text ?? null,
+    showCopyButton: showSpeakButton,
+    streaming,
+  });
+  if (!visible) return null;
+  return <MessageSpeakButton messageId={message.id} text={message.text} />;
 }

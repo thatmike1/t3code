@@ -148,6 +148,20 @@ describe("computeMessageDurationStart", () => {
 });
 
 describe("resolveAssistantMessageCopyState", () => {
+  it("copies the message without its say comment", () => {
+    expect(
+      resolveAssistantMessageCopyState({
+        showCopyButton: true,
+        text: "Shipped the fix.\n\nTests pass.\n\n<!-- say: Shipped it, tests pass. -->\n",
+        streaming: false,
+      }),
+    ).toEqual({
+      text: "Shipped the fix.\n\nTests pass.",
+      visible: true,
+    });
+  });
+
+
   it("copies the rendered representation of Codex directives", () => {
     expect(
       resolveAssistantMessageCopyState({
