@@ -9,6 +9,9 @@ on:
   workflow_dispatch:
 
 permissions:
+  # release-desktop.yml reads this run's artifact list on Windows; a called
+  # workflow cannot get more than its caller grants, so this needs actions: read.
+  actions: read
   contents: read
 
 jobs:
@@ -48,7 +51,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="0.0.42-fork.20260930.1000${GITHUB_RUN_NUMBER}"
+          # the fork tag scheme: <upstream version>-fork.<utc date>.<utc HHMM, no leading zero>
+          upstream="$(node -p "require('./apps/desktop/package.json').version")"
+          version="${upstream}-fork.$(date -u +%Y%m%d).$((10#$(date -u +%H%M)))"
           node scripts/update-release-package-versions.ts "$version"
           cp .env.example .env
           echo "version=$version" >> "$GITHUB_OUTPUT"
