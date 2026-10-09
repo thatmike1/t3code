@@ -3259,6 +3259,7 @@ export default function ChatView(props: ChatViewProps) {
             />
             <div className="relative flex min-h-0 flex-1 flex-col bg-background">
               <ThreadTimeline
+                liveVoiceSettledRunId={latestRunSettled ? (activeLatestRun?.runId ?? null) : null}
                 threadDetailRef={routeThreadDetailRef}
                 entriesInput={timelineEntriesInput}
                 draftEntries={isServerThread ? null : draftTimelineEntries}
