@@ -608,6 +608,7 @@ import {
   supportsServerUpdateThreadContinuation,
 } from "../versionSkew";
 import { useAssetUrls } from "../assets/assetUrls";
+import { useLiveVoice } from "../hooks/useLiveVoice";
 import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@t3tools/shared/composerContextReferences";
 import { recallableComposerPrompt } from "./chat/composerPromptHistory";
 import { observeResize } from "~/lib/observeResize";
@@ -3949,6 +3950,12 @@ export default function ChatView(props: ChatViewProps) {
     serverProjection,
     timelineAttachmentUrlById,
   ]);
+  useLiveVoice({
+    threadRef: isServerThread ? activeThreadRef : null,
+    ready: isServerThread && serverProjection !== null && threadSyncPhase === null,
+    timelineEntries: serverTimelineEntries,
+    settledRunId: latestRunSettled ? (activeLatestRun?.runId ?? null) : null,
+  });
   const draftTimelineEntries = useMemo(
     () =>
       optimisticUserMessages.map(
