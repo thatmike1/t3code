@@ -1127,6 +1127,12 @@ export interface DesktopBridge {
   openExternal: (url: string) => Promise<boolean>;
   /** Reads http(s) media in the main process, outside renderer CORS and CSP; null on network failure. */
   readMedia: (url: string) => Promise<DesktopMediaRead | null>;
+  /**
+   * fork: hand the system browser a tab-focus request, an http(s) or `file:` URL that ends
+   * in the `t3-focus` marker. Unlike `openExternal` it takes local files, and nothing
+   * without the marker. Optional: older desktop builds lack it.
+   */
+  openTabFocus?: (url: string) => Promise<boolean>;
   openSystemSettings: (pane: SystemSettingsPane) => Promise<boolean>;
   checkSystemPermission: (pane: SystemSettingsPane) => Promise<boolean>;
   probeRemoteEditors: () => Promise<readonly EditorId[]>;
