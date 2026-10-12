@@ -319,6 +319,7 @@ import {
   ResourceTelemetryRetryResult,
   ResourceTelemetrySnapshot,
 } from "./resourceTelemetry.ts";
+import { TabTintSnapshot } from "./tabTint.ts";
 import {
   UsageLimitSourceError,
   ProviderConsumeResetCreditInput,
@@ -586,6 +587,7 @@ export const WS_METHODS = {
   subscribeBackgroundPolicy: "subscribeBackgroundPolicy",
   subscribeWidgets: "subscribeWidgets",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
+  subscribeTabTints: "subscribeTabTints",
 } as const;
 
 const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -1874,6 +1876,13 @@ const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeResourceTel
   stream: true,
 });
 
+const WsSubscribeTabTintsRpc = Rpc.make(WS_METHODS.subscribeTabTints, {
+  payload: Schema.Struct({}),
+  success: TabTintSnapshot,
+  error: EnvironmentAuthorizationError,
+  stream: true,
+});
+
 /**
  * Checks the connection's scopes against the scope each RPC declares, before
  * the handler runs. Every RPC in `WsRpcGroup` carries it, so a handler cannot
@@ -2064,6 +2073,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeBackgroundPolicyRpc,
   WsSubscribeWidgetsRpc,
   WsSubscribeResourceTelemetryRpc,
+  WsSubscribeTabTintsRpc,
   WsOrchestrationV2DispatchCommandRpc,
   WsOrchestrationV2GetWorkflowScriptRpc,
   WsOrchestrationV2StopWorkflowRpc,
