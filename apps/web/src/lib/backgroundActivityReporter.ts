@@ -115,6 +115,9 @@ function scopeForSubscription(
   if (observation.method === WS_METHODS.subscribeResourceTelemetry) {
     return { type: "diagnostics" };
   }
+  if (observation.method === WS_METHODS.subscribeTabTints) {
+    return { type: "diagnostics" };
+  }
   if (observation.method !== WS_METHODS.subscribeVcsStatus) {
     return null;
   }
