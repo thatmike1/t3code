@@ -112,7 +112,10 @@ function createActivityReport(
 function scopeForSubscription(
   observation: EnvironmentRpcSubscriptionObservation,
 ): BackgroundScope | null {
-  if (observation.method === WS_METHODS.subscribeResourceTelemetry) {
+  if (
+    observation.method === WS_METHODS.subscribeResourceTelemetry ||
+    observation.method === WS_METHODS.subscribeWidgets
+  ) {
     return { type: "diagnostics" };
   }
   if (observation.method !== WS_METHODS.subscribeVcsStatus) {

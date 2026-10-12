@@ -222,6 +222,7 @@ import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as HostResources from "./resourceTelemetry/HostResources.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as UsageService from "./usage/UsageService.ts";
+import * as Widgets from "./widgets/Widgets.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
@@ -533,6 +534,12 @@ function projectFileFailureContext(
       return { failure: "path_not_file", resolvedPath: error.resolvedPath };
     case "WorkspaceBinaryFileError":
       return { failure: "binary_file", resolvedPath: error.resolvedPath };
+    case "WorkspaceHostFileChangedError":
+      return { failure: "host_file_changed", resolvedPath: error.resolvedPath };
+    case "WorkspaceHostFileNotFoundError":
+      return { failure: "host_file_not_found", resolvedPath: error.resolvedPath };
+    case "WorkspaceHostFileTooLargeError":
+      return { failure: "host_file_too_large", resolvedPath: error.resolvedPath };
     default:
       return unexpectedCompatibilityError(error);
   }
@@ -1290,6 +1297,7 @@ const layerWsRpc = (
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
       const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
       const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
+      const widgets = yield* Widgets.Widgets;
       const rpcClientIds = yield* Ref.make(new Set<RpcClientId>());
       yield* Effect.addFinalizer(() =>
         Ref.get(rpcClientIds).pipe(
@@ -3124,6 +3132,12 @@ const layerWsRpc = (
         [WS_METHODS.subscribeBackgroundPolicy]: (_input) =>
           Stream.unwrap(
             Effect.map(backgroundPolicy.subscribe, ({ latest, changes }) =>
+              Stream.concat(Stream.make(latest), changes),
+            ),
+          ),
+        [WS_METHODS.subscribeWidgets]: (_input) =>
+          Stream.unwrap(
+            Effect.map(widgets.subscribe, ({ latest, changes }) =>
               Stream.concat(Stream.make(latest), changes),
             ),
           ),

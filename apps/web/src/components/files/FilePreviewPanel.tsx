@@ -1,4 +1,6 @@
 import { Spinner } from "~/components/ui/spinner";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import {
   AuthPreviewOperateScope,
   type EditorId,
@@ -68,6 +70,7 @@ import { usePreviewAvailable } from "~/browser/previewRuntime";
 import { useEnvironmentHttpBaseUrl, usePrimaryEnvironmentId } from "~/state/environments";
 import { previewEnvironment } from "~/state/preview";
 import { useEnvironmentScope } from "~/state/session";
+import { projectEnvironment } from "~/state/projects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 
@@ -686,6 +689,7 @@ function EditableFileSurface({
   onPostRender,
   onPendingChange,
 }: EditableFileSurfaceProps) {
+  const [openedContents] = useState(contents);
   const addReviewComment = useComposerDraftStore((store) => store.addReviewComment);
   const removeReviewComment = useComposerDraftStore((store) => store.removeReviewComment);
   const [lineAnnotations, setLineAnnotations] = useState<FileCommentLineAnnotation[]>([]);
@@ -704,6 +708,7 @@ function EditableFileSurface({
     environmentId,
     cwd,
     relativePath,
+    initialContents: openedContents,
     onPendingChange,
   });
   // The editor owns the draft, so its own edits echoing back through the file
@@ -978,10 +983,12 @@ function RenderedMarkdownSurface({
   threadRef: ScopedThreadRef;
   readOnly: boolean;
 }) {
+  const [openedContents] = useState(contents);
   const saveCoordinator = useFileSaveCoordinator({
     environmentId,
     cwd,
     relativePath,
+    initialContents: openedContents,
     onPendingChange,
   });
 
@@ -1059,6 +1066,10 @@ export default function FilePreviewPanel({
   const openPreview = useAtomCommand(previewEnvironment.open, {
     reportFailure: false,
   });
+  const createHostFile = useAtomCommand(projectEnvironment.writeFile, {
+    reportFailure: false,
+  });
+  const [creatingHostFile, setCreatingHostFile] = useState(false);
   const isVideo = relativePath !== null && isWorkspaceVideoPreviewPath(relativePath);
   const isAudio = relativePath !== null && !isVideo && isWorkspaceAudioPreviewPath(relativePath);
   const isImage = relativePath !== null && !isVideo && isWorkspaceImagePreviewPath(relativePath);
@@ -1066,9 +1077,10 @@ export default function FilePreviewPanel({
   // PDFs have no text to show; HTML has, and can toggle between page and source.
   const isPdf = relativePath !== null && isPdfPreviewFile(relativePath);
   const isHtml = relativePath !== null && !isPdf && isBrowserPreviewFile(relativePath);
-  // A file outside the workspace (an absolute path) is shown, never edited.
+  // Host files have no entry in the workspace tree.
   const isHostFile =
-    attachment !== undefined || (relativePath !== null && isAbsolutePath(relativePath));
+    attachment !== undefined ||
+    (relativePath !== null && (isAbsolutePath(relativePath) || relativePath.startsWith("~/")));
   const fileAccess = useFilesystemReadAccess(environmentId);
   const { canReadFiles } = fileAccess;
   const canWriteFiles = useEnvironmentScope(environmentId, AuthFilesystemWriteScope);
@@ -1092,6 +1104,7 @@ export default function FilePreviewPanel({
   // Everything preview-related keys off previewPath; a folder has no preview.
   const previewPath = isDirectory ? null : relativePath;
   const [explorerOpen, setExplorerOpen] = useState(initialExplorerOpen);
+  const [pathInput, setPathInput] = useState("");
   const showExplorer = shouldShowFileExplorer({
     relativePath: previewPath,
     explorerOpen,
@@ -1232,6 +1245,32 @@ export default function FilePreviewPanel({
     threadRef,
   ]);
 
+  const refreshFile = file.refresh;
+  const handleCreateHostFile = useCallback(() => {
+    if (!relativePath || !isHostFile || creatingHostFile) return;
+    setCreatingHostFile(true);
+    void createHostFile({
+      environmentId,
+      input: { cwd, relativePath, contents: "", createIfMissing: true },
+    })
+      .then((result) => {
+        if (result._tag === "Success") {
+          refreshFile();
+          return;
+        }
+        if (isAtomCommandInterrupted(result)) return;
+        const error = squashAtomCommandFailure(result);
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Unable to create file",
+            description: error instanceof Error ? error.message : "An error occurred.",
+          }),
+        );
+      })
+      .finally(() => setCreatingHostFile(false));
+  }, [createHostFile, creatingHostFile, cwd, environmentId, refreshFile, isHostFile, relativePath]);
+
   if (attachment === undefined && !canReadFiles) {
     if (fileAccess.isPending) {
       return (
@@ -1250,6 +1289,34 @@ export default function FilePreviewPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      {relativePath === null && attachment === undefined ? (
+        <form
+          className="flex items-center gap-2 border-b border-border/60 px-3 py-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const requestedPath = pathInput.trim();
+            if (!requestedPath) return;
+            onOpenFile(
+              requestedPath.startsWith("~/")
+                ? resolvePathLinkTarget(requestedPath, cwd)
+                : requestedPath,
+            );
+            setPathInput("");
+          }}
+        >
+          <Input
+            aria-label="File path"
+            autoComplete="off"
+            placeholder="Paste a file path, e.g. ~/.config/app/config.json"
+            size="compact"
+            value={pathInput}
+            onChange={(event) => setPathInput(event.target.value)}
+          />
+          <Button type="submit" size="sm" variant="outline" disabled={!pathInput.trim()}>
+            Open
+          </Button>
+        </form>
+      ) : null}
       {relativePath && attachment === undefined ? (
         <div className={FILE_SURFACE_SUBHEADER_CLASS} data-surface-subheader>
           <ScrollArea
@@ -1326,7 +1393,7 @@ export default function FilePreviewPanel({
           ) : null}
         </div>
       ) : null}
-      {relativePath && !attachment && !isHostFile && !canWriteFiles && !fileAccess.isPending ? (
+      {relativePath && !attachment && !canWriteFiles && !fileAccess.isPending ? (
         <div className="shrink-0 border-b px-3 py-1.5 text-2xs text-muted-foreground">
           Read-only connection. Unsaved edits are kept until write access returns.
         </div>
@@ -1344,7 +1411,20 @@ export default function FilePreviewPanel({
         <div
           className={cn("min-w-0 flex-1 flex-col overflow-hidden", previewPath ? "flex" : "hidden")}
         >
-          {isDirectory ? null : relativePath && attachment ? (
+          {isDirectory ? null : relativePath && file.isMissingHostFile && isHostFile ? (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center text-xs leading-relaxed">
+              <p className="text-muted-foreground">{file.error}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={creatingHostFile}
+                onClick={handleCreateHostFile}
+              >
+                {creatingHostFile ? "Creating…" : "Create empty file"}
+              </Button>
+            </div>
+          ) : relativePath && attachment ? (
             <AttachmentFilePreview
               key={`${environmentId}:${attachment.id}`}
               name={attachment.name}
@@ -1441,7 +1521,7 @@ export default function FilePreviewPanel({
                 relativePath={relativePath}
                 threadRef={threadRef}
                 contents={file.data.contents}
-                readOnly={isHostFile || !canWriteFiles}
+                readOnly={!canWriteFiles}
                 onPendingChange={onPendingChange}
               />
             ) : tableDelimiter && renderTable ? (
@@ -1451,7 +1531,7 @@ export default function FilePreviewPanel({
                 text={file.data.contents}
                 delimiter={tableDelimiter}
               />
-            ) : file.data.truncated || isHostFile || !canWriteFiles ? (
+            ) : file.data.truncated || !canWriteFiles ? (
               <SourceFilePreview
                 name={relativePath}
                 text={file.data.contents}

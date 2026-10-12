@@ -53,6 +53,7 @@ interface ProjectFileQueryState extends ProjectQueryState<ProjectReadFileResult>
   readonly readError: ProjectReadFileError | null;
   /** The path exists but is not a regular file, typically a directory. */
   readonly isNotFile: boolean;
+  readonly isMissingHostFile: boolean;
 }
 
 function getProjectEntriesQueryAtom(
@@ -114,6 +115,16 @@ export function getProjectFileContents(
 ): string | undefined {
   const optimistic = getOptimisticProjectFileQueryData(environmentId, cwd, relativePath);
   if (optimistic) return optimistic.contents;
+  const result = appAtomRegistry.get(getProjectFileQueryAtom(environmentId, cwd, relativePath));
+  return Option.getOrUndefined(AsyncResult.value(result))?.contents;
+}
+
+/** The contents last read from disk, ignoring any in-app draft over them. */
+export function getConfirmedProjectFileContents(
+  environmentId: EnvironmentId,
+  cwd: string,
+  relativePath: string,
+): string | undefined {
   const result = appAtomRegistry.get(getProjectFileQueryAtom(environmentId, cwd, relativePath));
   return Option.getOrUndefined(AsyncResult.value(result))?.contents;
 }
@@ -284,6 +295,7 @@ export function useProjectFileQuery(
     isPending: isQueryEnabled && (fileAccess.isPending || result.waiting),
     readError,
     isNotFile: readError?.failure === "path_not_file",
+    isMissingHostFile: readError?.failure === "host_file_not_found",
     refresh,
   };
 }

@@ -190,6 +190,22 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
       }),
     );
 
+    it.effect("identifies a missing host file when its parent directory is absent", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        const absolutePath = path.join(outsideDir, "home-base/config.json");
+
+        const error = yield* workspaceFileSystem
+          .readFile({ cwd, relativePath: absolutePath })
+          .pipe(Effect.flip);
+
+        expect(error._tag).toBe("WorkspaceHostFileNotFoundError");
+      }),
+    );
+
     // Needs mkfifo; Windows has no FIFOs to reject.
     it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
       "rejects a FIFO without blocking on open",
@@ -341,6 +357,51 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
   });
 
   describe("writeFile", () => {
+    it.effect("creates a requested host file and missing parent directory", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        const absolutePath = path.join(outsideDir, "home-base/config.json");
+
+        const result = yield* workspaceFileSystem.writeFile({
+          cwd,
+          relativePath: absolutePath,
+          contents: "{}\n",
+          createIfMissing: true,
+        });
+
+        expect(result).toEqual({ relativePath: absolutePath });
+        expect(yield* fileSystem.readFileString(absolutePath)).toBe("{}\n");
+      }),
+    );
+
+    it.effect("never overwrites a host file when creation is requested", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        const absolutePath = path.join(outsideDir, "config.json");
+        yield* writeTextFile(outsideDir, "config.json", "original");
+
+        const error = yield* workspaceFileSystem
+          .writeFile({
+            cwd,
+            relativePath: absolutePath,
+            contents: "replacement",
+            createIfMissing: true,
+          })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFileSystemOperationError);
+        expect(yield* fileSystem.readFileString(absolutePath)).toBe("original");
+      }),
+    );
+
     it.effect("writes files relative to the workspace root", () =>
       Effect.gen(function* () {
         const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
@@ -361,19 +422,72 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
       }),
     );
 
-    it.effect("rejects writes by absolute path", () =>
+    it.effect("updates an existing host file and preserves its path", () =>
       Effect.gen(function* () {
         const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
         const path = yield* Path.Path;
+        const fileSystem = yield* FileSystem.FileSystem;
         const cwd = yield* makeTempDir;
         const outsideDir = yield* makeTempDir;
         const absolutePath = path.join(outsideDir, "cleanup-report.md");
+        yield* writeTextFile(outsideDir, "cleanup-report.md", "# Before\n");
+
+        const result = yield* workspaceFileSystem.writeFile({
+          cwd,
+          relativePath: absolutePath,
+          expectedContents: "# Before\n",
+          contents: "# Edited\n",
+        });
+
+        expect(result).toEqual({ relativePath: absolutePath });
+        expect(yield* fileSystem.readFileString(absolutePath)).toBe("# Edited\n");
+      }),
+    );
+
+    it.effect("refuses to overwrite a host file changed since it was opened", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        const absolutePath = path.join(outsideDir, "config.json");
+        yield* writeTextFile(outsideDir, "config.json", "before");
 
         const error = yield* workspaceFileSystem
-          .writeFile({ cwd, relativePath: absolutePath, contents: "# Edited\n" })
+          .writeFile({
+            cwd,
+            relativePath: absolutePath,
+            expectedContents: "stale",
+            contents: "edited",
+          })
           .pipe(Effect.flip);
 
-        expect(error).toBeInstanceOf(WorkspacePaths.WorkspacePathOutsideRootError);
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceHostFileChangedError);
+        expect(yield* fileSystem.readFileString(absolutePath)).toBe("before");
+      }),
+    );
+
+    it.effect("does not create host files through an absolute path", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const path = yield* Path.Path;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        const absolutePath = path.join(outsideDir, "missing.json");
+
+        const error = yield* workspaceFileSystem
+          .writeFile({
+            cwd,
+            relativePath: absolutePath,
+            expectedContents: "",
+            contents: "new",
+          })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFileSystemOperationError);
+        expect(yield* fileSystem.exists(absolutePath)).toBe(false);
       }),
     );
 
