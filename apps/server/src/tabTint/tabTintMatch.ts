@@ -3,7 +3,7 @@
  * Which thread opened which browser tab, and so which thread a coloured tab
  * belongs to.
  *
- * The evidence is the thread's own tool activity: a command such as
+ * The evidence is the thread's own command turn items: a command such as
  * `xdg-open http://127.0.0.1:1346/` or `cd site && xdg-open index.html` is an
  * open. Commands are read with a small shell lexer rather than a regex so a
  * `cd` earlier in the same command moves the directory a relative path
@@ -272,36 +272,36 @@ export function openTargetsInCommand(
 }
 
 // ---------------------------------------------------------------------------
-// reading commands out of stored activity
+// reading commands out of stored turn items
 
-export interface ActivityCommand {
+export interface TurnItemCommand {
   readonly command: string;
-  /** the directory the provider reports it ran in, when it reports one */
-  readonly cwd: string | null;
+  /** when the command started, or failing that when the item last changed, as epoch milliseconds */
+  readonly openedAt: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function epochMillis(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 /**
- * The shell command a tool activity ran, from either provider's payload:
- * Claude keeps it at `data.input.command` with no directory, Codex at
- * `data.item.command` (wrapped in `bash -lc`) with `data.item.cwd`.
+ * The shell command an orchestration V2 `command_execution` turn item ran,
+ * from its stored (encoded) JSON. Every provider puts the command text in
+ * `input`; Codex reports it wrapped in `bash -lc`, which the lexer unwraps.
+ * The item carries no directory, so the caller supplies one.
  */
-export function commandFromActivityPayload(payload: unknown): ActivityCommand | null {
-  if (!isRecord(payload) || payload.itemType !== "command_execution") return null;
-  const data = payload.data;
-  if (!isRecord(data)) return null;
-  const item = data.item;
-  if (isRecord(item) && typeof item.command === "string") {
-    return { command: item.command, cwd: typeof item.cwd === "string" ? item.cwd : null };
-  }
-  const input = data.input;
-  if (isRecord(input) && typeof input.command === "string") {
-    return { command: input.command, cwd: typeof input.cwd === "string" ? input.cwd : null };
-  }
-  return null;
+export function commandFromTurnItemPayload(payload: unknown): TurnItemCommand | null {
+  if (!isRecord(payload) || payload.type !== "command_execution") return null;
+  if (typeof payload.input !== "string") return null;
+  const openedAt = epochMillis(payload.startedAt) ?? epochMillis(payload.updatedAt);
+  if (openedAt === null) return null;
+  return { command: payload.input, openedAt };
 }
 
 // ---------------------------------------------------------------------------

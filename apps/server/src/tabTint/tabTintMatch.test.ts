@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 
 import type { ColoredTab } from "./firefoxSession.ts";
 import {
-  commandFromActivityPayload,
+  commandFromTurnItemPayload,
   matchTabTints,
   type OpenClaim,
   openTargetsInCommand,
@@ -77,31 +77,50 @@ describe("openTargetsInCommand", () => {
   });
 });
 
-describe("commandFromActivityPayload", () => {
-  it("reads Claude's and Codex's command shapes", () => {
+describe("commandFromTurnItemPayload", () => {
+  it("reads the command and when it started", () => {
     expect(
-      commandFromActivityPayload({
-        itemType: "command_execution",
-        data: { toolName: "Bash", input: { command: "xdg-open a.html" } },
+      commandFromTurnItemPayload({
+        type: "command_execution",
+        input: "/bin/bash -lc 'xdg-open a.html'",
+        startedAt: "2026-10-12T10:00:00.000Z",
+        updatedAt: "2026-10-12T10:00:05.000Z",
       }),
-    ).toEqual({ command: "xdg-open a.html", cwd: null });
+    ).toEqual({
+      command: "/bin/bash -lc 'xdg-open a.html'",
+      openedAt: Date.parse("2026-10-12T10:00:00.000Z"),
+    });
+  });
+
+  it("falls back to the update time when the start is unknown", () => {
     expect(
-      commandFromActivityPayload({
-        itemType: "command_execution",
-        data: { item: { command: "/bin/bash -lc 'xdg-open a.html'", cwd: "/p" } },
+      commandFromTurnItemPayload({
+        type: "command_execution",
+        input: "xdg-open a.html",
+        startedAt: null,
+        updatedAt: "2026-10-12T10:00:05.000Z",
       }),
-    ).toEqual({ command: "/bin/bash -lc 'xdg-open a.html'", cwd: "/p" });
+    ).toEqual({ command: "xdg-open a.html", openedAt: Date.parse("2026-10-12T10:00:05.000Z") });
   });
 
   it("ignores anything that is not a shell command", () => {
     expect(
-      commandFromActivityPayload({
-        itemType: "collab_agent_tool_call",
-        data: { input: { command: "xdg-open http://127.0.0.1:1/" } },
+      commandFromTurnItemPayload({
+        type: "dynamic_tool",
+        input: "xdg-open http://127.0.0.1:1/",
+        updatedAt: "2026-10-12T10:00:05.000Z",
       }),
     ).toBeNull();
-    expect(commandFromActivityPayload("xdg-open x")).toBeNull();
-    expect(commandFromActivityPayload({ itemType: "command_execution" })).toBeNull();
+    expect(commandFromTurnItemPayload("xdg-open x")).toBeNull();
+    expect(
+      commandFromTurnItemPayload({
+        type: "command_execution",
+        updatedAt: "2026-10-12T10:00:05.000Z",
+      }),
+    ).toBeNull();
+    expect(
+      commandFromTurnItemPayload({ type: "command_execution", input: "xdg-open x" }),
+    ).toBeNull();
   });
 });
 
