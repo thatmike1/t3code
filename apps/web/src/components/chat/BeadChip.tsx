@@ -1,10 +1,14 @@
 import { CircleDotIcon } from "lucide-react";
+import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
+import { readLocalApi } from "~/localApi";
 import { ContextChip, ContextChipLabel } from "../ContextChip";
+import { toastManager } from "../ui/toast";
+import { showBeadChipContextMenu } from "./beadChipContextMenu";
 
 /**
  * A beads issue id, linking into the local beadside. The board is a plain web
  * app, so the chip is an ordinary anchor and the runtime decides where it
- * opens.
+ * opens. Right-click offers the bare id to copy.
  */
 export function BeadChip(props: {
   id: string;
@@ -20,6 +24,21 @@ export function BeadChip(props: {
       render={<a href={props.href} target="_blank" rel="noopener noreferrer" />}
       data-markdown-copy={props.copyText}
       className="font-mono no-underline"
+      onContextMenu={(event) => {
+        const api = readLocalApi();
+        if (!api) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void showBeadChipContextMenu({
+          id: props.id,
+          href: props.href,
+          position: { x: event.clientX, y: event.clientY },
+          showContextMenu: (items, position) => api.contextMenu.show(items, position),
+          copyText: writeTextToClipboard,
+        }).catch(() => {
+          toastManager.add({ type: "error", title: "Could not copy" });
+        });
+      }}
     >
       <CircleDotIcon aria-hidden="true" className="opacity-85" />
       <ContextChipLabel>{props.label ?? props.id}</ContextChipLabel>
