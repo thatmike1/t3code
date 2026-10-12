@@ -1120,6 +1120,17 @@ export interface DesktopBridge {
   receiveProviderAuthCallback?: (authorizationUrl: string) => Promise<string>;
   cancelProviderAuthCallback?: (authorizationUrl: string) => Promise<void>;
   openExternal: (url: string) => Promise<boolean>;
+  /**
+   * Hand the system browser a tab-focus request: an http(s) or `file:` URL
+   * that ends in the `t3-focus` marker. Unlike `openExternal` it takes local
+   * files, and nothing without the marker. Optional: older desktop builds
+   * lack it.
+   */
+  openTabFocus?: (url: string) => Promise<boolean>;
+  /**
+   * Open a System Settings pane by identifier. Optional: older desktop builds
+   * lack it, and callers no-op when it is missing.
+   */
   openSystemSettings?: (pane: SystemSettingsPane) => Promise<boolean>;
   checkSystemPermission?: (pane: SystemSettingsPane) => Promise<boolean>;
   /**

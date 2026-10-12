@@ -1,3 +1,4 @@
+import { SidebarTabTintMarker } from "./SidebarTabTintMarker";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { ThreadTerminalStatusButton } from "../ThreadStatusIndicators";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
@@ -1103,6 +1104,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             }
           >
             {accessibleTitle}
+          <SidebarTabTintMarker environmentId={thread.environmentId} threadId={thread.id} recede={shouldRecede} />
             <span
               className={cn(
                 "flex shrink-0 items-center transition-opacity",
@@ -1262,6 +1264,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           }
         >
           {accessibleTitle}
+          <SidebarTabTintMarker environmentId={thread.environmentId} threadId={thread.id} recede={shouldRecede} />
           <div className="relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)">
             <div className="flex h-5 min-w-0 items-center gap-1.5">
               {draftIndicator}
