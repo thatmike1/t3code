@@ -12,6 +12,10 @@ on:
         description: Upstream release the build is based on; defaults to .github/fork-upstream-version
         required: false
         type: string
+      fork_version:
+        description: Exact fork version to stamp, to match a Linux build of the same release; defaults to a fresh timestamp
+        required: false
+        type: string
 
 permissions:
   # release-desktop.yml reads this run's artifact list on Windows; a called
@@ -56,6 +60,7 @@ jobs:
         shell: bash
         env:
           UPSTREAM_VERSION_INPUT: ${{ inputs.upstream_version }}
+          FORK_VERSION_INPUT: ${{ inputs.fork_version }}
         run: |
           set -euo pipefail
           # the fork tag scheme: <upstream version>-fork.<utc date>.<utc HHMM, no leading zero>.
@@ -69,6 +74,13 @@ jobs:
             exit 1
           }
           version="${upstream}-fork.$(date -u +%Y%m%d).$((10#$(date -u +%H%M)))"
+          if [[ -n "${FORK_VERSION_INPUT:-}" ]]; then
+            [[ "$FORK_VERSION_INPUT" == "${upstream}-fork."* && "$FORK_VERSION_INPUT" =~ -fork\.[0-9]{8}\.[0-9]+$ ]] || {
+              echo "Fork version '$FORK_VERSION_INPUT' does not match ${upstream}-fork.<yyyymmdd>.<hhmm>" >&2
+              exit 1
+            }
+            version="$FORK_VERSION_INPUT"
+          fi
           node scripts/update-release-package-versions.ts "$version"
           cp .env.example .env
           echo "version=$version" >> "$GITHUB_OUTPUT"
