@@ -20,6 +20,7 @@ import {
   commandProgramName,
 } from "@t3tools/client-runtime/work-log/command-label";
 import { stripSayComments } from "~/lib/claudeVoice";
+import { memoryCaptureLabel } from "./memoryCapture";
 import {
   commandlessCommandLabel,
   genericCommandStatusLabel,
@@ -159,6 +160,8 @@ export function workEntryDisplayLabel(
   }
   const toolPresentation = resolveWorkEntryToolPresentation(entry, undefined, resolve);
   if (toolPresentation) return toolPresentation.displayName;
+  const memoryCapture = memoryCaptureLabel(entry);
+  if (memoryCapture) return memoryCapture;
   if (entry.command?.trim()) return commandDisplayText(entry.command);
   const commandless = commandlessCommandLabel(
     entry,
