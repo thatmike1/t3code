@@ -8,10 +8,10 @@ import { APP_STAGE_LABEL } from "../branding";
 import { resolveServerBackedAppStageLabel } from "../branding.logic";
 import { primaryServerConfigAtom } from "../state/server";
 
-export type SidebarStageBackdropVariant = "nightly" | "dev" | ForkArtworkDirection;
+export type SidebarStageBackdropVariant = "nightly" | "dev" | "scribble" | ForkArtworkDirection;
 export type EnvironmentIdentificationPillLabel = "Dev" | "Nightly";
 
-// A wide viewBox keeps the 96-unit art height at a fixed scale while sidebar resizing reveals
+// a wide viewBox keeps the 96-unit art height at a fixed scale while sidebar resizing reveals
 // more horizontal canvas instead of zooming the scene.
 const STAGE_BACKDROP_VIEW_BOX = "0 0 8192 96";
 
@@ -70,6 +70,7 @@ export function useSidebarStageBackdropVariant(
 
 /** Stage-channel header art; palettes mirror the per-channel app icons in `assets/`. */
 export function SidebarStageBackdrop({ variant }: { variant: SidebarStageBackdropVariant }) {
+  if (variant === "scribble") return null;
   return (
     <div
       aria-hidden
@@ -81,12 +82,14 @@ export function SidebarStageBackdrop({ variant }: { variant: SidebarStageBackdro
 }
 
 export function StageBackdropArt({ variant }: { variant: SidebarStageBackdropVariant }) {
+  if (variant === "scribble") return null;
   if (variant === "nightly") return <NightlySkyArt />;
   if (variant === "dev") return <DevBlueprintArt />;
   return <ForkArtworkImage direction={variant} slot="strip" />;
 }
 
 export function StageBackdropButtonArt({ variant }: { variant: SidebarStageBackdropVariant }) {
+  if (variant === "scribble") return null;
   if (variant === "nightly") return <NightlySkyArt compact />;
   if (variant === "dev") return <DevBlueprintArt compact />;
   return <ForkArtworkImage direction={variant} slot="circle" />;
