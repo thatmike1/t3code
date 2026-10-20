@@ -92,6 +92,8 @@ export interface NewProjectScriptInput {
   keybinding?: string | null;
   previewUrl: string | null;
   autoOpenPreview: boolean;
+  /** When false, running by hand leaves the terminal drawer as it is. */
+  openTerminal: boolean;
 }
 
 export type ProjectScriptActionResult = AtomCommandResult<void, unknown>;
@@ -107,6 +109,7 @@ export const EMPTY_PROJECT_SCRIPT_INPUT: NewProjectScriptInput = {
   keybinding: null,
   previewUrl: null,
   autoOpenPreview: false,
+  openTerminal: true,
 };
 
 export interface ProjectScriptEditorRequest {
@@ -132,6 +135,7 @@ export function editorRequestForScript(
       keybinding: keybindingValueForCommand(keybindings, commandForProjectScript(script.id)),
       previewUrl: script.previewUrl ?? null,
       autoOpenPreview: script.autoOpenPreview ?? false,
+      openTerminal: script.openTerminal ?? true,
     },
   };
 }
@@ -297,6 +301,7 @@ function ProjectScriptEditorForm({
   const [keybinding, setKeybinding] = useState(request.initial.keybinding ?? "");
   const [previewUrl, setPreviewUrl] = useState(request.initial.previewUrl ?? "");
   const [autoOpenPreview, setAutoOpenPreview] = useState(request.initial.autoOpenPreview);
+  const [openTerminal, setOpenTerminal] = useState(request.initial.openTerminal);
   const [isSaving, setIsSaving] = useState(false);
   const pendingSubmissionRef = useRef<object | null>(null);
   // A save that settles after this form is replaced must not close or error
@@ -396,6 +401,7 @@ function ProjectScriptEditorForm({
           : {}),
         previewUrl: trimmedPreviewUrl.length > 0 ? trimmedPreviewUrl : null,
         autoOpenPreview: trimmedPreviewUrl.length > 0 ? autoOpenPreview : false,
+        openTerminal,
       } satisfies NewProjectScriptInput;
     } catch (error) {
       setValidationError(thrownErrorMessage(error, m) ?? gt("Failed to save action."));
@@ -540,6 +546,15 @@ function ProjectScriptEditorForm({
                 <T>Open this URL in the in-app preview when this action runs.</T>
               </p>
             </div>
+            <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2 text-sm dark:border-transparent dark:bg-white/[0.035]">
+              <span>
+                <T>Open the terminal when it runs</T>
+              </span>
+              <Switch
+                checked={openTerminal}
+                onCheckedChange={(checked) => setOpenTerminal(Boolean(checked))}
+              />
+            </label>
             <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2 text-sm dark:border-transparent dark:bg-white/[0.035]">
               <span>
                 <T>Run automatically on worktree creation</T>
