@@ -1,4 +1,5 @@
 import { ForkPreferences } from "./fork-preferences";
+import { ForkArtworkSettings } from "./fork-artwork";
 import { WorkingShelfSettings } from "./fork-working-shelf";
 import { SettingsGroup } from "./SettingsGroup";
 import { useScopedSettingsWriteAllowed } from "./useScopedSettings";
@@ -575,6 +576,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode
         ? ["Environment identification"]
         : []),
+      ...(settings.forkArtwork !== DEFAULT_UNIFIED_SETTINGS.forkArtwork ? ["Fork artwork"] : []),
       ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
         ? ["Time format"]
         : []),
@@ -723,6 +725,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.diffLayout,
       settings.proactivePanelsEnabled,
       settings.environmentIdentificationMode,
+      settings.forkArtwork,
       settings.contextWindowMeterEnabled,
       settings.fontFamilyCode,
       settings.fontFamilyComposer,
@@ -846,6 +849,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
       contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
+      forkArtwork: DEFAULT_UNIFIED_SETTINGS.forkArtwork,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
       sidebarThreadPreviewCount: DEFAULT_UNIFIED_SETTINGS.sidebarThreadPreviewCount,
@@ -1405,6 +1409,8 @@ export function AppearanceSettingsPanel() {
             }
           />
         ) : null}
+
+        <ForkArtworkSettings />
 
         <SettingsRow
           {...searchableSetting("diff-color-scheme")}
