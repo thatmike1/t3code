@@ -1,11 +1,14 @@
 import { useAtomValue } from "@effect/atom-react";
 import { useId } from "react";
+import type { ForkArtwork } from "@t3tools/contracts/settings";
+import { useClientSettings, useClientSettingsHydrated } from "../hooks/useSettings";
+import { ForkArtworkImage, type ForkArtworkDirection } from "./forkArtwork";
 
 import { APP_STAGE_LABEL } from "../branding";
 import { resolveServerBackedAppStageLabel } from "../branding.logic";
 import { primaryServerConfigAtom } from "../state/server";
 
-export type SidebarStageBackdropVariant = "nightly" | "dev";
+export type SidebarStageBackdropVariant = "nightly" | "dev" | ForkArtworkDirection;
 export type EnvironmentIdentificationPillLabel = "Dev" | "Nightly";
 
 const STAGE_BACKDROP_VIEW_BOX = "0 0 8192 96";
@@ -40,8 +43,27 @@ export function useEnvironmentStageLabel(): string {
   });
 }
 
-export function useSidebarStageBackdropVariant(enabled = true): SidebarStageBackdropVariant | null {
-  return resolveSidebarStageBackdropVariant(useEnvironmentStageLabel(), enabled);
+export function resolveSidebarArtworkVariant(
+  stageLabel: string,
+  stageArtworkEnabled: boolean,
+  forkArtwork: ForkArtwork,
+): SidebarStageBackdropVariant | null {
+  return forkArtwork === "off"
+    ? resolveSidebarStageBackdropVariant(stageLabel, stageArtworkEnabled)
+    : forkArtwork;
+}
+
+export function useSidebarStageBackdropVariant(
+  stageArtworkEnabled = true,
+): SidebarStageBackdropVariant | null {
+  const stageLabel = useEnvironmentStageLabel();
+  const forkArtwork = useClientSettings((settings) => settings.forkArtwork);
+  const hydrated = useClientSettingsHydrated();
+  return resolveSidebarArtworkVariant(
+    stageLabel,
+    stageArtworkEnabled,
+    hydrated ? forkArtwork : "off",
+  );
 }
 
 export function SidebarStageBackdrop({ variant }: { variant: SidebarStageBackdropVariant }) {
@@ -56,11 +78,15 @@ export function SidebarStageBackdrop({ variant }: { variant: SidebarStageBackdro
 }
 
 export function StageBackdropArt({ variant }: { variant: SidebarStageBackdropVariant }) {
-  return variant === "nightly" ? <NightlySkyArt /> : <DevBlueprintArt />;
+  if (variant === "nightly") return <NightlySkyArt />;
+  if (variant === "dev") return <DevBlueprintArt />;
+  return <ForkArtworkImage direction={variant} slot="strip" />;
 }
 
 export function StageBackdropButtonArt({ variant }: { variant: SidebarStageBackdropVariant }) {
-  return variant === "nightly" ? <NightlySkyArt compact /> : <DevBlueprintArt compact />;
+  if (variant === "nightly") return <NightlySkyArt compact />;
+  if (variant === "dev") return <DevBlueprintArt compact />;
+  return <ForkArtworkImage direction={variant} slot="circle" />;
 }
 
 const NIGHTLY_STARS: ReadonlyArray<{

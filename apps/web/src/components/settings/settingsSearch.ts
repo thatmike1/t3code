@@ -250,6 +250,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/appearance",
   },
   {
+    id: "fork-artwork",
+    title: "Fork artwork",
+    to: "/settings/appearance",
+    searchTerms: ["ms paint bonsai sidebar send button off"],
+  },
+  {
     id: "environment-identification",
     title: "Environment identification",
     to: "/settings/appearance",

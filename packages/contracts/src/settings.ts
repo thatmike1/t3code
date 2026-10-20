@@ -184,6 +184,9 @@ export const EnvironmentIdentificationMode = Schema.Literals(["artwork", "pill",
 export type EnvironmentIdentificationMode = typeof EnvironmentIdentificationMode.Type;
 export const DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE: EnvironmentIdentificationMode = "artwork";
 
+export const ForkArtwork = Schema.Literals(["paint", "bonsai", "off"]);
+export type ForkArtwork = typeof ForkArtwork.Type;
+
 export const SnapShotKeyChord = KeybindingShortcut.check(
   Schema.makeFilter(
     (shortcut) =>
@@ -436,6 +439,7 @@ export const ClientSettingsSchema = Schema.Struct({
   environmentIdentificationMode: EnvironmentIdentificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE)),
   ),
+  forkArtwork: ForkArtwork.pipe(Schema.withDecodingDefault(Effect.succeed("paint"))),
   glassOpacity: GlassOpacity.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_GLASS_OPACITY)),
   ),
@@ -1767,6 +1771,7 @@ export const ClientSettingsPatch = Schema.Struct({
   diffIgnoreWhitespace: Schema.optionalKey(Schema.Boolean),
   diffLayout: Schema.optionalKey(DiffLayout),
   environmentIdentificationMode: Schema.optionalKey(EnvironmentIdentificationMode),
+  forkArtwork: Schema.optionalKey(ForkArtwork),
   glassOpacity: Schema.optionalKey(GlassOpacity),
   onboardingCompletedAt: Schema.optionalKey(Schema.NullOr(Schema.String)),
   fontSizeInterface: Schema.optionalKey(InterfaceFontSize),

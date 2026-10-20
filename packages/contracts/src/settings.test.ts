@@ -427,3 +427,21 @@ describe("ClientSettings chat layout", () => {
     expect(() => decodeClientSettingsPatch({ chatLeftGutter })).toThrow();
   });
 });
+
+describe("fork artwork client preference", () => {
+  it("defaults existing clients to MS Paint", () => {
+    expect(decodeClientSettings({}).forkArtwork).toBe("paint");
+  });
+  it.each(["paint", "bonsai", "off"])(
+    "persists %s without changing environment identification",
+    (forkArtwork) => {
+      const settings = decodeClientSettings({ forkArtwork, environmentIdentificationMode: "pill" });
+      expect(encodeClientSettings(settings).forkArtwork).toBe(forkArtwork);
+      expect(settings.environmentIdentificationMode).toBe("pill");
+      expect(decodeClientSettingsPatch({ forkArtwork }).forkArtwork).toBe(forkArtwork);
+    },
+  );
+  it("rejects unrecognized artwork", () => {
+    expect(() => decodeClientSettingsPatch({ forkArtwork: "nightly" })).toThrow();
+  });
+});
