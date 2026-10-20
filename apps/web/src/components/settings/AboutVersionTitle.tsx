@@ -2,12 +2,16 @@ import { msg, T, useGT } from "gt-react";
 
 import { APP_VERSION } from "../../branding";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
+import { useDesktopUpdateState } from "../../state/desktopUpdate";
 import { InlineButton } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { resolveAboutVersion } from "./SettingsPanels.logic";
 
 export function AboutVersionTitle() {
   const gt = useGT();
+  // fork: the desktop build's own version (0.1.7-fork.<date>.<n>), not the web bundle's
+  const version = resolveAboutVersion(APP_VERSION, useDesktopUpdateState()?.currentVersion);
   const { copyToClipboard } = useCopyToClipboard<void>({
     target: {
       target: "version",
@@ -36,10 +40,10 @@ export function AboutVersionTitle() {
             render={
               <InlineButton
                 tone="muted"
-                aria-label={gt("Copy version {version}", { version: APP_VERSION })}
-                onClick={() => copyToClipboard(APP_VERSION, undefined)}
+                aria-label={gt("Copy version {version}", { version })}
+                onClick={() => copyToClipboard(version, undefined)}
               >
-                {APP_VERSION}
+                {version}
               </InlineButton>
             }
           />
