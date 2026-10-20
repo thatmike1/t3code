@@ -6,7 +6,12 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { SettingResetButton, SettingsRow } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
 
-const LABELS: Record<ForkArtwork, string> = { paint: "MS Paint", bonsai: "Bonsai", off: "Off" };
+const LABELS: Record<ForkArtwork, string> = {
+  paint: "MS Paint",
+  bonsai: "Bonsai",
+  scribble: "Scribble",
+  off: "Off",
+};
 const isForkArtwork = Schema.is(ForkArtwork);
 
 export function ForkArtworkSettings() {
@@ -15,7 +20,7 @@ export function ForkArtworkSettings() {
   return (
     <SettingsRow
       {...searchableSetting("fork-artwork")}
-      description="Artwork in the sidebar header and send button. Off uses the environment identification setting."
+      description="Artwork in the sidebar header and send button. Scribble uses just the fork mark and a monochrome send button. Off uses the environment identification setting."
       resetAction={
         artwork !== DEFAULT_CLIENT_SETTINGS.forkArtwork ? (
           <SettingResetButton

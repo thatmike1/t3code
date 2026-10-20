@@ -184,7 +184,7 @@ export const EnvironmentIdentificationMode = Schema.Literals(["artwork", "pill",
 export type EnvironmentIdentificationMode = typeof EnvironmentIdentificationMode.Type;
 export const DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE: EnvironmentIdentificationMode = "artwork";
 
-export const ForkArtwork = Schema.Literals(["paint", "bonsai", "off"]);
+export const ForkArtwork = Schema.Literals(["paint", "bonsai", "scribble", "off"]);
 export type ForkArtwork = typeof ForkArtwork.Type;
 
 export const SnapShotKeyChord = KeybindingShortcut.check(
