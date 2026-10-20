@@ -17,6 +17,7 @@ import {
   hasChangedBackgroundActivitySettings,
   isProjectGroupingEnabled,
   projectGroupingModeFromToggle,
+  resolveAboutVersion,
   resolveBackgroundActivityProfileOption,
 } from "./SettingsPanels.logic";
 
@@ -255,5 +256,19 @@ describe("getChangedBrowserSettingLabels", () => {
       "Floating preview",
       "Open pull requests in T3 Code",
     ]);
+  });
+});
+
+describe("about version", () => {
+  it("prefers the desktop build version over the web bundle version", () => {
+    expect(resolveAboutVersion("0.1.0", "0.1.0-fork.20261020.1432")).toBe(
+      "0.1.0-fork.20261020.1432",
+    );
+  });
+
+  it("falls back to the web bundle version without a desktop bridge", () => {
+    expect(resolveAboutVersion("0.1.0", null)).toBe("0.1.0");
+    expect(resolveAboutVersion("0.1.0", undefined)).toBe("0.1.0");
+    expect(resolveAboutVersion("0.1.0", "  ")).toBe("0.1.0");
   });
 });

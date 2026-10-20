@@ -228,6 +228,16 @@ function collapseOtelSignalsUrl(input: {
   return `${tracesBase}/{traces,metrics}`;
 }
 
+// the desktop build stamps its own version (e.g. 0.1.0-fork.<date>.<hhmm>) while the web
+// bundle keeps APP_VERSION for the server skew check, so About prefers the desktop one.
+export function resolveAboutVersion(
+  appVersion: string,
+  desktopVersion: string | null | undefined,
+): string {
+  const trimmed = desktopVersion?.trim();
+  return trimmed ? trimmed : appVersion;
+}
+
 export function formatDiagnosticsDescription(input: {
   readonly localTracingEnabled: boolean;
   readonly otlpTracesEnabled: boolean;
