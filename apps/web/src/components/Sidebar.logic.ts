@@ -9,7 +9,14 @@ import {
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
 import { threadSearchMatchKey } from "@t3tools/client-runtime/state/thread-search";
 import type { ContextMenuItem, EnvironmentId, ThreadId } from "@t3tools/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import type {
+  SidebarProjectSortOrder,
+  SidebarThreadSortOrder,
+  SidebarWorkingShelfReturn,
+  SidebarWorkingShelfScope,
+  SidebarWorkingShelfThreadOverride,
+} from "@t3tools/contracts/settings";
+import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
 import type { AsyncResult } from "effect/reactivity";
 import { planPinnedReorder } from "@t3tools/client-runtime/state/thread-sort";
 import {
@@ -1064,6 +1071,40 @@ export {
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,
 } from "@t3tools/client-runtime/state/thread-inbox";
+
+// fork: knobs on top of the Working beta. The defaults (return to the top,
+// shelve everything, no overrides) reproduce upstream exactly.
+export interface SidebarWorkingShelfPolicy {
+  readonly enabled: boolean;
+  readonly returnPlacement: SidebarWorkingShelfReturn;
+  readonly scope: SidebarWorkingShelfScope;
+  readonly environmentIds: ReadonlyArray<string>;
+  /** Keyed by scoped thread key (`environmentId:threadId`). */
+  readonly threadOverrides: Readonly<Record<string, SidebarWorkingShelfThreadOverride>>;
+}
+
+/** Whether a busy inbox thread folds into the Working shelf. A thread's own
+    override beats the environment scope. */
+export function shouldShelveWorkingThread(
+  thread: Parameters<typeof isThreadWorking>[0] & {
+    readonly environmentId: EnvironmentId;
+    readonly id: ThreadId;
+  },
+  policy: SidebarWorkingShelfPolicy,
+): boolean {
+  if (!policy.enabled || !isThreadWorking(thread)) return false;
+  const override = policy.threadOverrides[`${thread.environmentId}:${thread.id}`];
+  if (override !== undefined) return override === "shelve";
+  return policy.scope === "all" || policy.environmentIds.includes(thread.environmentId);
+}
+
+/** Upstream orders the inbox by return time and turns drag reordering off
+    there. Returning in place keeps the saved manual order instead. */
+export function isSidebarInboxTimeOrdered(
+  policy: Pick<SidebarWorkingShelfPolicy, "enabled" | "returnPlacement">,
+): boolean {
+  return policy.enabled && policy.returnPlacement === "top";
+}
 
 // Pinned-reorder key math and the keyed sort live in client-runtime
 // (state/thread-sort) so web and mobile compute identical pinned orders.

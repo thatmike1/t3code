@@ -172,6 +172,26 @@ describe("buildThreadActionMenuItems", () => {
     ).not.toContain("auto-settle");
   });
 
+  it("offers the Working section override only while the shelf is on, even read-only", () => {
+    expect(ids(baseState)).not.toContain("working-shelf");
+    expect(ids({ ...baseState, workingShelf: null })).not.toContain("working-shelf");
+    const find = (state: ThreadActionMenuState) =>
+      buildThreadActionMenuItems(state).find((item) => item.id === "working-shelf");
+    const followed = find({ ...baseState, workingShelf: { override: null } });
+    expect(followed?.children?.map((child) => [child.id, child.checked])).toEqual([
+      ["working-shelf:default", true],
+      ["working-shelf:shelve", false],
+      ["working-shelf:never", false],
+    ]);
+    const readOnly = find({ ...baseState, canOperate: false, workingShelf: { override: "never" } });
+    expect(readOnly?.disabled).toBeUndefined();
+    expect(readOnly?.children?.map((child) => [child.checked, child.disabled])).toEqual([
+      [false, undefined],
+      [false, undefined],
+      [true, undefined],
+    ]);
+  });
+
   it("disables snooze when the thread cannot snooze, keeping presets visible", () => {
     const snooze = buildThreadActionMenuItems({ ...baseState, canSnoozeNow: false }).find(
       (item) => item.id === "snooze",
