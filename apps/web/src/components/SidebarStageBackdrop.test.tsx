@@ -41,7 +41,7 @@ describe("SidebarStageBackdrop", () => {
 });
 
 describe("fork artwork resolution", () => {
-  it.each(["paint", "bonsai"] as const)(
+  it.each(["paint", "bonsai", "scribble"] as const)(
     "uses %s on every stage independently of environment identification",
     (artwork) => {
       for (const stage of ["Latest", "Nightly", "Dev"]) {
