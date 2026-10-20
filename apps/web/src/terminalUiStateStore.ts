@@ -665,9 +665,11 @@ export const useTerminalUiStateStore = create<TerminalUiStateStoreState>()(
               if (options?.active ?? true) {
                 nextState = setThreadActiveTerminal(nextState, terminalId);
               }
-              if (options?.open) {
-                nextState = setThreadTerminalOpen(nextState, true);
-              }
+              // registering a new terminal opens the drawer, so only `open: true` may leave it open.
+              nextState = setThreadTerminalOpen(
+                nextState,
+                options?.open === true || state.terminalOpen,
+              );
               return normalizeThreadTerminalUiState(nextState);
             },
             { terminalId, suppressed: false },

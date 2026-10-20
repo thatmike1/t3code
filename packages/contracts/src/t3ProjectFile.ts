@@ -65,6 +65,12 @@ export const T3ProjectFileScript = Schema.Struct({
         "When true, automatically open the preview panel at `previewUrl` the moment the script starts.",
     }),
   ),
+  openTerminal: Schema.optionalKey(
+    Schema.Boolean.annotate({
+      description:
+        "When false, running the script by hand leaves the terminal drawer as it is; the command runs in a new background terminal. Defaults to true.",
+    }),
+  ),
 }).annotate({
   description: "A project script that team members can import into T3 Code.",
 });

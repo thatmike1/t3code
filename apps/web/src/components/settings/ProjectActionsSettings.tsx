@@ -91,6 +91,36 @@ export function ProjectActionsSettings() {
           script.command === fileScript.command ||
           script.name.toLowerCase() === fileScript.name.toLowerCase(),
       ),
+<<<<<<< HEAD
+=======
+    [scripts, t3File.scripts],
+  );
+  const importFileScript = useCallback(
+    async (fileScript: T3ProjectFileScript) => {
+      const payload: NewProjectScriptInput = {
+        name: fileScript.name,
+        command: fileScript.command,
+        icon: fileScript.icon ?? "play",
+        runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
+        waitForSetup: fileScript.runOnWorktreeCreate === true && fileScript.async === false,
+        runOnSettle: fileScript.runOnSettle ?? false,
+        keybinding: null,
+        previewUrl: fileScript.previewUrl ?? null,
+        autoOpenPreview: fileScript.previewUrl ? (fileScript.autoOpenPreview ?? false) : false,
+        openTerminal: fileScript.openTerminal ?? true,
+      };
+      const result = await submit(null, payload);
+      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+        const error = squashAtomCommandFailure(result);
+        setRequest({
+          scriptId: null,
+          initial: payload,
+          error: error instanceof Error ? error.message : "Failed to import action.",
+        });
+      }
+    },
+    [submit],
+>>>>>>> 6f284a2572 (feat: project actions can run without opening the terminal drawer (ccChat-general-0oew))
   );
   const importFileScript = async (fileScript: T3ProjectFileScript) => {
     const payload: NewProjectScriptInput = {
