@@ -397,7 +397,12 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
           <TooltipTrigger
             render={
               <SidebarTrigger
-                variant={isSidebarVisible && stageBackdropVariant ? "media-navigation" : "ghost"}
+                variant={
+                  isSidebarVisible &&
+                  (stageBackdropVariant === "nightly" || stageBackdropVariant === "dev")
+                    ? "media-navigation"
+                    : "ghost"
+                }
                 className={cn(
                   "pointer-events-auto",
                   isSidebarVisible && stageBackdropVariant && "relative top-auto translate-y-0",
