@@ -14,6 +14,7 @@ import {
   commandProgramName,
 } from "@t3tools/client-runtime/work-log/command-label";
 import { stripSayComments } from "~/lib/claudeVoice";
+import { memoryCaptureLabel } from "./memoryCapture";
 import {
   liveActivityToolStatus,
   normalizeCompactToolLabel,
@@ -139,6 +140,8 @@ export function workEntryDisplayLabel(entry: WorkLogEntry, workspaceRoot: string
   }
   const toolPresentation = resolveWorkEntryToolPresentation(entry);
   if (toolPresentation) return toolPresentation.displayName;
+  const memoryCapture = memoryCaptureLabel(entry);
+  if (memoryCapture) return memoryCapture;
   if (entry.command?.trim()) return commandDisplayText(entry.command);
   const action = toolGroupAction(entry);
   if (action === "code-search" || action === "search") {
