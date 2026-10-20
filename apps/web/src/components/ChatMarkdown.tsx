@@ -184,6 +184,7 @@ import {
 } from "~/lib/openPullRequestLink";
 import { useOpenLink } from "../browser/useOpenLink";
 import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
+import { navigateBoardPreviewTab } from "../browser/boardPreviewTab";
 import { isPreviewAvailableFor } from "../browser/previewRuntime";
 import {
   isBrowserPreviewFile,
@@ -731,6 +732,30 @@ function useChatMarkdownState({
       return result;
     });
   };
+  // a bead reuses the thread's board tab when it has one, so opening beads one by one does not
+  // stack a tab per bead; a reuse that fails still gets the bead a fresh tab.
+  const openBeadBoardInPreview = useCallback(
+    async (href: string) => {
+      if (threadRef) {
+        const reused = await navigateBoardPreviewTab(threadRef, href).catch((cause: unknown) => {
+          reportMarkdownActionFailure({ operation: "open-link-in-preview", target: href }, cause);
+          return false;
+        });
+        if (reused) {
+          recordVisitForThread(threadRef, href);
+          return;
+        }
+      }
+      const result = await openExternalLinkInPreview(href);
+      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+        reportMarkdownActionFailure(
+          { operation: "open-link-in-preview", target: href },
+          result.cause,
+        );
+      }
+    },
+    [openExternalLinkInPreview, threadRef],
+  );
   const openMarkdownFileInPreview = (path: string) => {
     const preparedConnection = threadRef ? readPreparedConnection(threadRef.environmentId) : null;
     if (!threadRef || !canOperatePreview || preparedConnection === null) {
@@ -913,6 +938,7 @@ function useChatMarkdownState({
     onRunShellCommand,
     openChangeRequestLink,
     openDeferredMarkdownLink,
+    openBeadBoardInPreview,
     openExternalLinkInPreview,
     openMarkdownMedia,
     projects,
@@ -1069,7 +1095,9 @@ const CHAT_MARKDOWN_COMPONENTS = {
       openMarkdownMedia,
       openChangeRequestLink,
       openDeferredMarkdownLink,
+    openBeadBoardInPreview,
       linkTargetPreference,
+      openBeadBoardInPreview,
       openExternalLinkInPreview,
       projects,
       linkedThreadPullRequestFor,
@@ -1104,7 +1132,16 @@ const CHAT_MARKDOWN_COMPONENTS = {
     if (beadId.length > 0) {
       const boardHref = beadBoardHref(beadId, beadBoards);
       return boardHref ? (
-        <BeadChip id={beadId} href={boardHref} copyText={beadId} />
+        <BeadChip
+          id={beadId}
+          href={boardHref}
+          copyText={beadId}
+          openInPreview={
+            canOperatePreview && threadRef && isPreviewAvailableFor(threadRef.environmentId)
+              ? openBeadBoardInPreview
+              : undefined
+          }
+        />
       ) : (
         <>{children}</>
       );
@@ -1337,7 +1374,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
     );
   },
   code: function MarkdownCode({ node, children, className, ...props }) {
-    const { cwd, imageBaseDir, inlineCodeFileLinkMetaByText, fileLinkChip, mathEnabled, inline } =
+    const { cwd, imageBaseDir, inlineCodeFileLinkMetaByText, fileLinkChip, mathEnabled, inline, canOperatePreview, threadRef, openBeadBoardInPreview } =
       use(ChatMarkdownRendererContext);
     const beadBoards = useClientSettings((settings) => settings.beadBoards);
     const knownBeadIds = useBeadBoardIds(beadBoards);
@@ -1363,6 +1400,11 @@ const CHAT_MARKDOWN_COMPONENTS = {
             href={boardHref}
             copyText={`\`${codeText}\``}
             label={codeText.trim()}
+            openInPreview={
+              canOperatePreview && threadRef && isPreviewAvailableFor(threadRef.environmentId)
+                ? openBeadBoardInPreview
+                : undefined
+            }
           />
         );
       }
