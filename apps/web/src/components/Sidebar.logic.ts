@@ -24,7 +24,14 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@t3tools/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import type {
+  SidebarProjectSortOrder,
+  SidebarThreadSortOrder,
+  SidebarWorkingShelfReturn,
+  SidebarWorkingShelfScope,
+  SidebarWorkingShelfThreadOverride,
+} from "@t3tools/contracts/settings";
+import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
 import type { AsyncResult } from "effect/reactivity";
 import {
   effectiveSnoozed,
@@ -1087,6 +1094,48 @@ export {
   sortWorkingThreadsBySend,
 } from "@t3tools/client-runtime/state/thread-inbox";
 
+// fork: knobs on top of the Working beta. The defaults (return to the top,
+// shelve everything, no overrides) reproduce upstream exactly.
+export interface SidebarWorkingShelfPolicy {
+  readonly enabled: boolean;
+  readonly returnPlacement: SidebarWorkingShelfReturn;
+  readonly scope: SidebarWorkingShelfScope;
+  readonly environmentIds: ReadonlyArray<string>;
+  /** Keyed by scoped thread key (`environmentId:threadId`). */
+  readonly threadOverrides: Readonly<Record<string, SidebarWorkingShelfThreadOverride>>;
+}
+
+/** Whether a busy inbox thread folds into the Working shelf. A thread's own
+    override beats the environment scope. */
+/** Whether the policy lets a thread onto the Working shelf at all: its own
+    override beats the environment scope. Says nothing about whether it works. */
+export function workingShelfPolicyAllows(
+  thread: { readonly environmentId: EnvironmentId; readonly id: ThreadId },
+  policy: Pick<SidebarWorkingShelfPolicy, "scope" | "environmentIds" | "threadOverrides">,
+): boolean {
+  const override = policy.threadOverrides[`${thread.environmentId}:${thread.id}`];
+  if (override !== undefined) return override === "shelve";
+  return policy.scope === "all" || policy.environmentIds.includes(thread.environmentId);
+}
+
+/** Whether a busy inbox thread folds into the Working shelf. */
+export function shouldShelveWorkingThread(
+  thread: Parameters<typeof isThreadWorking>[0] & {
+    readonly environmentId: EnvironmentId;
+    readonly id: ThreadId;
+  },
+  policy: SidebarWorkingShelfPolicy,
+): boolean {
+  return policy.enabled && isThreadWorking(thread) && workingShelfPolicyAllows(thread, policy);
+}
+
+/** Upstream orders the inbox by return time and turns drag reordering off
+    there. Returning in place keeps the saved manual order instead. */
+export function isSidebarInboxTimeOrdered(
+  policy: Pick<SidebarWorkingShelfPolicy, "enabled" | "returnPlacement">,
+): boolean {
+  return policy.enabled && policy.returnPlacement === "top";
+}
 export { pinOrderKeyBetween } from "@t3tools/client-runtime/state/thread-sort";
 export { sortPinnedThreadsByOrderKey as sortPinnedThreadsForSidebar } from "@t3tools/client-runtime/state/thread-sort";
 

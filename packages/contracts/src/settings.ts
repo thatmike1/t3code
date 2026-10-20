@@ -74,6 +74,18 @@ export const SidebarProjectSortOrder = Schema.Literals(["updated_at", "created_a
 export type SidebarProjectSortOrder = typeof SidebarProjectSortOrder.Type;
 export const DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
 
+// fork: Working section knobs. Where a thread lands when it leaves the shelf:
+// the top of a time-ordered inbox (upstream), or its saved manual slot.
+export const SidebarWorkingShelfReturn = Schema.Literals(["top", "in_place"]);
+export type SidebarWorkingShelfReturn = typeof SidebarWorkingShelfReturn.Type;
+// Which busy threads the shelf takes: every one (upstream), or only threads
+// on the environments listed in sidebarWorkingShelfEnvironmentIds.
+export const SidebarWorkingShelfScope = Schema.Literals(["all", "environments"]);
+export type SidebarWorkingShelfScope = typeof SidebarWorkingShelfScope.Type;
+// Per-thread exception to the scope, keyed by scoped thread key.
+export const SidebarWorkingShelfThreadOverride = Schema.Literals(["shelve", "never"]);
+export type SidebarWorkingShelfThreadOverride = typeof SidebarWorkingShelfThreadOverride.Type;
+
 export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at"]);
 export type SidebarThreadSortOrder = typeof SidebarThreadSortOrder.Type;
 const DEFAULT_SIDEBAR_THREAD_SORT_ORDER: SidebarThreadSortOrder = "updated_at";
@@ -566,6 +578,19 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
   sidebarWorkingShelfEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  sidebarWorkingShelfReturn: SidebarWorkingShelfReturn.pipe(
+    Schema.withDecodingDefault(Effect.succeed("top")),
+  ),
+  sidebarWorkingShelfScope: SidebarWorkingShelfScope.pipe(
+    Schema.withDecodingDefault(Effect.succeed("all")),
+  ),
+  sidebarWorkingShelfEnvironmentIds: Schema.Array(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
+  ),
+  sidebarWorkingShelfThreadOverrides: Schema.Record(
+    TrimmedNonEmptyString,
+    SidebarWorkingShelfThreadOverride,
+  ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   sidebarProjectGroupingMode: SidebarProjectGroupingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_PROJECT_GROUPING_MODE)),
   ),
@@ -2078,6 +2103,12 @@ export const ClientSettingsPatch = Schema.Struct({
   threadDetailsUsageEnabled: Schema.optionalKey(Schema.Boolean),
   threadDetailsItems: Schema.optionalKey(Schema.Record(Schema.String, Schema.Boolean)),
   sidebarWorkingShelfEnabled: Schema.optionalKey(Schema.Boolean),
+  sidebarWorkingShelfReturn: Schema.optionalKey(SidebarWorkingShelfReturn),
+  sidebarWorkingShelfScope: Schema.optionalKey(SidebarWorkingShelfScope),
+  sidebarWorkingShelfEnvironmentIds: Schema.optionalKey(Schema.Array(TrimmedNonEmptyString)),
+  sidebarWorkingShelfThreadOverrides: Schema.optionalKey(
+    Schema.Record(TrimmedNonEmptyString, SidebarWorkingShelfThreadOverride),
+  ),
   sidebarProjectGroupingMode: Schema.optionalKey(SidebarProjectGroupingMode),
   sidebarProjectGroupingOverrides: Schema.optionalKey(
     Schema.Record(TrimmedNonEmptyString, SidebarProjectGroupingMode),

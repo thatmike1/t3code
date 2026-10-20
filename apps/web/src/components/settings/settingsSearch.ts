@@ -471,7 +471,9 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "working-shelf",
     title: "Working section",
     to: "/settings/general",
-    searchTerms: ["hide fold running monitoring threads inbox sidebar shelf"],
+    searchTerms: [
+      "hide fold running monitoring threads inbox sidebar shelf return order environment",
+    ],
   },
   {
     id: "boring-sidebar",

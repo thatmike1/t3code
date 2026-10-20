@@ -11,6 +11,7 @@ import {
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
   resolveSidebarRowThreadId,
+  isSidebarInboxTimeOrdered,
   orderItemsByPreferredIds,
   pinOrderKeyBetween,
   resolveSidebarSweepKeys,
@@ -19,11 +20,13 @@ import {
   resolveWorkingStartedAt,
   searchSidebarThreads,
   shouldRecedeSidebarThread,
+  shouldShelveWorkingThread,
   sortInboxThreadsByReturn,
   resolveSidebarDropTarget,
   planSidebarThreadDrop,
   resolveSidebarReorderableThreadKeys,
   sortPinnedThreadsForSidebar,
+  sortThreadsForSidebar,
   sortScopedProjectsForSidebar,
   sortSidebarV2ProjectGroups,
   shouldNavigateAfterThreadPark,
@@ -34,7 +37,9 @@ import {
   groupSidebarThreadsByProject,
   resolveSidebarFolderDot,
   sidebarFolderExpansionKeys,
+  type SidebarWorkingShelfPolicy,
 } from "./Sidebar.logic";
+import { DEFAULT_CLIENT_SETTINGS } from "@t3tools/contracts/settings";
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import {
   sortActiveThreadsByOrderKey,
@@ -1027,6 +1032,96 @@ describe("Working shelf (beta)", () => {
         hasActionableProposedPlan: true,
       }),
     ).toBe(false);
+  });
+
+  describe("working shelf knobs", () => {
+    const remoteEnvironmentId = EnvironmentId.make("environment-vps");
+    const upstream: SidebarWorkingShelfPolicy = {
+      enabled: true,
+      returnPlacement: "top",
+      scope: "all",
+      environmentIds: [],
+      threadOverrides: {},
+    };
+    const busy = (environmentId: EnvironmentId, id = "busy") => ({
+      ...idle,
+      runtime,
+      environmentId,
+      id: ThreadId.make(id),
+    });
+
+    it("defaults to upstream: every working thread shelves, the inbox is time-ordered", () => {
+      expect(DEFAULT_CLIENT_SETTINGS.sidebarWorkingShelfReturn).toBe(upstream.returnPlacement);
+      expect(DEFAULT_CLIENT_SETTINGS.sidebarWorkingShelfScope).toBe(upstream.scope);
+      expect(DEFAULT_CLIENT_SETTINGS.sidebarWorkingShelfEnvironmentIds).toEqual([]);
+      expect(DEFAULT_CLIENT_SETTINGS.sidebarWorkingShelfThreadOverrides).toEqual({});
+      for (const thread of [
+        busy(localEnvironmentId),
+        { ...waiting, ...busy(remoteEnvironmentId) },
+      ]) {
+        expect(shouldShelveWorkingThread(thread, upstream)).toBe(isSidebarThreadWorking(thread));
+      }
+      expect(
+        shouldShelveWorkingThread({ ...busy(localEnvironmentId), runtime: null }, upstream),
+      ).toBe(false);
+      expect(isSidebarInboxTimeOrdered(upstream)).toBe(true);
+    });
+
+    it("shelves nothing while the Working section is off", () => {
+      const off = { ...upstream, enabled: false };
+      expect(shouldShelveWorkingThread(busy(localEnvironmentId), off)).toBe(false);
+      expect(isSidebarInboxTimeOrdered(off)).toBe(false);
+      expect(isSidebarInboxTimeOrdered({ ...off, returnPlacement: "in_place" })).toBe(false);
+    });
+
+    it("keeps the saved order when threads return in place", () => {
+      expect(isSidebarInboxTimeOrdered({ ...upstream, returnPlacement: "in_place" })).toBe(false);
+      // The non-time-ordered sort ignores finishing: arranged threads hold their keys.
+      const arranged = [
+        { id: "a", createdAt: "2026-03-01T09:00:00.000Z", activeOrderKey: "a0" },
+        { id: "b", createdAt: "2026-03-09T09:00:00.000Z", activeOrderKey: "a1" },
+      ];
+      expect(sortThreadsForSidebar(arranged).map((entry) => entry.id)).toEqual(["a", "b"]);
+    });
+
+    it("shelves only picked environments when scoped", () => {
+      const scoped: SidebarWorkingShelfPolicy = {
+        ...upstream,
+        scope: "environments",
+        environmentIds: [remoteEnvironmentId],
+      };
+      expect(shouldShelveWorkingThread(busy(remoteEnvironmentId), scoped)).toBe(true);
+      expect(shouldShelveWorkingThread(busy(localEnvironmentId), scoped)).toBe(false);
+      expect(
+        shouldShelveWorkingThread(busy(localEnvironmentId), { ...scoped, environmentIds: [] }),
+      ).toBe(false);
+    });
+
+    it("lets a thread's own choice beat the scope, but never shelves an idle thread", () => {
+      const scoped: SidebarWorkingShelfPolicy = {
+        ...upstream,
+        scope: "environments",
+        environmentIds: [remoteEnvironmentId],
+        threadOverrides: {
+          [`${localEnvironmentId}:pinned-out`]: "shelve",
+          [`${remoteEnvironmentId}:talking`]: "never",
+        },
+      };
+      expect(shouldShelveWorkingThread(busy(localEnvironmentId, "pinned-out"), scoped)).toBe(true);
+      expect(shouldShelveWorkingThread(busy(remoteEnvironmentId, "talking"), scoped)).toBe(false);
+      expect(
+        shouldShelveWorkingThread(
+          { ...busy(localEnvironmentId, "pinned-out"), runtime: null },
+          scoped,
+        ),
+      ).toBe(false);
+      expect(
+        shouldShelveWorkingThread(busy(remoteEnvironmentId, "talking"), {
+          ...upstream,
+          threadOverrides: scoped.threadOverrides,
+        }),
+      ).toBe(false);
+    });
   });
 
   describe("sortInboxThreadsByReturn", () => {
