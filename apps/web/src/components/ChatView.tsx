@@ -4984,23 +4984,30 @@ export default function ChatView(props: ChatViewProps) {
     const baseTerminalId =
       terminalUiState.activeTerminalId || activeKnownTerminalIds[0] || DEFAULT_THREAD_TERMINAL_ID;
     const isBaseTerminalBusy = runningTerminalIds.includes(baseTerminalId);
-    const wantsNewTerminal = Boolean(options?.preferNewTerminal) || isBaseTerminalBusy;
+    // a background run never takes over a terminal someone may be looking at.
+    const runsInBackground = script.openTerminal === false;
+    const wantsNewTerminal =
+      Boolean(options?.preferNewTerminal) || isBaseTerminalBusy || runsInBackground;
     const shouldCreateNewTerminal =
       wantsNewTerminal ||
       !canReuseTerminal ||
       !readEnvironmentScope(environmentId, AuthTerminalReadScope);
     const targetWorktreePath = options?.worktreePath ?? activeThread.worktreePath ?? null;
 
-    setTerminalUiLaunchContext({
-      threadId: activeThreadId,
-      cwd: targetCwd,
-      worktreePath: targetWorktreePath,
-    });
-    setTerminalOpen(true);
+    if (!runsInBackground) {
+      setTerminalUiLaunchContext({
+        threadId: activeThreadId,
+        cwd: targetCwd,
+        worktreePath: targetWorktreePath,
+      });
+      setTerminalOpen(true);
+    }
     if (!activeThreadRef) {
       return;
     }
-    setTerminalFocusRequestId((value) => value + 1);
+    if (!runsInBackground) {
+      setTerminalFocusRequestId((value) => value + 1);
+    }
 
     const runtimeEnv = projectScriptRuntimeEnv({
       project: {
@@ -5028,7 +5035,13 @@ export default function ChatView(props: ChatViewProps) {
           env: runtimeEnv,
         };
 
-    if (shouldCreateNewTerminal) {
+    if (runsInBackground) {
+      // an open drawer keeps its tab; a closed one shows this run's output when opened.
+      storeEnsureTerminal(activeThreadRef, targetTerminalId, {
+        open: false,
+        active: !terminalUiState.terminalOpen,
+      });
+    } else if (shouldCreateNewTerminal) {
       storeNewTerminal(activeThreadRef, targetTerminalId);
     } else {
       storeSetActiveTerminal(activeThreadRef, targetTerminalId);

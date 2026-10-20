@@ -154,6 +154,21 @@ describe("terminalUiStateStore actions", () => {
     ]);
   });
 
+  it("registers a background terminal without opening the drawer or switching tabs", () => {
+    const store = useTerminalUiStateStore.getState();
+    store.newTerminal(THREAD_REF, "terminal-1");
+    store.setTerminalOpen(THREAD_REF, false);
+    store.ensureTerminal(THREAD_REF, "terminal-2", { open: false, active: false });
+
+    const terminalUiState = selectThreadTerminalUiState(
+      useTerminalUiStateStore.getState().terminalUiStateByThreadKey,
+      THREAD_REF,
+    );
+    expect(terminalUiState.terminalOpen).toBe(false);
+    expect(terminalUiState.terminalIds).toEqual(["terminal-1", "terminal-2"]);
+    expect(terminalUiState.activeTerminalId).toBe("terminal-1");
+  });
+
   it("keeps state isolated per environment when raw thread ids collide", () => {
     const store = useTerminalUiStateStore.getState();
     store.setTerminalOpen(THREAD_REF, true);

@@ -30,6 +30,7 @@ describe("projectScripts helpers", () => {
         runOnSettle: false,
         previewUrl: "http://localhost:5733",
         autoOpenPreview: true,
+        openTerminal: true,
       }),
     ).toEqual({
       id: "dev",
@@ -53,6 +54,7 @@ describe("projectScripts helpers", () => {
         runOnSettle: false,
         previewUrl: null,
         autoOpenPreview: false,
+        openTerminal: true,
       }),
     ).toEqual({
       id: "test",
@@ -70,6 +72,7 @@ describe("projectScripts helpers", () => {
       icon: "configure",
       previewUrl: null,
       autoOpenPreview: false,
+      openTerminal: true,
       runOnSettle: false,
     } as const;
     expect(
@@ -81,6 +84,25 @@ describe("projectScripts helpers", () => {
     expect(
       buildProjectScript("setup", { ...input, runOnWorktreeCreate: false, waitForSetup: true }),
     ).not.toHaveProperty("async");
+  });
+
+  it("only records openTerminal when the action runs in the background", () => {
+    const input = {
+      name: "Pages",
+      command: "./pages",
+      icon: "play",
+      runOnWorktreeCreate: false,
+      waitForSetup: false,
+      runOnSettle: false,
+      previewUrl: null,
+      autoOpenPreview: false,
+    } as const;
+    expect(buildProjectScript("pages", { ...input, openTerminal: true })).not.toHaveProperty(
+      "openTerminal",
+    );
+    expect(buildProjectScript("pages", { ...input, openTerminal: false })).toMatchObject({
+      openTerminal: false,
+    });
   });
 
   it("builds and parses script run commands", () => {
@@ -170,6 +192,7 @@ describe("projectScripts helpers", () => {
       waitForSetup: false,
       previewUrl: null,
       autoOpenPreview: false,
+      openTerminal: true,
     } as const;
     const holder = {
       id: "holder",
