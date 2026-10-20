@@ -478,6 +478,7 @@ export function useSettingsRestore(onRestored?: () => void) {
     DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode
       ? ["Environment identification"]
       : []),
+    ...(settings.forkArtwork !== DEFAULT_UNIFIED_SETTINGS.forkArtwork ? ["Fork artwork"] : []),
     ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
       ? ["Time format"]
       : []),
@@ -670,6 +671,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       toolCallVisibility: DEFAULT_UNIFIED_SETTINGS.toolCallVisibility,
       screenReaderAnnouncements: DEFAULT_UNIFIED_SETTINGS.screenReaderAnnouncements,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
+      forkArtwork: DEFAULT_UNIFIED_SETTINGS.forkArtwork,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,

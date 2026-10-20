@@ -18,7 +18,7 @@ import { T3Wordmark } from "../T3Wordmark";
 import { ForkMark } from "./ForkMark";
 import {
   resolveEnvironmentIdentificationPillLabel,
-  resolveSidebarStageBackdropVariant,
+  useSidebarStageBackdropVariant,
   SidebarStageBackdrop,
   useEnvironmentStageLabel,
 } from "../SidebarStageBackdrop";
@@ -49,10 +49,9 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 }) {
   const stageLabel = useEnvironmentStageLabel();
   const environmentIdentificationMode = useEnvironmentIdentificationMode();
-  const backdropVariant = resolveSidebarStageBackdropVariant(
-    stageLabel,
-    environmentIdentificationMode,
+  const backdropVariant = useSidebarStageBackdropVariant(environmentIdentificationMode);
   );
+  const stageArtwork = backdropVariant === "nightly" || backdropVariant === "dev";
   const pillLabel =
     environmentIdentificationMode === "pill"
       ? resolveEnvironmentIdentificationPillLabel(stageLabel)
@@ -68,24 +67,24 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
       {backdropVariant ? <SidebarStageBackdrop variant={backdropVariant} /> : null}
       <div className="relative top-[calc(var(--workspace-controls-top)-env(safe-area-inset-top))] z-10 ml-[calc(var(--workspace-controls-left)+1px-env(safe-area-inset-left))] flex shrink-0 items-center md:hidden">
         <SidebarTrigger
-          variant={backdropVariant ? "media-navigation" : "ghost"}
+          variant={stageArtwork ? "media-navigation" : "ghost"}
           className="relative top-auto translate-y-0"
           aria-label="Toggle main sidebar"
         />
       </div>
       <div className="relative z-10 flex h-8 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden py-0.5">
         <div className="flex shrink-0 items-center gap-1">
-          <SidebarBrand onBackdrop={backdropVariant !== null} />
+          <SidebarBrand onBackdrop={stageArtwork} />
           <ForkMark
             className={cn(
               "hidden shrink-0 md:inline-block",
-              backdropVariant ? "text-white/70" : "text-muted-foreground",
+              stageArtwork ? "text-white/70" : "text-muted-foreground",
             )}
           />
           {isElectron ? (
             <div className="hidden items-center md:flex">
-              <HistoryNavigationButton direction="back" onBackdrop={backdropVariant !== null} />
-              <HistoryNavigationButton direction="forward" onBackdrop={backdropVariant !== null} />
+              <HistoryNavigationButton direction="back" onBackdrop={stageArtwork} />
+              <HistoryNavigationButton direction="forward" onBackdrop={stageArtwork} />
             </div>
           ) : null}
         </div>
