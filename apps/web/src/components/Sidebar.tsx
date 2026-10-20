@@ -137,7 +137,7 @@ import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerSettleAndAdvance } from "../settleAndAdvance";
 import { resolveThreadActionProjectRef, startNewThreadFromContext } from "../lib/chatThreadActions";
-import { useClientSettings } from "../hooks/useSettings";
+import { useClientSettings, useUpdateClientSettings } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
@@ -192,6 +192,7 @@ import {
   ADD_PROJECT_SCOPE_ITEM_VALUE,
   filterSidebarProjectScopeItems,
   firstValidTimestampMs,
+  isSidebarInboxTimeOrdered,
   isSidebarNestedLinkClick,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
@@ -206,6 +207,7 @@ import {
   searchSidebarThreads,
   shouldCreateNewThreadInCurrentProject,
   resolveScopedNewThreadProjectRef,
+  workingShelfPolicyAllows,
   shouldNavigateAfterThreadPark,
   sidebarListItemId,
   sidebarThreadKeyAtY,
@@ -217,6 +219,7 @@ import {
   threadShortcutContext,
   useThreadJumpHintsVisible,
   type SidebarListItem,
+  type SidebarWorkingShelfPolicy,
   type SidebarSection,
 } from "./Sidebar.logic";
 import {
@@ -371,6 +374,8 @@ interface SidebarThreadPartitionInput {
   readonly connectedEnvironmentIds: readonly EnvironmentId[];
   readonly optimisticDrop: SidebarOptimisticDrop | null;
   readonly workingShelfEnabled: boolean;
+  /** fork: scope, per-thread overrides and return placement on top of the Working shelf. */
+  readonly workingShelfPolicy: SidebarWorkingShelfPolicy;
   /** Boring mode: folders list active threads by the user's latest message. */
   readonly sortActiveBySend: boolean;
   // Snooze wakes, the queued-turn grace and the Working shelf's exit grace depend
@@ -430,6 +435,7 @@ function routeThreadOnly(
 
 // Separate hooks cache maps independently of later Sidebar hooks and preserve dnd-kit inputs.
 function useSidebarThreads(input: {
+  readonly workingShelfPolicy: SidebarWorkingShelfPolicy;
   readonly projectScopeKey: string | null;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
@@ -459,8 +465,8 @@ function useSidebarThreads(input: {
   } = input;
   const shelfRouteThreadKey = routeRowThreadKey === departingThreadKey ? null : routeRowThreadKey;
   // Folders already separate the work, so boring mode has no Working shelf.
-  const workingShelfEnabled =
-    useClientSettings((s) => s.sidebarWorkingShelfEnabled) && folderGroups === null;
+  const workingShelfEnabled = input.workingShelfPolicy.enabled && folderGroups === null;
+  const workingShelfPolicy = { ...input.workingShelfPolicy, enabled: workingShelfEnabled };
   const inboxReturnsVersion = useSyncExternalStore(
     inboxReturns.subscribe,
     inboxReturns.getSnapshot,
@@ -504,6 +510,7 @@ function useSidebarThreads(input: {
     connectedEnvironmentIds,
     optimisticDrop,
     workingShelfEnabled,
+    workingShelfPolicy,
     sortActiveBySend: folderGroups !== null,
     clockKey: `${nowMinute}:${snoozeWakeClock}:${inboxReturnsVersion}`,
   });
@@ -584,7 +591,6 @@ function useSidebarThreads(input: {
   return {
     ...partition,
     threads,
-    workingShelfEnabled,
     searchableThreads: [
       ...pinnedThreads,
       ...activeThreads,
@@ -642,8 +648,10 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     serverConfigs,
     optimisticDrop,
     workingShelfEnabled,
+    workingShelfPolicy,
     sortActiveBySend,
   } = input;
+  const inboxTimeOrdered = isSidebarInboxTimeOrdered(workingShelfPolicy);
   const preciseNow = new Date().toISOString();
   const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, delegatedUnderParent);
   const inboxObservation = inboxReturns.observe(workingShelfEnabled ? threads : null);
@@ -652,7 +660,8 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
   const working: EnvironmentThreadShell[] = [];
   const inbox = (thread: EnvironmentThreadShell, manuallyMoved = false) =>
     workingShelfEnabled &&
-    (manuallyMoved ? isThreadWorking(thread) : inboxObservation.isWorking(thread))
+    (manuallyMoved ? isThreadWorking(thread) : inboxObservation.isWorking(thread)) &&
+    workingShelfPolicyAllows(thread, workingShelfPolicy)
       ? working
       : active;
   const snoozed: EnvironmentThreadShell[] = [];
@@ -702,7 +711,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
   const sortedPinned = sortPinnedThreadsForSidebar(pinned);
   const sortedActive = sortActiveBySend
     ? sortWorkingThreadsBySend(active)
-    : workingShelfEnabled
+    : inboxTimeOrdered
       ? sortInboxThreadsByReturn(active, inboxObservation.returnedAt)
       : sortThreadsForSidebar(active);
   return {
@@ -947,6 +956,30 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
+  const workingShelfSetting = useClientSettings((s) => s.sidebarWorkingShelfEnabled);
+  const workingShelfReturn = useClientSettings((s) => s.sidebarWorkingShelfReturn);
+  const workingShelfScope = useClientSettings((s) => s.sidebarWorkingShelfScope);
+  const workingShelfEnvironmentIds = useClientSettings((s) => s.sidebarWorkingShelfEnvironmentIds);
+  const workingShelfThreadOverrides = useClientSettings(
+    (s) => s.sidebarWorkingShelfThreadOverrides,
+  );
+  const workingShelfPolicy = useMemo<SidebarWorkingShelfPolicy>(
+    () => ({
+      enabled: workingShelfSetting,
+      returnPlacement: workingShelfReturn,
+      scope: workingShelfScope,
+      environmentIds: workingShelfEnvironmentIds,
+      threadOverrides: workingShelfThreadOverrides,
+    }),
+    [
+      workingShelfSetting,
+      workingShelfReturn,
+      workingShelfScope,
+      workingShelfEnvironmentIds,
+      workingShelfThreadOverrides,
+    ],
+  );
+  const updateClientSettings = useUpdateClientSettings();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
     settleThread,
@@ -1370,6 +1403,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     pinnedKeysById,
     activeKeysById,
   } = useSidebarThreads({
+    workingShelfPolicy,
     projectScopeKey,
     scopedProjectKeys,
     serverConfigs,
@@ -1387,6 +1421,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       : null,
     keepEmptyFolders: (group) =>
       scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
+  });
+  // fork: the inbox is time-ordered only while threads return to the top of it
+  const inboxTimeOrdered = isSidebarInboxTimeOrdered({
+    enabled: workingShelfEnabled,
+    returnPlacement: workingShelfReturn,
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -2099,7 +2138,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           threadByKey,
           settledThreads,
           activeThreads,
-          workingShelfEnabled,
+          workingShelfEnabled: inboxTimeOrdered,
         });
   const sidebarSortingStrategy = createSidebarSortingStrategy({
     items: sidebarListItems,
@@ -2138,7 +2177,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             activeOrder: activeKeys,
             activeKeysById,
             activeReorderableKeys: activeReorderableThreadKeys,
-            activeTimeOrdered: workingShelfEnabled,
+            activeTimeOrdered: inboxTimeOrdered,
           }).kind !== "none"
         );
       },
@@ -2172,7 +2211,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       activeOrder: activeKeys,
       activeKeysById,
       activeReorderableKeys: activeReorderableThreadKeys,
-      activeTimeOrdered: workingShelfEnabled,
+      activeTimeOrdered: inboxTimeOrdered,
     });
     if (plan.kind === "none") return;
     if (plan.kind === "settle" && settlingThreadKeysRef.current.has(activeKey)) return;
@@ -2754,6 +2793,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 titleRegeneration: configLoaded,
               },
               snoozePresets,
+              workingShelf: workingShelfEnabled
+                ? { override: workingShelfThreadOverrides[threadKey] ?? null }
+                : null,
             }),
             position,
             source,
@@ -2765,6 +2807,19 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           !checkThreadOperations([thread], isThreadTriageAction(clicked.value))
         )
           return;
+        if (clicked.value.startsWith("working-shelf:")) {
+          const { [threadKey]: _previous, ...others } = workingShelfThreadOverrides;
+          void updateClientSettings({
+            sidebarWorkingShelfThreadOverrides:
+              clicked.value === "working-shelf:shelve" || clicked.value === "working-shelf:never"
+                ? {
+                    ...others,
+                    [threadKey]: clicked.value === "working-shelf:shelve" ? "shelve" : "never",
+                  }
+                : others,
+          });
+          return;
+        }
         if (clicked.value?.startsWith("snooze:")) {
           const preset =
             clicked.value === "snooze:custom"

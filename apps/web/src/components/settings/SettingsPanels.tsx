@@ -2,6 +2,7 @@ import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
 import { m as resolveMessage } from "~/i18n/messages";
 import { useAtomValue } from "@effect/atom-react";
 import { ForkPreferences } from "./fork-preferences";
+import { WorkingShelfSettings } from "./fork-working-shelf";
 import { NotificationSettings } from "./NotificationSettings";
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
 import { CheckIcon } from "lucide-react";
@@ -547,7 +548,11 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarProjectSortOrder !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder
       ? [gt("Project order")]
       : []),
-    ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
+    ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled ||
+      settings.sidebarWorkingShelfReturn !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfReturn ||
+      settings.sidebarWorkingShelfScope !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfScope ||
+      settings.sidebarWorkingShelfEnvironmentIds.length > 0 ||
+      Object.keys(settings.sidebarWorkingShelfThreadOverrides).length > 0
       ? [gt("Working section")]
       : []),
     ...(settings.sidebarAutoSettleAfterDays !== DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays
@@ -744,6 +749,11 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
+      sidebarWorkingShelfReturn: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfReturn,
+      sidebarWorkingShelfScope: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfScope,
+      sidebarWorkingShelfEnvironmentIds: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnvironmentIds,
+      sidebarWorkingShelfThreadOverrides:
+        DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfThreadOverrides,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       sidebarAutoSettleKeepPullRequests: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleKeepPullRequests,
       sidebarAutoSettleOnMerge: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleOnMerge,
@@ -992,6 +1002,7 @@ export function GeneralSettingsPanel() {
             />
           }
         />
+        {settings.sidebarWorkingShelfEnabled ? <WorkingShelfSettings /> : null}
       </SettingsSection>
 
       <SettingsSection id="confirmations" title={gt("Confirmations")}>
