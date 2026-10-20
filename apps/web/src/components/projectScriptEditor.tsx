@@ -99,6 +99,8 @@ export interface NewProjectScriptInput {
   previewUrl: string | null;
   /** When true, automatically open the preview panel pointed at `previewUrl`. */
   autoOpenPreview: boolean;
+  /** When false, running by hand leaves the terminal drawer as it is. */
+  openTerminal: boolean;
 }
 
 export type ProjectScriptActionResult = AtomCommandResult<void, unknown>;
@@ -113,6 +115,7 @@ export const EMPTY_PROJECT_SCRIPT_INPUT: NewProjectScriptInput = {
   keybinding: null,
   previewUrl: null,
   autoOpenPreview: false,
+  openTerminal: true,
 };
 
 /** What the editor dialog should open with. `scriptId: null` means "add". */
@@ -139,6 +142,7 @@ export function editorRequestForScript(
       keybinding: keybindingValueForCommand(keybindings, commandForProjectScript(script.id)),
       previewUrl: script.previewUrl ?? null,
       autoOpenPreview: script.autoOpenPreview ?? false,
+      openTerminal: script.openTerminal ?? true,
     },
   };
 }
@@ -182,6 +186,7 @@ export function ProjectScriptEditorDialog({
   const [keybinding, setKeybinding] = useState("");
   const [previewUrl, setPreviewUrl] = useState("");
   const [autoOpenPreview, setAutoOpenPreview] = useState(false);
+  const [openTerminal, setOpenTerminal] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useComposerMenuState(!canEditActions);
   const [savingRequest, setSavingRequest] = useState<ProjectScriptEditorRequest | null>(null);
@@ -214,6 +219,7 @@ export function ProjectScriptEditorDialog({
     setKeybinding(request.initial.keybinding ?? "");
     setPreviewUrl(request.initial.previewUrl ?? "");
     setAutoOpenPreview(request.initial.autoOpenPreview);
+    setOpenTerminal(request.initial.openTerminal);
     setValidationError(request.error ?? null);
     setSavingRequest(null);
   }, [request, setIconPickerOpen]);
@@ -290,6 +296,7 @@ export function ProjectScriptEditorDialog({
           : {}),
         previewUrl: trimmedPreviewUrl.length > 0 ? trimmedPreviewUrl : null,
         autoOpenPreview: trimmedPreviewUrl.length > 0 ? autoOpenPreview : false,
+        openTerminal,
       } satisfies NewProjectScriptInput;
     } catch (error) {
       setValidationError(error instanceof Error ? error.message : "Failed to save action.");
@@ -430,6 +437,13 @@ export function ProjectScriptEditorDialog({
                     Open this URL in the in-app preview when this action runs.
                   </p>
                 </div>
+                <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2 text-sm dark:border-transparent dark:bg-white/[0.035]">
+                  <span>Open the terminal when it runs</span>
+                  <Switch
+                    checked={openTerminal}
+                    onCheckedChange={(checked) => setOpenTerminal(Boolean(checked))}
+                  />
+                </label>
                 <label className="flex items-center justify-between gap-3 rounded-md border border-border/70 px-3 py-2 text-sm dark:border-transparent dark:bg-white/[0.035]">
                   <span>Run automatically on worktree creation</span>
                   <Switch

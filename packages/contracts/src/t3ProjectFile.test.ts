@@ -23,13 +23,15 @@ describe("T3ProjectFile", () => {
         },
         { name: "Test", command: "pnpm test" },
         { name: "Setup", command: "pnpm i", runOnWorktreeCreate: true, async: false },
+        { name: "Pages", command: "./pages", openTerminal: false },
       ],
     });
 
     expect(decoded.iconPath).toBe("assets/logo.svg");
-    expect(decoded.scripts).toHaveLength(3);
+    expect(decoded.scripts).toHaveLength(4);
     expect(decoded.scripts?.[1]).toEqual({ name: "Test", command: "pnpm test" });
     expect(decoded.scripts?.[2]?.async).toBe(false);
+    expect(decoded.scripts?.[3]?.openTerminal).toBe(false);
   });
 
   it("decodes an empty object and ignores unknown fields", () => {
