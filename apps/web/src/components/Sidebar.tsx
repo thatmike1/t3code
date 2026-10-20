@@ -101,7 +101,7 @@ import { useTerminalFocus } from "../hooks/useTerminalFocus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerSettleAndAdvance } from "../settleAndAdvance";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
-import { useClientSettings } from "../hooks/useSettings";
+import { useClientSettings, useUpdateClientSettings } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
@@ -143,8 +143,9 @@ import {
   deleteSelectedThreadEntries,
   filterSidebarProjectScopeItems,
   firstValidTimestampMs,
-  isSidebarNestedLinkClick,
+  isSidebarInboxTimeOrdered,
   isSidebarThreadWorking,
+  isSidebarNestedLinkClick,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
   planSidebarThreadDrop,
@@ -156,6 +157,7 @@ import {
   resolveSidebarThreadSection,
   searchSidebarThreads,
   shouldCreateNewThreadInCurrentProject,
+  shouldShelveWorkingThread,
   shouldNavigateAfterThreadPark,
   sidebarListItemId,
   sidebarThreadKeyAtY,
@@ -165,6 +167,7 @@ import {
   sortWorkingThreadsBySend,
   useThreadJumpHintVisibility,
   type SidebarListItem,
+  type SidebarWorkingShelfPolicy,
   type SidebarSection,
   resolveSidebarRowThreadId,
 } from "./Sidebar.logic";
@@ -295,7 +298,7 @@ interface SidebarThreadPartitionInput {
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly optimisticDrop: SidebarOptimisticDrop | null;
-  readonly workingShelfEnabled: boolean;
+  readonly workingShelfPolicy: SidebarWorkingShelfPolicy;
   // Snooze wakes and the queued-turn grace depend on the clock, so the minute
   // tick and the precise snooze-wake tick are inputs: a new key repartitions.
   readonly clockKey: string;
@@ -353,6 +356,7 @@ function routeThreadOnly(
 // the component body, later hook calls made the compiler treat these maps as
 // possibly mutated and recompute them, and every dnd-kit input with them.
 function useSidebarThreads(input: {
+  readonly workingShelfPolicy: SidebarWorkingShelfPolicy;
   readonly projectScopeKey: string | null;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
@@ -375,7 +379,7 @@ function useSidebarThreads(input: {
             ),
           ),
         );
-  const workingShelfEnabled = useClientSettings((s) => s.sidebarWorkingShelfEnabled);
+  const workingShelfPolicy = input.workingShelfPolicy;
   const nowMinute = useNowMinute();
   // Snooze wake times are second-precise, so classifying with the quantized
   // minute would hold a woken thread on the shelf for up to a minute.
@@ -416,7 +420,7 @@ function useSidebarThreads(input: {
     scopedProjectKeys,
     serverConfigs,
     optimisticDrop,
-    workingShelfEnabled,
+    workingShelfPolicy,
     clockKey: `${nowMinute}:${snoozeWakeTick}`,
   });
   const partitionNextWakeAt = partition.snoozedThreads[0]?.snoozedUntil ?? null;
@@ -465,7 +469,6 @@ function useSidebarThreads(input: {
     routeRowThreadKey,
     ...partition,
     threads,
-    workingShelfEnabled,
     searchableThreads: [
       ...pinnedThreads,
       ...activeThreads,
@@ -506,15 +509,16 @@ function useSidebarThreads(input: {
 }
 
 function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
-  const { threads, scopedProjectKeys, serverConfigs, optimisticDrop, workingShelfEnabled } = input;
+  const { threads, scopedProjectKeys, serverConfigs, optimisticDrop, workingShelfPolicy } = input;
+  const inboxTimeOrdered = isSidebarInboxTimeOrdered(workingShelfPolicy);
   const preciseNow = new Date().toISOString();
   const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys);
-  inboxReturns.observe(workingShelfEnabled ? threads : null);
+  inboxReturns.observe(inboxTimeOrdered ? threads : null);
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
   const working: EnvironmentThreadShell[] = [];
   const inbox = (thread: EnvironmentThreadShell) =>
-    workingShelfEnabled && isSidebarThreadWorking(thread) ? working : active;
+    shouldShelveWorkingThread(thread, workingShelfPolicy) ? working : active;
   const snoozed: EnvironmentThreadShell[] = [];
   const settled: EnvironmentThreadShell[] = [];
   const draggable = new Set<string>();
@@ -565,7 +569,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
   // sort, or mixed-version fleets would render different pinned orders on
   // web and mobile from the same data.
   const sortedPinned = sortPinnedThreadsForSidebar(pinned);
-  const sortedActive = workingShelfEnabled
+  const sortedActive = inboxTimeOrdered
     ? sortInboxThreadsByReturn(active, inboxReturns.returnedAt)
     : sortThreadsForSidebar(active);
   return {
@@ -764,6 +768,31 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
+  const workingShelfEnabled = useClientSettings((s) => s.sidebarWorkingShelfEnabled);
+  const workingShelfReturn = useClientSettings((s) => s.sidebarWorkingShelfReturn);
+  const workingShelfScope = useClientSettings((s) => s.sidebarWorkingShelfScope);
+  const workingShelfEnvironmentIds = useClientSettings((s) => s.sidebarWorkingShelfEnvironmentIds);
+  const workingShelfThreadOverrides = useClientSettings(
+    (s) => s.sidebarWorkingShelfThreadOverrides,
+  );
+  const workingShelfPolicy = useMemo<SidebarWorkingShelfPolicy>(
+    () => ({
+      enabled: workingShelfEnabled,
+      returnPlacement: workingShelfReturn,
+      scope: workingShelfScope,
+      environmentIds: workingShelfEnvironmentIds,
+      threadOverrides: workingShelfThreadOverrides,
+    }),
+    [
+      workingShelfEnabled,
+      workingShelfReturn,
+      workingShelfScope,
+      workingShelfEnvironmentIds,
+      workingShelfThreadOverrides,
+    ],
+  );
+  const inboxTimeOrdered = isSidebarInboxTimeOrdered(workingShelfPolicy);
+  const updateClientSettings = useUpdateClientSettings();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
     settleThread,
@@ -1025,7 +1054,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
 
   const {
     threads,
-    workingShelfEnabled,
     pinnedThreads,
     draggableThreadKeys,
     activeReorderableThreadKeys,
@@ -1058,6 +1086,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     activeKeysById,
     routeRowThreadKey,
   } = useSidebarThreads({
+    workingShelfPolicy,
     projectScopeKey,
     scopedProjectKeys,
     serverConfigs,
@@ -1723,7 +1752,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           threadByKey,
           settledThreads,
           activeThreads,
-          workingShelfEnabled,
+          workingShelfEnabled: inboxTimeOrdered,
         });
   const sidebarSortingStrategy = createSidebarSortingStrategy({
     items: sidebarListItems,
@@ -1764,7 +1793,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             activeOrder: activeKeys,
             activeKeysById,
             activeReorderableKeys: activeReorderableThreadKeys,
-            activeTimeOrdered: workingShelfEnabled,
+            activeTimeOrdered: inboxTimeOrdered,
           }).kind !== "none"
         );
       },
@@ -1799,7 +1828,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       activeOrder: activeKeys,
       activeKeysById,
       activeReorderableKeys: activeReorderableThreadKeys,
-      activeTimeOrdered: workingShelfEnabled,
+      activeTimeOrdered: inboxTimeOrdered,
     });
     if (plan.kind === "none") return;
     if (plan.kind === "settle" && settlingThreadKeysRef.current.has(activeKey)) return;
@@ -2342,12 +2371,28 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 titleRegeneration: supportsTitleRegeneration,
               },
               snoozePresets,
+              workingShelf: workingShelfEnabled
+                ? { override: workingShelfThreadOverrides[threadKey] ?? null }
+                : null,
             }),
             position,
           ),
         );
         if (clicked._tag === "Failure" || clicked.value === null) return;
         if (threadActionRequiresOperate(clicked.value) && !checkThreadOperations([thread])) return;
+        if (clicked.value.startsWith("working-shelf:")) {
+          const { [threadKey]: _previous, ...others } = workingShelfThreadOverrides;
+          void updateClientSettings({
+            sidebarWorkingShelfThreadOverrides:
+              clicked.value === "working-shelf:shelve" || clicked.value === "working-shelf:never"
+                ? {
+                    ...others,
+                    [threadKey]: clicked.value === "working-shelf:shelve" ? "shelve" : "never",
+                  }
+                : others,
+          });
+          return;
+        }
         if (clicked.value?.startsWith("snooze:")) {
           const preset =
             clicked.value === "snooze:custom"
