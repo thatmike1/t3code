@@ -8,7 +8,7 @@ const BEAD = {
   position: { x: 12, y: 24 },
 };
 
-function createHarness(selection: "copy-id" | "copy-link" | null) {
+function createHarness(selection: "copy-id" | "copy-link" | "open-in-preview" | null) {
   return {
     showContextMenu: vi.fn().mockResolvedValue(selection),
     copyText: vi.fn().mockResolvedValue(undefined),
@@ -52,6 +52,33 @@ describe("bead chip context menu", () => {
     harness.showContextMenu.mockRejectedValue(new Error("menu unavailable"));
 
     await expect(showBeadChipContextMenu({ ...BEAD, ...harness })).resolves.toBeUndefined();
+    expect(harness.copyText).not.toHaveBeenCalled();
+  });
+
+  it("offers the T3 browser after the copies when the chip can open there", async () => {
+    const harness = createHarness(null);
+    const openInPreview = vi.fn().mockResolvedValue(undefined);
+
+    await showBeadChipContextMenu({ ...BEAD, ...harness, openInPreview });
+
+    expect(harness.showContextMenu).toHaveBeenCalledWith(
+      [
+        { id: "copy-id", label: "Copy bead ID", icon: "copy" },
+        { id: "copy-link", label: "Copy link" },
+        { id: "open-in-preview", label: "Open in T3 browser" },
+      ],
+      BEAD.position,
+    );
+    expect(openInPreview).not.toHaveBeenCalled();
+  });
+
+  it("opens the board link in the T3 browser when asked", async () => {
+    const harness = createHarness("open-in-preview");
+    const openInPreview = vi.fn().mockResolvedValue(undefined);
+
+    await showBeadChipContextMenu({ ...BEAD, ...harness, openInPreview });
+
+    expect(openInPreview).toHaveBeenCalledWith(BEAD.href);
     expect(harness.copyText).not.toHaveBeenCalled();
   });
 
