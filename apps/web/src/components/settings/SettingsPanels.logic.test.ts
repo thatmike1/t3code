@@ -5,6 +5,7 @@ import {
   backgroundActivitySharedPolicySettings,
   getChangedBrowserSettingLabels,
   hasChangedBackgroundActivitySettings,
+  resolveAboutVersion,
 } from "./SettingsPanels.logic";
 
 describe("background activity settings restore", () => {
@@ -86,5 +87,19 @@ describe("getChangedBrowserSettingLabels", () => {
         browserCustomSearchUrl: "https://search.example/?q=%s",
       }),
     ).toEqual(["Search engine"]);
+  });
+});
+
+describe("about version", () => {
+  it("prefers the desktop build version over the web bundle version", () => {
+    expect(resolveAboutVersion("0.1.0", "0.1.0-fork.20261020.1432")).toBe(
+      "0.1.0-fork.20261020.1432",
+    );
+  });
+
+  it("falls back to the web bundle version without a desktop bridge", () => {
+    expect(resolveAboutVersion("0.1.0", null)).toBe("0.1.0");
+    expect(resolveAboutVersion("0.1.0", undefined)).toBe("0.1.0");
+    expect(resolveAboutVersion("0.1.0", "  ")).toBe("0.1.0");
   });
 });
