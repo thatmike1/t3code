@@ -1,3 +1,4 @@
+import { useClientSettings, useClientSettingsHydrated } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 
 // mike's hand-drawn "fork" scribble (284x116, white strokes on transparent), used as a
@@ -7,6 +8,9 @@ const FORK_MARK_MASK =
 
 /** The fork's own mark beside the wordmark, where upstream shows its stage pill. */
 export function ForkMark({ className }: { className?: string }) {
+  const artwork = useClientSettings((settings) => settings.forkArtwork);
+  const hydrated = useClientSettingsHydrated();
+  if (!hydrated || artwork === "off") return null;
   return (
     <span
       aria-label="fork"

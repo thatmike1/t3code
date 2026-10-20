@@ -17,7 +17,7 @@ export function AuthSurfaceShell({ children }: { readonly children: ReactNode })
     hydrated && forkArtwork !== "off"
       ? forkArtwork
       : resolveSidebarStageBackdropVariant(APP_STAGE_LABEL);
-  const forkArt = isForkArtworkDirection(stageVariant);
+  const forkArt = isForkArtworkDirection(stageVariant) || stageVariant === "scribble";
 
   return (
     <StandalonePage
