@@ -3,7 +3,7 @@ import type { ForkArtwork } from "@t3tools/contracts/settings";
 
 import { useTheme } from "../hooks/useTheme";
 
-export type ForkArtworkDirection = Exclude<ForkArtwork, "off">;
+export type ForkArtworkDirection = Exclude<ForkArtwork, "off" | "scribble">;
 
 export function isForkArtworkDirection(value: string | null): value is ForkArtworkDirection {
   return value === "paint" || value === "bonsai";
