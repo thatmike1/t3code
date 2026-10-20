@@ -1,5 +1,6 @@
 import type { ContextMenuItem } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
+import type { SidebarWorkingShelfThreadOverride } from "@t3tools/contracts/settings";
 
 /**
  * Ids for the per-thread action menu. Snooze presets are dispatched as
@@ -17,6 +18,9 @@ export type ThreadActionMenuId =
   | "auto-settle"
   | "auto-settle:enabled"
   | "auto-settle:disabled"
+  | "working-shelf"
+  | "working-shelf:default"
+  | `working-shelf:${SidebarWorkingShelfThreadOverride}`
   | "snooze"
   | `snooze:${string}`
   | "unsnooze"
@@ -99,6 +103,14 @@ export interface ThreadActionMenuState {
     readonly titleRegeneration: boolean;
   };
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
+  /**
+   * fork: this thread's Working section override. Omitted or null where the
+   * item must not show: the Working section is off, or the surface has no
+   * sidebar behind it.
+   */
+  readonly workingShelf?: {
+    readonly override: SidebarWorkingShelfThreadOverride | null;
+  } | null;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
@@ -107,6 +119,10 @@ export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean
     "new-thread-on-branch",
     "project-settings",
     "mark-unread",
+    "working-shelf",
+    "working-shelf:default",
+    "working-shelf:shelve",
+    "working-shelf:never",
     "copy",
     "copy-path",
     "copy-branch",
@@ -211,6 +227,33 @@ export function buildThreadActionMenuItems(
                 id: "auto-settle:disabled" as const,
                 label: "Disabled",
                 checked: !state.autoSettleEnabled,
+              },
+            ],
+          },
+        ]
+      : []),
+    // A device-local preference, so read-only clients keep it too.
+    ...(state.workingShelf
+      ? [
+          {
+            id: "working-shelf" as const,
+            label: "Working section",
+            icon: "layers",
+            children: [
+              {
+                id: "working-shelf:default" as const,
+                label: "Follow settings",
+                checked: state.workingShelf.override === null,
+              },
+              {
+                id: "working-shelf:shelve" as const,
+                label: "Shelve when working",
+                checked: state.workingShelf.override === "shelve",
+              },
+              {
+                id: "working-shelf:never" as const,
+                label: "Never shelve",
+                checked: state.workingShelf.override === "never",
               },
             ],
           },
