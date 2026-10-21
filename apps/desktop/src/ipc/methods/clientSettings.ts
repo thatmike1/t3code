@@ -3,6 +3,8 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
+import * as DesktopLinuxUrlHandler from "../../app/DesktopLinuxUrlHandler.ts";
+import * as DesktopWindow from "../../window/DesktopWindow.ts";
 import * as DesktopClientSettings from "../../settings/DesktopClientSettings.ts";
 import * as DesktopSnapShot from "../../snapShot/DesktopSnapShot.ts";
 import * as IpcChannels from "../channels.ts";
@@ -25,7 +27,14 @@ export const setClientSettings = DesktopIpc.makeIpcMethod({
   handler: Effect.fn("desktop.ipc.clientSettings.set")(function* (settings) {
     const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
     const snapShot = yield* DesktopSnapShot.DesktopSnapShot;
+    const previous = yield* clientSettings.get.pipe(Effect.orElseSucceed(() => Option.none()));
     yield* clientSettings.set(settings);
+    const desktopWindow = yield* DesktopWindow.DesktopWindow;
+    const linuxUrlHandler = yield* DesktopLinuxUrlHandler.DesktopLinuxUrlHandler;
+    if (Option.isNone(previous) || previous.value.forkArtwork !== settings.forkArtwork) {
+      yield* desktopWindow.syncIcon(settings.forkArtwork);
+      yield* linuxUrlHandler.syncIcon(settings.forkArtwork);
+    }
     yield* snapShot.configure(settings);
   }),
 });

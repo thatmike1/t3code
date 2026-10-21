@@ -1,3 +1,5 @@
+import { DEFAULT_CLIENT_SETTINGS, type ForkArtwork } from "@t3tools/contracts";
+import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -111,6 +113,7 @@ export class DesktopLinuxUrlHandler extends Context.Service<
   DesktopLinuxUrlHandler,
   {
     readonly register: Effect.Effect<void>;
+    readonly syncIcon: (artwork: ForkArtwork) => Effect.Effect<void>;
   }
 >()("@t3tools/desktop/app/DesktopLinuxUrlHandler") {}
 
@@ -120,6 +123,7 @@ export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const assets = yield* DesktopAssets.DesktopAssets;
+  const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
 
   const scheme = ElectronProtocol.getDesktopScheme(environment.isDevelopment);
   const desktopEntryPath = environment.path.join(
@@ -127,11 +131,12 @@ export const make = Effect.gen(function* () {
     environment.linuxDesktopEntryName,
   );
   const iconsDir = environment.path.join(environment.linuxApplicationsDir, "..", "icons");
-  const iconPath = environment.path.join(iconsDir, `${environment.linuxDesktopEntryName}.png`);
   const hicolorDir = environment.path.join(iconsDir, "hicolor");
   const themeIconDir = environment.path.join(hicolorDir, LINUX_THEME_ICON_SIZE, "apps");
 
-  const writeDesktopEntry = Effect.gen(function* () {
+  // fork: packaged builds pass the icon of the chosen artwork; without one the entry has no Icon=
+  const writeDesktopEntry = (entryIconPath?: string) =>
+    Effect.gen(function* () {
     // Distribution packages that run on a shared Electron set
     // T3CODE_DESKTOP_LAUNCHER_PATH, because process.execPath is that Electron.
     // Inside the mounted AppImage, process.execPath points at a transient
@@ -144,7 +149,7 @@ export const make = Effect.gen(function* () {
       displayName: environment.displayName,
       execTarget,
       scheme,
-      ...(environment.isPackaged ? { iconPath } : {}),
+      ...(entryIconPath === undefined ? {} : { iconPath: entryIconPath }),
     });
     // Avoid truncating the pre-ready entry while the portal may be reading it.
     const existing = yield* fileSystem
@@ -286,24 +291,39 @@ export const make = Effect.gen(function* () {
     ),
   );
 
+  const artworkIconPath = (artwork: ForkArtwork) =>
+    environment.path.join(
+      iconsDir,
+      `${environment.linuxDesktopEntryName}.${artwork === "bonsai" ? "bonsai" : "paint"}.png`,
+    );
+
+  const syncIcon = Effect.fn("desktop.linuxUrlHandler.syncIcon")(
+    function* (artwork: ForkArtwork) {
+      if (environment.platform !== "linux" || !environment.isPackaged) return;
+      const png = yield* assets.resolveArtworkIconPath(artwork);
+      if (Option.isNone(png)) return;
+      // the shell caches GIcons by path, so each artwork needs a distinct Icon= value.
+      const iconPath = artworkIconPath(artwork);
+      yield* fileSystem.makeDirectory(iconsDir, { recursive: true });
+      yield* fileSystem.copyFile(png.value, iconPath);
+      yield* writeDesktopEntry(iconPath);
+    },
+    Effect.catch((error) => logWarning("URL handler icon update failed", { cause: error })),
+  );
+
   const register = Effect.gen(function* () {
     if (environment.platform !== "linux") {
       return;
     }
-    yield* writeDesktopEntry;
-    if (!environment.isPackaged) return;
+    if (!environment.isPackaged) {
+      yield* writeDesktopEntry();
+      return;
+    }
 
-    yield* Effect.gen(function* () {
-      const { png } = yield* assets.iconPaths;
-      if (Option.isNone(png)) return;
-      // The AppImage mount is temporary; the chooser needs the icon after exit.
-      yield* fileSystem.makeDirectory(iconsDir, { recursive: true });
-      yield* fileSystem.copyFile(png.value, iconPath);
-    }).pipe(
-      Effect.catch((error) =>
-        logWarning("URL handler icon copy failed", { iconPath, category: error.reason._tag }),
-      ),
-    );
+    const settings = yield* clientSettings.get.pipe(Effect.orElseSucceed(() => Option.none()));
+    const artwork = Option.getOrElse(settings, () => DEFAULT_CLIENT_SETTINGS).forkArtwork;
+    yield* writeDesktopEntry(artworkIconPath(artwork));
+    yield* syncIcon(artwork);
 
     yield* installThemeIcons;
 
@@ -335,7 +355,7 @@ export const make = Effect.gen(function* () {
     Effect.withSpan("desktop.linuxUrlHandler.register"),
   );
 
-  return DesktopLinuxUrlHandler.of({ register });
+  return DesktopLinuxUrlHandler.of({ register, syncIcon });
 });
 
 export const layer = Layer.effect(DesktopLinuxUrlHandler, make);
