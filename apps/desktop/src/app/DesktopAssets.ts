@@ -1,3 +1,4 @@
+import type { ForkArtwork } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -30,6 +31,7 @@ export class DesktopAssets extends Context.Service<
   DesktopAssets,
   {
     readonly iconPaths: Effect.Effect<DesktopIconPaths>;
+    readonly resolveArtworkIconPath: (artwork: ForkArtwork) => Effect.Effect<Option.Option<string>>;
     readonly resolveResourcePath: (
       fileName: string,
     ) => Effect.Effect<Option.Option<string>, DesktopAssetProbeError>;
@@ -79,6 +81,13 @@ function resolveSourceTreeIconPath(
   ext: keyof DesktopIconPaths,
 ): string | undefined {
   if (environment.isPackaged || ext === "icns") return undefined;
+  if (environment.platform !== "darwin") {
+    return environment.path.join(
+      environment.rootDir,
+      "assets/fork",
+      ext === "ico" ? "paint-windows.ico" : "paint-icon-1024.png",
+    );
+  }
   const brand = environment.isDevelopment ? "dev" : "prod";
   const fileNames = sourceTreeIconFileNames[brand];
   const fileName =
@@ -119,7 +128,17 @@ const resolveIconPath = Effect.fn("desktop.assets.resolveIconPath")(function* (
   return yield* resolveResourcePath(`icon.${ext}`);
 });
 
-/** @public Service construction is part of the canonical Effect module API. */
+export function resolveArtworkIconFileName(artwork: ForkArtwork): string {
+  const fileNames = {
+    paint: "paint-icon-1024.png",
+    bonsai: "bonsai-icon-1024.png",
+    scribble: "paint-icon-1024.png",
+    off: "paint-icon-1024.png",
+  } satisfies Record<ForkArtwork, string>;
+  return fileNames[artwork];
+}
+
+/** @public service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const context = yield* Effect.context<
     FileSystem.FileSystem | DesktopEnvironment.DesktopEnvironment
@@ -132,6 +151,25 @@ export const make = Effect.gen(function* () {
 
   return DesktopAssets.of({
     iconPaths: Effect.succeed(iconPaths),
+    resolveArtworkIconPath: (artwork) =>
+      Effect.gen(function* () {
+        const environment = yield* DesktopEnvironment.DesktopEnvironment;
+        const fileName = resolveArtworkIconFileName(artwork);
+        if (!environment.isPackaged) {
+          const fileSystem = yield* FileSystem.FileSystem;
+          const sourcePath = environment.path.join(environment.rootDir, "assets/fork", fileName);
+          if (yield* fileSystem.exists(sourcePath)) return Option.some(sourcePath);
+        }
+        const bundled = yield* resolveResourcePath(`fork/${fileName}`);
+        return Option.orElse(bundled, () => iconPaths.png);
+      }).pipe(
+        Effect.provide(context),
+        Effect.catch((error) =>
+          Effect.logWarning("Could not resolve fork app icon.", error).pipe(
+            Effect.as(iconPaths.png),
+          ),
+        ),
+      ),
     resolveResourcePath: Effect.fn("desktop.assets.resolveResourcePath.scoped")(
       function* (fileName) {
         return yield* resolveResourcePath(fileName).pipe(Effect.provide(context));

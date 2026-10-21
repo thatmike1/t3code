@@ -1,3 +1,4 @@
+import { DEFAULT_CLIENT_SETTINGS, type ClientSettings } from "@t3tools/contracts";
 import { assert, describe, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -12,6 +13,7 @@ import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
+import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopAssets from "./DesktopAssets.ts";
 import * as DesktopLinuxUrlHandler from "./DesktopLinuxUrlHandler.ts";
@@ -63,6 +65,7 @@ const layerHandler = (
     readonly writeError?: PlatformError.PlatformError;
     readonly existingEntry?: string;
     readonly iconSource?: string;
+    readonly settings?: ClientSettings;
     readonly iconCopyError?: PlatformError.PlatformError;
   } = {},
 ) =>
@@ -76,7 +79,9 @@ const layerHandler = (
             Effect.provide(Path.layer),
           ),
         ),
+        DesktopClientSettings.layerTest(Option.fromUndefinedOr(input.settings)),
         Layer.succeed(DesktopAssets.DesktopAssets, {
+          resolveArtworkIconPath: () => Effect.succeed(Option.fromUndefinedOr(input.iconSource)),
           iconPaths: Effect.succeed({
             png: Option.fromUndefinedOr(input.iconSource),
             ico: Option.none(),
@@ -91,7 +96,8 @@ const layerHandler = (
               : Effect.sync(() => {
                   recorded.copies.push({ source, destination });
                 }),
-          readFileString: () => Effect.succeed(input.existingEntry ?? ""),
+          readFileString: () =>
+            Effect.succeed(recorded.files.at(-1)?.content ?? input.existingEntry ?? ""),
           makeDirectory: (path) =>
             Effect.sync(() => {
               recorded.directories.push(path);
@@ -158,6 +164,56 @@ const emptyRecording = (): RecordedRegistration => ({
 });
 
 describe("DesktopLinuxUrlHandler", () => {
+  it.effect(
+    "switches the persistent icon and its own desktop entry without registering handlers again",
+    () =>
+      Effect.gen(function* () {
+        const recorded = emptyRecording();
+        const handler = yield* DesktopLinuxUrlHandler.DesktopLinuxUrlHandler.pipe(
+          Effect.provide(
+            layerHandler(recorded, { iconSource: "/bundle/fork/bonsai-icon-1024.png" }),
+          ),
+        );
+        yield* handler.syncIcon("bonsai");
+        assert.deepEqual(recorded.copies, [
+          {
+            source: "/bundle/fork/bonsai-icon-1024.png",
+            destination: "/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.bonsai.png",
+          },
+        ]);
+        assert.equal(recorded.files.length, 1);
+        assert.equal(
+          recorded.files[0]?.path,
+          "/home/alice/.local/share/applications/com.t3tools.T3Code.desktop",
+        );
+        assert.include(
+          recorded.files[0]?.content ?? "",
+          "Icon=/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.bonsai.png",
+        );
+        assert.deepEqual(recorded.commands, []);
+      }),
+  );
+
+  it.effect("restores the persisted Bonsai icon at startup", () =>
+    Effect.gen(function* () {
+      const recorded = emptyRecording();
+      yield* runRegister(recorded, {
+        settings: { ...DEFAULT_CLIENT_SETTINGS, forkArtwork: "bonsai" },
+        iconSource: "/bundle/fork/bonsai-icon-1024.png",
+      });
+      assert.deepEqual(recorded.copies, [
+        {
+          source: "/bundle/fork/bonsai-icon-1024.png",
+          destination: "/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.bonsai.png",
+        },
+      ]);
+      assert.include(
+        recorded.files[0]?.content ?? "",
+        "Icon=/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.bonsai.png",
+      );
+    }),
+  );
+
   it("renders a scheme-handler desktop entry with freedesktop Exec quoting", () => {
     const entry = DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
       displayName: "T3 Code (Nightly)",
@@ -263,7 +319,7 @@ describe("DesktopLinuxUrlHandler", () => {
           displayName: "T3 Code (Alpha)",
           execTarget: "/home/alice/Applications/T3-Code.AppImage",
           scheme: "t3code",
-          iconPath: "/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.png",
+          iconPath: "/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.paint.png",
         }),
       });
 
@@ -284,7 +340,7 @@ describe("DesktopLinuxUrlHandler", () => {
 
   it.effect("installs a persistent icon even when the desktop entry is already current", () => {
     const recorded = emptyRecording();
-    const iconPath = "/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.png";
+    const iconPath = "/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.paint.png";
     return Effect.gen(function* () {
       yield* runRegister(recorded, {
         iconSource: "/tmp/.mount_T3/resources/icon.png",

@@ -1,4 +1,8 @@
 export const BRAND_ASSET_PATHS = {
+  forkPaintIconPng: "assets/fork/paint-icon-1024.png",
+  forkBonsaiIconPng: "assets/fork/bonsai-icon-1024.png",
+  forkWindowsIconIco: "assets/fork/paint-windows.ico",
+
   developmentIconComposerProject: "assets/dev/app-icon.icon",
   developmentIosIconPng: "assets/dev/blueprint-ios-1024.png",
   developmentUniversalIconPng: "assets/dev/blueprint-universal-1024.png",
