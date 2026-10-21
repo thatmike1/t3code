@@ -99,6 +99,7 @@ function layerDesktopWindow(
     zoomMain: () => Effect.void,
     runMainContentsCommand: () => Effect.void,
     syncAppearance: Effect.void,
+    syncIcon: () => Effect.void,
   });
 }
 

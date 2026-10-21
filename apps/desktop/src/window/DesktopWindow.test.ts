@@ -115,6 +115,7 @@ function makeFakeBrowserWindow() {
     setAutoHideCursor: vi.fn(),
     setFullScreen: vi.fn(),
     setOpacity: vi.fn(),
+    setIcon: vi.fn(),
     setTitle: vi.fn(),
     setTitleBarOverlay: vi.fn(),
     setWindowButtonPosition: vi.fn(),
@@ -143,6 +144,7 @@ function makeFakeBrowserWindow() {
     setAutoHideCursor: window.setAutoHideCursor,
     setFullScreen: window.setFullScreen,
     setOpacity: window.setOpacity,
+    setIcon: window.setIcon,
     webContentsListeners,
     webContentsOnce: webContents.once,
     windowListeners,
@@ -158,6 +160,7 @@ const layerElectronApp = Layer.mock(ElectronApp.ElectronApp)({
 });
 
 const layerDesktopAssets = Layer.succeed(DesktopAssets.DesktopAssets, {
+  resolveArtworkIconPath: () => Effect.succeedNone,
   iconPaths: Effect.succeed({
     ico: Option.none<string>(),
     icns: Option.none<string>(),
@@ -213,6 +216,8 @@ function layerTest(input: {
   readonly window: Electron.BrowserWindow;
   readonly createCount: Ref.Ref<number>;
   readonly mainWindow: Ref.Ref<Option.Option<Electron.BrowserWindow>>;
+  readonly artworkIconPath?: string;
+  readonly platform?: NodeJS.Platform;
   readonly createdWindowOptions?: Electron.BrowserWindowConstructorOptions[];
   readonly desktopSettings?: DesktopAppSettings.DesktopSettings;
   readonly mainWindowBoundsUpdates?: DesktopAppSettings.DesktopWindowBounds[];
@@ -292,13 +297,32 @@ function layerTest(input: {
   return DesktopWindow.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
-        layerDesktopAssets,
+        input.artworkIconPath === undefined
+          ? layerDesktopAssets
+          : Layer.succeed(DesktopAssets.DesktopAssets, {
+              iconPaths: Effect.succeed({
+                ico: Option.none(),
+                png: Option.none(),
+                icns: Option.none(),
+              }),
+              resolveArtworkIconPath: () =>
+                Effect.succeed(Option.fromUndefinedOr(input.artworkIconPath)),
+              resolveResourcePath: () => Effect.succeedNone,
+            }),
         Layer.succeed(DesktopRendererHistory.DesktopRendererHistory, {
           register: () => Effect.void,
           recordMetrics: () => Effect.void,
           shutdown: Effect.void,
         }),
-        layerDesktopEnvironment,
+        Layer.effect(
+          DesktopEnvironment.DesktopEnvironment,
+          DesktopEnvironment.DesktopEnvironment.pipe(
+            Effect.map((environment) => ({
+              ...environment,
+              platform: input.platform ?? environment.platform,
+            })),
+          ),
+        ).pipe(Layer.provide(layerDesktopEnvironment)),
         layerDesktopAppSettings,
         layerDesktopClientSettings,
         layerDesktopServerExposure,
@@ -455,6 +479,28 @@ const captureOne = DesktopSnapShotId.make("11111111-1111-4111-8111-111111111111"
 const captureTwo = DesktopSnapShotId.make("22222222-2222-4222-8222-222222222222");
 
 describe("DesktopWindow", () => {
+  it.effect("applies the artwork icon to new and already open windows", () =>
+    Effect.gen(function* () {
+      const host = makeFakeBrowserWindow();
+      const createdWindowOptions: Electron.BrowserWindowConstructorOptions[] = [];
+      const artworkIconPath = "/bundle/fork/bonsai-icon-1024.png";
+      const layer = layerTest({
+        window: host.window,
+        createCount: yield* Ref.make(0),
+        mainWindow: yield* Ref.make<Option.Option<Electron.BrowserWindow>>(Option.none()),
+        createdWindowOptions,
+        artworkIconPath,
+        platform: "linux",
+      });
+      yield* Effect.gen(function* () {
+        const desktopWindow = yield* DesktopWindow.DesktopWindow;
+        yield* desktopWindow.createMain;
+        assert.equal(createdWindowOptions[0]?.icon, artworkIconPath);
+        yield* desktopWindow.syncIcon("bonsai");
+        assert.deepEqual(host.setIcon.mock.calls, [[artworkIconPath]]);
+      }).pipe(Effect.provide(layer));
+    }),
+  );
   it("restores bounds only when the window fits within a connected display", () => {
     const persistedBounds = { x: 2040, y: 80, width: 1320, height: 880 };
     const displays = [

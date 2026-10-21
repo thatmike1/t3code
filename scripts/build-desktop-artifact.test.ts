@@ -212,6 +212,20 @@ const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(fu
 });
 
 it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
+  it("uses fork icons on Linux and Windows while preserving macOS channel artwork", () => {
+    assert.deepStrictEqual(resolveDesktopBuildIconAssets("0.0.17"), {
+      macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
+      linuxIconPng: BRAND_ASSET_PATHS.forkPaintIconPng,
+      windowsIconIco: BRAND_ASSET_PATHS.forkWindowsIconIco,
+    });
+
+    assert.deepStrictEqual(resolveDesktopBuildIconAssets("0.0.17-nightly.20260413.42"), {
+      macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
+      linuxIconPng: BRAND_ASSET_PATHS.forkPaintIconPng,
+      windowsIconIco: BRAND_ASSET_PATHS.forkWindowsIconIco,
+    });
+  });
+
   it.effect("rejects overlapping builds from another process until restoration finishes", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
