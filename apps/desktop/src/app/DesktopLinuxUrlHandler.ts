@@ -1,5 +1,6 @@
 import { DEFAULT_CLIENT_SETTINGS, type ForkArtwork } from "@t3tools/contracts";
 import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
+import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -21,6 +22,8 @@ import { makeComponentLogger } from "./DesktopObservability.ts";
 // setDesktopName, which cannot match those files — so the browser keeps
 // prompting "Choose an application" for every OAuth callback.
 const { logInfo, logWarning } = makeComponentLogger("desktop-linux-url-handler");
+
+const THEMED_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
 
 export class DesktopLinuxUrlHandlerRegistrationError extends Schema.TaggedError<DesktopLinuxUrlHandlerRegistrationError>()(
   "DesktopLinuxUrlHandlerRegistrationError",
@@ -302,11 +305,68 @@ export const make = Effect.gen(function* () {
       `${environment.linuxDesktopEntryName}.${artwork === "bonsai" ? "bonsai" : "paint"}.png`,
     );
 
+  // a launcher with a themed Icon= name (often read-only, so the entry above cannot be
+  // rewritten) shows whatever hicolor/<size>/apps/<name>.png holds. Replace only icons
+  // that are already installed under the names this app answers to.
+  const hicolorDir = environment.path.join(iconsDir, "hicolor");
+  const themedIconNames = [
+    environment.linuxDesktopEntryName.replace(/\.desktop$/, ""),
+    environment.linuxWmClass,
+  ];
+
+  const refreshIconThemeCache = Effect.scoped(
+    Effect.gen(function* () {
+      const handle = yield* spawner.spawn(
+        ChildProcess.make("gtk-update-icon-cache", ["-f", "-t", hicolorDir], {
+          stdin: "ignore",
+          stdout: "ignore",
+          stderr: "ignore",
+        }),
+      );
+      yield* handle.exitCode.pipe(Effect.timeout("5 seconds"));
+    }),
+  );
+
+  const syncThemedIcons = Effect.fn("desktop.linuxUrlHandler.syncThemedIcons")(
+    function* (png: string) {
+      let replaced = 0;
+      for (const size of THEMED_ICON_SIZES) {
+        const source = environment.path.join(
+          environment.path.dirname(png),
+          "sizes",
+          environment.path.basename(png).replace(/-1024\.png$/, `-${size}.png`),
+        );
+        if (!(yield* fileSystem.exists(source))) continue;
+        for (const name of themedIconNames) {
+          const target = environment.path.join(
+            hicolorDir,
+            `${size}x${size}`,
+            "apps",
+            `${name}.png`,
+          );
+          if (!(yield* fileSystem.exists(target))) continue;
+          yield* fileSystem.copyFile(source, target);
+          replaced += 1;
+        }
+      }
+      if (replaced === 0) return;
+      // the shell reloads the theme when the directory changes; the cache must not go stale.
+      // node's utimes takes seconds when given a number.
+      const nowSeconds = (yield* Clock.currentTimeMillis) / 1000;
+      yield* fileSystem.utimes(hicolorDir, nowSeconds, nowSeconds);
+      if (yield* fileSystem.exists(environment.path.join(hicolorDir, "icon-theme.cache"))) {
+        yield* refreshIconThemeCache;
+      }
+    },
+    Effect.catch((error) => logWarning("themed icon update failed", { cause: error })),
+  );
+
   const syncIcon = Effect.fn("desktop.linuxUrlHandler.syncIcon")(
     function* (artwork: ForkArtwork) {
       if (environment.platform !== "linux" || !environment.isPackaged) return;
       const png = yield* assets.resolveArtworkIconPath(artwork);
       if (Option.isNone(png)) return;
+      yield* syncThemedIcons(png.value);
       // the shell caches GIcons by path, so each artwork needs a distinct Icon= value.
       const iconPath = artworkIconPath(artwork);
       yield* fileSystem.makeDirectory(iconsDir, { recursive: true });
@@ -327,8 +387,9 @@ export const make = Effect.gen(function* () {
 
     const settings = yield* clientSettings.get.pipe(Effect.orElseSucceed(() => Option.none()));
     const artwork = Option.getOrElse(settings, () => DEFAULT_CLIENT_SETTINGS).forkArtwork;
-    yield* writeDesktopEntry(artworkIconPath(artwork));
+    // syncIcon is best-effort and runs first, so a read-only entry still gets its themed icons.
     yield* syncIcon(artwork);
+    yield* writeDesktopEntry(artworkIconPath(artwork));
 
     yield* installThemeIcons;
 

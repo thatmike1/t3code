@@ -22,6 +22,7 @@ interface RecordedRegistration {
   readonly files: Array<{ readonly path: string; readonly content: string }>;
   readonly commands: Array<{ readonly command: string; readonly args: ReadonlyArray<string> }>;
   readonly copies: Array<{ readonly source: string; readonly destination: string }>;
+  readonly touched: string[];
 }
 
 const makeEnvironment = (path: Path.Path, overrides: Record<string, unknown> = {}) =>
@@ -66,6 +67,7 @@ const layerHandler = (
     readonly iconSource?: string;
     readonly settings?: ClientSettings;
     readonly iconCopyError?: PlatformError.PlatformError;
+    readonly existingPaths?: ReadonlyArray<string>;
   } = {},
 ) =>
   DesktopLinuxUrlHandler.layer.pipe(
@@ -89,6 +91,11 @@ const layerHandler = (
           resolveResourcePath: () => Effect.succeedNone,
         }),
         FileSystem.layerNoop({
+          exists: (path) => Effect.succeed(input.existingPaths?.includes(path) ?? false),
+          utimes: (path) =>
+            Effect.sync(() => {
+              recorded.touched.push(path);
+            }),
           copyFile: (source, destination) =>
             input.iconCopyError
               ? Effect.fail(input.iconCopyError)
@@ -160,9 +167,57 @@ const emptyRecording = (): RecordedRegistration => ({
   files: [],
   commands: [],
   copies: [],
+  touched: [],
 });
 
 describe("DesktopLinuxUrlHandler", () => {
+  it.effect("replaces installed themed icons even when the desktop entry is read-only", () =>
+    Effect.gen(function* () {
+      const recorded = emptyRecording();
+      const hicolor = "/home/alice/.local/share/icons/hicolor";
+      const handler = yield* DesktopLinuxUrlHandler.DesktopLinuxUrlHandler.pipe(
+        Effect.provide(
+          layerHandler(recorded, {
+            iconSource: "/bundle/fork/paint-icon-1024.png",
+            writeError: PlatformError.systemError({
+              _tag: "PermissionDenied",
+              module: "FileSystem",
+              method: "writeFileString",
+            }),
+            existingPaths: [
+              "/bundle/fork/sizes/paint-icon-48.png",
+              "/bundle/fork/sizes/paint-icon-512.png",
+              `${hicolor}/48x48/apps/com.t3tools.T3Code.png`,
+              `${hicolor}/48x48/apps/t3code.png`,
+              `${hicolor}/512x512/apps/t3code.png`,
+              `${hicolor}/icon-theme.cache`,
+            ],
+          }),
+        ),
+      );
+      yield* handler.syncIcon("paint");
+      assert.deepEqual(recorded.copies.slice(0, 3), [
+        {
+          source: "/bundle/fork/sizes/paint-icon-48.png",
+          destination: `${hicolor}/48x48/apps/com.t3tools.T3Code.png`,
+        },
+        {
+          source: "/bundle/fork/sizes/paint-icon-48.png",
+          destination: `${hicolor}/48x48/apps/t3code.png`,
+        },
+        {
+          source: "/bundle/fork/sizes/paint-icon-512.png",
+          destination: `${hicolor}/512x512/apps/t3code.png`,
+        },
+      ]);
+      assert.deepEqual(recorded.touched, [hicolor]);
+      assert.deepEqual(recorded.commands, [
+        { command: "gtk-update-icon-cache", args: ["-f", "-t", hicolor] },
+      ]);
+      assert.equal(recorded.files.length, 0);
+    }),
+  );
+
   it.effect(
     "switches the persistent icon and its own desktop entry without registering handlers again",
     () =>
