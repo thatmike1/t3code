@@ -15,6 +15,7 @@ import { msg } from "gt-i18n";
 import {
   type DatabaseMigrationProgress,
   type DesktopSnapShotEvent,
+  type ForkArtwork,
   DEFAULT_CLIENT_SETTINGS,
 } from "@t3tools/contracts";
 
@@ -154,6 +155,7 @@ export class DesktopWindow extends Context.Service<
     readonly zoomMain: (direction: MainWindowZoomDirection) => Effect.Effect<void>;
     readonly runMainContentsCommand: (command: MainWindowContentsCommand) => Effect.Effect<void>;
     readonly syncAppearance: Effect.Effect<void>;
+    readonly syncIcon: (artwork: ForkArtwork) => Effect.Effect<void>;
   }
 >()("@t3tools/desktop/window/DesktopWindow") {}
 
@@ -465,7 +467,15 @@ export const make = Effect.gen(function* () {
     yield* previewManager.getBrowserSession();
     const applicationUrl = getDesktopUrl(environment.isDevelopment);
     const iconPaths = yield* assets.iconPaths;
-    const iconOption = getIconOption(iconPaths, environment.platform);
+    const settingsForIcon = yield* clientSettings.get.pipe(
+      Effect.orElseSucceed(() => Option.none()),
+    );
+    const artwork = Option.getOrElse(settingsForIcon, () => DEFAULT_CLIENT_SETTINGS).forkArtwork;
+    const artworkIcon = yield* assets.resolveArtworkIconPath(artwork);
+    const iconOption =
+      environment.platform !== "darwin" && Option.isSome(artworkIcon)
+        ? { icon: artworkIcon.value }
+        : getIconOption(iconPaths, environment.platform);
     const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
     const persistedSettings = yield* desktopSettings.get;
     const persistedBounds = persistedSettings.mainWindowBounds;
@@ -1317,6 +1327,16 @@ export const make = Effect.gen(function* () {
       if (command === "reload") webContents.reload();
       else if (command === "forceReload") webContents.reloadIgnoringCache();
       else webContents.toggleDevTools();
+    }),
+    syncIcon: Effect.fn("desktop.window.syncIcon")(function* (artwork) {
+      if (environment.platform === "darwin") return;
+      const icon = yield* assets.resolveArtworkIconPath(artwork);
+      if (Option.isNone(icon)) return;
+      yield* electronWindow.syncAllAppearance((window) =>
+        Effect.try(() => window.setIcon(icon.value)).pipe(
+          Effect.catch((error) => logWindowWarning("window icon update failed", { cause: error })),
+        ),
+      );
     }),
     syncAppearance: Effect.gen(function* () {
       const shouldUseDarkColors = yield* electronTheme.shouldUseDarkColors;
