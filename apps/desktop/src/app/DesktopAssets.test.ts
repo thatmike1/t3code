@@ -28,7 +28,7 @@ const layerEnvironment = DesktopEnvironment.layer({
 );
 
 describe("DesktopAssets", () => {
-  it.effect("uses canonical source-tree icons for unpackaged development", () =>
+  it.effect("uses fork source-tree icons for unpackaged development", () =>
     Effect.gen(function* () {
       const layerDevelopmentEnvironment = DesktopEnvironment.layer({
         dirname: "/repo/apps/desktop/dist-electron",
@@ -50,7 +50,7 @@ describe("DesktopAssets", () => {
         ),
       );
       const layerFileSystem = FileSystem.layerNoop({
-        exists: (path) => Effect.succeed(String(path).includes("/assets/dev/")),
+        exists: (path) => Effect.succeed(String(path).includes("/assets/fork/")),
       });
       const assets = yield* DesktopAssets.DesktopAssets.pipe(
         Effect.provide(
@@ -62,9 +62,52 @@ describe("DesktopAssets", () => {
 
       const icons = yield* assets.iconPaths;
 
-      assert.match(Option.getOrThrow(icons.ico), /assets\/dev\/blueprint-windows\.ico$/);
-      assert.match(Option.getOrThrow(icons.png), /assets\/dev\/blueprint-universal-1024\.png$/);
+      assert.match(Option.getOrThrow(icons.ico), /assets\/fork\/paint-windows\.ico$/);
+      assert.match(Option.getOrThrow(icons.png), /assets\/fork\/paint-icon-1024\.png$/);
       assert.isTrue(Option.isNone(icons.icns));
+      assert.equal(
+        Option.getOrThrow(yield* assets.resolveArtworkIconPath("bonsai")),
+        "/repo/assets/fork/bonsai-icon-1024.png",
+      );
+    }),
+  );
+
+  it.effect.each([
+    ["paint", "paint-icon-1024.png"],
+    ["bonsai", "bonsai-icon-1024.png"],
+    ["scribble", "paint-icon-1024.png"],
+    ["off", "paint-icon-1024.png"],
+  ] as const)("resolves packaged %s artwork to %s", ([artwork, fileName]) =>
+    Effect.gen(function* () {
+      const layerFileSystem = FileSystem.layerNoop({
+        exists: (path) => Effect.succeed(path === `/repo/apps/desktop/resources/fork/${fileName}`),
+      });
+      const assets = yield* DesktopAssets.DesktopAssets.pipe(
+        Effect.provide(
+          DesktopAssets.layer.pipe(Layer.provide(Layer.merge(layerFileSystem, layerEnvironment))),
+        ),
+      );
+      assert.equal(
+        Option.getOrThrow(yield* assets.resolveArtworkIconPath(artwork)),
+        `/repo/apps/desktop/resources/fork/${fileName}`,
+      );
+    }),
+  );
+
+  it.effect("falls back to the packaged default when selected artwork is missing", () =>
+    Effect.gen(function* () {
+      const layerFileSystem = FileSystem.layerNoop({
+        exists: (path) => Effect.succeed(path === "/repo/apps/desktop/resources/icon.png"),
+      });
+      const assets = yield* DesktopAssets.DesktopAssets.pipe(
+        Effect.provide(
+          DesktopAssets.layer.pipe(Layer.provide(Layer.merge(layerFileSystem, layerEnvironment))),
+        ),
+      );
+      assert.equal(
+        Option.getOrThrow(yield* assets.resolveArtworkIconPath("bonsai")),
+        "/repo/apps/desktop/resources/icon.png",
+      );
     }),
   );
 

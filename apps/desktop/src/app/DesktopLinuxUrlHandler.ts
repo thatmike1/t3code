@@ -1,3 +1,5 @@
+import { DEFAULT_CLIENT_SETTINGS, type ForkArtwork } from "@t3tools/contracts";
+import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -107,6 +109,7 @@ export class DesktopLinuxUrlHandler extends Context.Service<
   DesktopLinuxUrlHandler,
   {
     readonly register: Effect.Effect<void>;
+    readonly syncIcon: (artwork: ForkArtwork) => Effect.Effect<void>;
   }
 >()("@t3tools/desktop/app/DesktopLinuxUrlHandler") {}
 
@@ -116,6 +119,7 @@ export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const assets = yield* DesktopAssets.DesktopAssets;
+  const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
 
   const scheme = ElectronProtocol.getDesktopScheme(environment.isDevelopment);
   const desktopEntryPath = environment.path.join(
@@ -123,37 +127,37 @@ export const make = Effect.gen(function* () {
     environment.linuxDesktopEntryName,
   );
   const iconsDir = environment.path.join(environment.linuxApplicationsDir, "..", "icons");
-  const iconPath = environment.path.join(iconsDir, `${environment.linuxDesktopEntryName}.png`);
 
-  const writeDesktopEntry = Effect.gen(function* () {
-    // Inside the mounted AppImage, process.execPath points at a transient
-    // /tmp/.mount_* path — the handler must launch the AppImage itself.
-    const execTarget = Option.getOrElse(environment.appImagePath, () => process.execPath);
-    const content = renderUrlHandlerDesktopEntry({
-      displayName: environment.displayName,
-      execTarget,
-      scheme,
-      ...(environment.isPackaged ? { iconPath } : {}),
-    });
-    // Pre-ready setup normally wrote this already. Avoid truncating a valid
-    // entry while the portal may be reading it during startup.
-    const existing = yield* fileSystem
-      .readFileString(desktopEntryPath)
-      .pipe(Effect.orElseSucceed(() => null));
-    if (existing === content) return;
-    yield* fileSystem.makeDirectory(environment.linuxApplicationsDir, { recursive: true });
-    yield* fileSystem.writeFileString(desktopEntryPath, content);
-  }).pipe(
-    Effect.mapError(
-      (cause) =>
-        new DesktopLinuxUrlHandlerRegistrationError({
-          step: "write-desktop-entry",
-          scheme,
-          desktopEntryPath,
-          cause,
-        }),
-    ),
-  );
+  const writeDesktopEntry = (iconPath?: string) =>
+    Effect.gen(function* () {
+      // inside the mounted AppImage, process.execPath points at a transient
+      // /tmp/.mount_* path — the handler must launch the AppImage itself.
+      const execTarget = Option.getOrElse(environment.appImagePath, () => process.execPath);
+      const content = renderUrlHandlerDesktopEntry({
+        displayName: environment.displayName,
+        execTarget,
+        scheme,
+        ...(iconPath === undefined ? {} : { iconPath }),
+      });
+      // pre-ready setup normally wrote this already. Avoid truncating a valid
+      // entry while the portal may be reading it during startup.
+      const existing = yield* fileSystem
+        .readFileString(desktopEntryPath)
+        .pipe(Effect.orElseSucceed(() => null));
+      if (existing === content) return;
+      yield* fileSystem.makeDirectory(environment.linuxApplicationsDir, { recursive: true });
+      yield* fileSystem.writeFileString(desktopEntryPath, content);
+    }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new DesktopLinuxUrlHandlerRegistrationError({
+            step: "write-desktop-entry",
+            scheme,
+            desktopEntryPath,
+            cause,
+          }),
+      ),
+    );
 
   const updateDesktopDatabase = Effect.scoped(
     Effect.gen(function* () {
@@ -219,24 +223,39 @@ export const make = Effect.gen(function* () {
     ),
   );
 
+  const artworkIconPath = (artwork: ForkArtwork) =>
+    environment.path.join(
+      iconsDir,
+      `${environment.linuxDesktopEntryName}.${artwork === "bonsai" ? "bonsai" : "paint"}.png`,
+    );
+
+  const syncIcon = Effect.fn("desktop.linuxUrlHandler.syncIcon")(
+    function* (artwork: ForkArtwork) {
+      if (environment.platform !== "linux" || !environment.isPackaged) return;
+      const png = yield* assets.resolveArtworkIconPath(artwork);
+      if (Option.isNone(png)) return;
+      // the shell caches GIcons by path, so each artwork needs a distinct Icon= value.
+      const iconPath = artworkIconPath(artwork);
+      yield* fileSystem.makeDirectory(iconsDir, { recursive: true });
+      yield* fileSystem.copyFile(png.value, iconPath);
+      yield* writeDesktopEntry(iconPath);
+    },
+    Effect.catch((error) => logWarning("URL handler icon update failed", { cause: error })),
+  );
+
   const register = Effect.gen(function* () {
     if (environment.platform !== "linux") {
       return;
     }
-    yield* writeDesktopEntry;
-    if (!environment.isPackaged) return;
+    if (!environment.isPackaged) {
+      yield* writeDesktopEntry();
+      return;
+    }
 
-    yield* Effect.gen(function* () {
-      const { png } = yield* assets.iconPaths;
-      if (Option.isNone(png)) return;
-      // The AppImage mount is temporary; the chooser needs the icon after exit.
-      yield* fileSystem.makeDirectory(iconsDir, { recursive: true });
-      yield* fileSystem.copyFile(png.value, iconPath);
-    }).pipe(
-      Effect.catch((error) =>
-        logWarning("URL handler icon copy failed", { iconPath, category: error.reason._tag }),
-      ),
-    );
+    const settings = yield* clientSettings.get.pipe(Effect.orElseSucceed(() => Option.none()));
+    const artwork = Option.getOrElse(settings, () => DEFAULT_CLIENT_SETTINGS).forkArtwork;
+    yield* writeDesktopEntry(artworkIconPath(artwork));
+    yield* syncIcon(artwork);
 
     yield* updateDesktopDatabase.pipe(
       // Some MIME implementations, including GIO, use mimeinfo.cache to verify
@@ -271,7 +290,7 @@ export const make = Effect.gen(function* () {
     Effect.withSpan("desktop.linuxUrlHandler.register"),
   );
 
-  return DesktopLinuxUrlHandler.of({ register });
+  return DesktopLinuxUrlHandler.of({ register, syncIcon });
 });
 
 export const layer = Layer.effect(DesktopLinuxUrlHandler, make);

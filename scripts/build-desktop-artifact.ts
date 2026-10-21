@@ -2714,15 +2714,15 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
   if (resolveDesktopUpdateChannel(version) === "nightly") {
     return {
       macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
-      linuxIconPng: BRAND_ASSET_PATHS.nightlyLinuxIconPng,
-      windowsIconIco: BRAND_ASSET_PATHS.nightlyWindowsIconIco,
+      linuxIconPng: BRAND_ASSET_PATHS.forkPaintIconPng,
+      windowsIconIco: BRAND_ASSET_PATHS.forkWindowsIconIco,
     };
   }
 
   return {
     macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
-    linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
-    windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,
+    linuxIconPng: BRAND_ASSET_PATHS.forkPaintIconPng,
+    windowsIconIco: BRAND_ASSET_PATHS.forkWindowsIconIco,
   };
 }
 
@@ -3736,6 +3736,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   yield* Effect.log("[desktop-artifact] Staging release app...");
   yield* fs.copy(distDirs.desktopDist, path.join(stageAppDir, "apps/desktop/dist-electron"));
   yield* fs.copy(distDirs.desktopResources, stageResourcesDir);
+  yield* fs.copy(path.join(repoRoot, "assets/fork"), path.join(stageResourcesDir, "fork"));
   if (options.platform === "linux") {
     const extensionDir = path.join(stageAppDir, "apps/desktop/gnome-extension");
     yield* fs.makeDirectory(extensionDir, { recursive: true });

@@ -72,6 +72,7 @@ const layerElectronApp = (calls: ElectronAppCalls) =>
 
 const layerAssets = (png: Option.Option<string>) =>
   Layer.succeed(DesktopAssets.DesktopAssets, {
+    resolveArtworkIconPath: () => Effect.succeedNone,
     iconPaths: Effect.succeed({
       ico: Option.none(),
       icns: Option.none(),
