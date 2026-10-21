@@ -176,6 +176,7 @@ function layerPool(
           zoomMain: () => Effect.die("unexpected zoom"),
           runMainContentsCommand: () => Effect.die("unexpected main contents command"),
           syncAppearance: Effect.void,
+          syncIcon: () => Effect.void,
         } satisfies DesktopWindow.DesktopWindow["Service"]),
       ),
     ),
