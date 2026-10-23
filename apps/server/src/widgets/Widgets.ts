@@ -1,3 +1,4 @@
+import * as Deferred from "effect/Deferred";
 /**
  * Widgets - status tiles any process on this machine publishes.
  *
@@ -162,16 +163,26 @@ export const make = Effect.fn("widgets.make")(function* () {
   // Debounced for the same reason settings watching is: a publisher emits
   // several events per save and `fs.watch` can fire before the content is
   // flushed. Every event triggers a full re-read, so no event needs filtering.
-  const watchEvents = fs.watch(widgetsDir).pipe(Stream.debounce(Duration.millis(100)));
+  const watchReady = yield* Deferred.make<void>();
+  const watchEvents = fs
+    .watch(widgetsDir, {
+      onReady: () => {
+        Deferred.doneUnsafe(watchReady, Effect.void);
+      },
+    })
+    .pipe(Stream.debounce(Duration.millis(100)));
 
   // Seeds `latest` so a client connecting before any write still gets a
   // snapshot, and so a watch event reporting no real change publishes nothing.
-  yield* refresh;
   yield* Stream.runForEach(watchEvents, () => refresh.pipe(Effect.ignoreCause({ log: true }))).pipe(
     Effect.ignoreCause({ log: true }),
+    Effect.onExit(() => Deferred.succeed(watchReady, undefined)),
     Effect.forkScoped,
     Effect.asVoid,
   );
+  // attach before the initial scan so writes during service startup cannot fall into a gap.
+  yield* Deferred.await(watchReady);
+  yield* refresh;
 
   return Widgets.of({
     latest,
