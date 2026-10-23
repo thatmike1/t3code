@@ -857,28 +857,25 @@ function useChatMarkdownState(
   };
   // a bead reuses the thread's board tab when it has one, so opening beads one by one does not
   // stack a tab per bead; a reuse that fails still gets the bead a fresh tab.
-  const openBeadBoardInPreview = useCallback(
-    async (href: string) => {
-      if (threadRef) {
-        const reused = await navigateBoardPreviewTab(threadRef, href).catch((cause: unknown) => {
-          reportMarkdownActionFailure({ operation: "open-link-in-preview", target: href }, cause);
-          return false;
-        });
-        if (reused) {
-          recordVisitForThread(threadRef, href);
-          return;
-        }
+  const openBeadBoardInPreview = async (href: string) => {
+    if (threadRef) {
+      const reused = await navigateBoardPreviewTab(threadRef, href).catch((cause: unknown) => {
+        reportMarkdownActionFailure({ operation: "open-link-in-preview", target: href }, cause);
+        return false;
+      });
+      if (reused) {
+        recordVisitForThread(threadRef, href);
+        return;
       }
-      const result = await openExternalLinkInPreview(href);
-      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-        reportMarkdownActionFailure(
-          { operation: "open-link-in-preview", target: href },
-          result.cause,
-        );
-      }
-    },
-    [openExternalLinkInPreview, threadRef],
-  );
+    }
+    const result = await openExternalLinkInPreview(href);
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      reportMarkdownActionFailure(
+        { operation: "open-link-in-preview", target: href },
+        result.cause,
+      );
+    }
+  };
   const openMarkdownFileInPreview = (path: string) => {
     const preparedConnection = threadRef ? readPreparedConnection(threadRef.environmentId) : null;
     if (!threadRef || !canOperatePreview || preparedConnection === null) {
@@ -1314,7 +1311,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
       openChangeRequestLink,
       openIssueLink,
       openDeferredMarkdownLink,
-    openBeadBoardInPreview,
       linkTargetPreference,
       openBeadBoardInPreview,
       openExternalLinkInPreview,

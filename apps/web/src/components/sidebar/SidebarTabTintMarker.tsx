@@ -1,6 +1,6 @@
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { tabFocusLabel } from "@t3tools/shared/tabFocus";
-import { memo, useCallback, type MouseEvent as ReactMouseEvent } from "react";
+import { memo, type MouseEvent as ReactMouseEvent } from "react";
 
 import { focusTintedTab, TAB_TINT_HEX, useThreadTabTint } from "~/lib/tabTintState";
 import { cn } from "~/lib/utils";
@@ -29,28 +29,25 @@ export const SidebarTabTintMarker = memo(function SidebarTabTintMarker(props: {
 }) {
   const tabTint = useThreadTabTint(props.environmentId, props.threadId);
   const focusUrl = tabTint?.focusUrl ?? null;
-  const handleClick = useCallback(
-    (event: ReactMouseEvent) => {
-      // the stripe sits inside the row: a click on it must not open the thread
-      event.preventDefault();
-      event.stopPropagation();
-      if (focusUrl === null) return;
-      void focusTintedTab(focusUrl)
-        .then(
-          (opened) => opened,
-          () => false,
-        )
-        .then((opened) => {
-          if (opened) return;
-          toastManager.add({
-            type: "error",
-            title: "Could not show the tab",
-            description: tabFocusLabel(focusUrl),
-          });
+  const handleClick = (event: ReactMouseEvent) => {
+    // the stripe sits inside the row: a click on it must not open the thread
+    event.preventDefault();
+    event.stopPropagation();
+    if (focusUrl === null) return;
+    void focusTintedTab(focusUrl)
+      .then(
+        (opened) => opened,
+        () => false,
+      )
+      .then((opened) => {
+        if (opened) return;
+        toastManager.add({
+          type: "error",
+          title: "Could not show the tab",
+          description: tabFocusLabel(focusUrl),
         });
-    },
-    [focusUrl],
-  );
+      });
+  };
   if (tabTint === null) return null;
   return (
     <Tooltip>

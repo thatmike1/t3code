@@ -71,7 +71,6 @@ describe("resolveAssistantMessageCopyState", () => {
     });
   });
 
-
   it("copies the rendered representation of Codex directives", () => {
     expect(
       resolveAssistantMessageCopyState({
