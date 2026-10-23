@@ -2370,7 +2370,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         if (clicked._tag === "Failure" || clicked.value === null) return;
         if (threadActionRequiresOperate(clicked.value) && !checkThreadOperations([thread])) return;
         if (clicked.value.startsWith("working-shelf:")) {
-          const { [threadKey]: _previous, ...others } = workingShelfThreadOverrides;
+          const others = { ...workingShelfThreadOverrides };
+          delete others[threadKey];
           void updateClientSettings({
             sidebarWorkingShelfThreadOverrides:
               clicked.value === "working-shelf:shelve" || clicked.value === "working-shelf:never"
