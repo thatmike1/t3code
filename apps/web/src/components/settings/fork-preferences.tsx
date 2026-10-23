@@ -59,8 +59,10 @@ export function ForkPreferences() {
 
   const saveBoard = () => {
     try {
-      if (!/^[A-Za-z0-9_-]+$/.test(prefix.trim()))
-        throw new Error("Enter the full issue prefix, such as nexiflow.");
+      if (!/^[A-Za-z0-9_-]+$/.test(prefix.trim())) {
+        setBoardError("Enter the full issue prefix, such as nexiflow.");
+        return;
+      }
       const url = new URL(origin.trim());
       if (
         !["http:", "https:"].includes(url.protocol) ||
@@ -70,7 +72,8 @@ export function ForkPreferences() {
         url.hash ||
         url.pathname !== "/"
       ) {
-        throw new Error("Enter a board origin, such as http://127.0.0.1:1339.");
+        setBoardError("Enter a board origin, such as http://127.0.0.1:1339.");
+        return;
       }
       void update({
         beadBoards: [
