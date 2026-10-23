@@ -2716,10 +2716,15 @@ export default function ChatView(props: ChatViewProps) {
       ...terminalShortcuts,
       ...rightPanelShortcuts,
       ...threadLifecycleShortcuts,
-      "rightPanel.close": ({ event }) => {
-        if (activeRightPanelSurface) return rightPanelShortcuts["rightPanel.close"]({ event });
+      "rightPanel.close": (input) => {
+        const { event } = input;
+        if (activeRightPanelSurface) return rightPanelShortcuts["rightPanel.close"](input);
         if (!event.repeat && activeThreadRef) {
-          closeActiveThread(activeThreadRef, serverConfig?.threadSettlement === true && readEnvironmentScope(environmentId, AuthOrchestrationOperateScope));
+          closeActiveThread(
+            activeThreadRef,
+            serverConfig?.environment.capabilities.threadSettlement === true &&
+              readEnvironmentScope(environmentId, AuthOrchestrationOperateScope),
+          );
         }
       },
       "thread.copyReference": ({ event }) => {

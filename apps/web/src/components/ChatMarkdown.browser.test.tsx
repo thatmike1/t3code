@@ -277,3 +277,33 @@ describe("ChatMarkdown Windows file links", () => {
     }
   });
 });
+
+describe("fork bead links and voice comments", () => {
+  it("links full and adaptive ids in prose and code, leaving unknown short ids alone", async () => {
+    setup();
+    await using screen = await renderText(
+      "filed ccChat-general-4y6 and `ccChat-general-rnqu`, see `qju`",
+    );
+    const links = [...screen.container.querySelectorAll<HTMLAnchorElement>("a")];
+    expect(links.map((link) => link.href)).toContain("http://127.0.0.1:1338/#ccChat-general-4y6");
+    expect(links.map((link) => link.href)).toContain("http://127.0.0.1:1338/#ccChat-general-rnqu");
+    expect(
+      screen.container.querySelector('[data-markdown-copy="`ccChat-general-rnqu`"]'),
+    ).not.toBeNull();
+    expect(
+      [...screen.container.querySelectorAll("code")].some((code) => code.textContent === "qju"),
+    ).toBe(true);
+  });
+
+  it.each([
+    "All done.\n\n<!-- say: Spoken only. -->",
+    "All done. <!-- say: Spoken only. -->",
+    "All done.\n\n<!-- say: Spoken only.",
+  ])("keeps speech comments hidden: %s", async (text) => {
+    setup();
+    await using screen = await renderText(text);
+    expect(screen.container.textContent).toContain("All done.");
+    expect(screen.container.textContent).not.toContain("say:");
+    expect(screen.container.textContent).not.toContain("Spoken only");
+  });
+});

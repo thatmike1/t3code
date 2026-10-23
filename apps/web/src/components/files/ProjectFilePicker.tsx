@@ -89,49 +89,46 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
     isAbsolutePath(requestedPath) || requestedPath.startsWith("~/")
       ? resolvePathLinkTarget(requestedPath, target.cwd)
       : null;
-  const items = useMemo<CommandPaletteActionItem[]>(
-    () => [
-      ...(directPath
-        ? [
-            {
-              kind: "action" as const,
-              value: `direct-file:${directPath}`,
-              searchTerms: [requestedPath],
-              title: "Open file by path",
-              description: requestedPath,
-              icon: <PierreEntryIcon pathValue={directPath} kind="file" theme={resolvedTheme} />,
-              run: async () => {
-                useRightPanelStore.getState().openFile(target.threadRef, directPath);
-              },
+  const items = [
+    ...(directPath
+      ? [
+          {
+            kind: "action" as const,
+            value: `direct-file:${directPath}`,
+            searchTerms: [requestedPath],
+            title: "Open file by path",
+            description: requestedPath,
+            icon: <PierreEntryIcon pathValue={directPath} kind="file" theme={resolvedTheme} />,
+            run: async () => {
+              useRightPanelStore.getState().openFile(target.threadRef, directPath);
             },
-          ]
-        : []),
-      ...matches.map((match) => ({
-        kind: "action" as const,
-        value: `file:${match.path}`,
-        searchTerms: [match.name, match.path],
-        title: (
-          <HighlightedFuzzyText
-            active={hasMatchedQuery}
-            value={match.name}
-            indices={match.nameMatchIndices}
-          />
-        ),
-        description: (
-          <HighlightedFuzzyText
-            active={hasMatchedQuery}
-            value={match.path}
-            indices={match.pathMatchIndices}
-          />
-        ),
-        icon: <PierreEntryIcon pathValue={match.path} kind="file" theme={resolvedTheme} />,
-        run: async () => {
-          useRightPanelStore.getState().openFile(target.threadRef, match.path);
-        },
-      })),
-    ],
-    [directPath, hasMatchedQuery, matches, requestedPath, resolvedTheme, target.threadRef],
-  );
+          },
+        ]
+      : []),
+    ...matches.map((match) => ({
+      kind: "action" as const,
+      value: `file:${match.path}`,
+      searchTerms: [match.name, match.path],
+      title: (
+        <HighlightedFuzzyText
+          active={hasMatchedQuery}
+          value={match.name}
+          indices={match.nameMatchIndices}
+        />
+      ),
+      description: (
+        <HighlightedFuzzyText
+          active={hasMatchedQuery}
+          value={match.path}
+          indices={match.pathMatchIndices}
+        />
+      ),
+      icon: <PierreEntryIcon pathValue={match.path} kind="file" theme={resolvedTheme} />,
+      run: async () => {
+        useRightPanelStore.getState().openFile(target.threadRef, match.path);
+      },
+    })),
+  ] satisfies CommandPaletteActionItem[];
 
   const emptyStateMessage = getEmptyStateMessage(query, result.error, result.isPending);
 

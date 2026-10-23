@@ -1,3 +1,5 @@
+import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
 import {
   EventId,
   type ModelSelection,
@@ -78,7 +80,10 @@ const sessionWith = (tabs: ReadonlyArray<{ url: string; color?: string }>) =>
 
 const providerInstanceId = ProviderInstanceId.make("codex");
 const providerDriver = ProviderDriverKind.make("codex");
-const modelSelection = { instanceId: providerInstanceId, model: "gpt-5.4" } satisfies ModelSelection;
+const modelSelection = {
+  instanceId: providerInstanceId,
+  model: "gpt-5.4",
+} satisfies ModelSelection;
 const at = (iso: string) => DateTime.makeUnsafe(iso);
 
 let eventCounter = 0;
@@ -288,20 +293,15 @@ const seedDatabase = Effect.gen(function* () {
   ]);
 });
 
-/** Polls `latest` until it satisfies `done`, failing the test after two seconds. */
 const awaitSnapshot = (
   service: TabTint.TabTint["Service"],
   done: (s: TabTintSnapshot) => boolean,
 ) =>
   Effect.gen(function* () {
-    for (let attempt = 0; attempt < 100; attempt++) {
-      const snapshot = yield* service.latest;
-      if (done(snapshot)) return snapshot;
-      yield* Effect.sleep(Duration.millis(20));
-    }
-    return yield* Effect.die(
-      new Error(`tab tint snapshot never settled: ${JSON.stringify(yield* service.latest)}`),
-    );
+    const subscription = yield* service.subscribe;
+    if (done(subscription.latest)) return subscription.latest;
+    const snapshot = yield* subscription.changes.pipe(Stream.filter(done), Stream.runHead);
+    return Option.getOrThrow(snapshot);
   });
 
 const tint = (

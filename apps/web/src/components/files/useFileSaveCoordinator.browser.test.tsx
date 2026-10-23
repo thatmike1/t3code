@@ -33,6 +33,7 @@ const defaultProps = {
   environmentId,
   cwd: "/workspace",
   relativePath: "file.txt",
+  initialContents: "on disk",
   onPendingChange,
 };
 function setup() {
@@ -167,4 +168,16 @@ describe("file-save React lifecycle", () => {
       },
     ]);
   });
+});
+
+it("compares each host save against its last confirmed disk contents", async () => {
+  setup();
+  using _timers = fakeTimers();
+  await using screen = await mount({ ...defaultProps, relativePath: "/tmp/host.txt" });
+  screen.changeHandler()("first edit");
+  await vi.advanceTimersByTimeAsync(500);
+  expect(writeFile.mock.calls[0]?.[0].input.expectedContents).toBe("on disk");
+  screen.changeHandler()("second edit");
+  await vi.advanceTimersByTimeAsync(500);
+  expect(writeFile.mock.calls[1]?.[0].input.expectedContents).toBe("first edit");
 });

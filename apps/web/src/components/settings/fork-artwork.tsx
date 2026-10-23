@@ -1,7 +1,7 @@
 import { DEFAULT_CLIENT_SETTINGS, ForkArtwork } from "@t3tools/contracts/settings";
 import * as Schema from "effect/Schema";
 
-import { useClientSettings, useUpdateClientSettings } from "../../hooks/useSettings";
+import { useClientSettings, updateClientSettings } from "../../hooks/useSettings";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingResetButton, SettingsRow } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
@@ -16,7 +16,7 @@ const isForkArtwork = Schema.is(ForkArtwork);
 
 export function ForkArtworkSettings() {
   const artwork = useClientSettings((settings) => settings.forkArtwork);
-  const update = useUpdateClientSettings();
+  const update = updateClientSettings;
   return (
     <SettingsRow
       {...searchableSetting("fork-artwork")}

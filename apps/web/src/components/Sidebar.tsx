@@ -101,7 +101,7 @@ import { useTerminalFocus } from "../hooks/useTerminalFocus";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerSettleAndAdvance } from "../settleAndAdvance";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
-import { useClientSettings, useUpdateClientSettings } from "../hooks/useSettings";
+import { useClientSettings, updateClientSettings } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
@@ -144,7 +144,6 @@ import {
   filterSidebarProjectScopeItems,
   firstValidTimestampMs,
   isSidebarInboxTimeOrdered,
-  isSidebarThreadWorking,
   isSidebarNestedLinkClick,
   isTrailingDoubleClick,
   orderItemsByPreferredIds,
@@ -775,24 +774,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const workingShelfThreadOverrides = useClientSettings(
     (s) => s.sidebarWorkingShelfThreadOverrides,
   );
-  const workingShelfPolicy = useMemo<SidebarWorkingShelfPolicy>(
-    () => ({
-      enabled: workingShelfEnabled,
-      returnPlacement: workingShelfReturn,
-      scope: workingShelfScope,
-      environmentIds: workingShelfEnvironmentIds,
-      threadOverrides: workingShelfThreadOverrides,
-    }),
-    [
-      workingShelfEnabled,
-      workingShelfReturn,
-      workingShelfScope,
-      workingShelfEnvironmentIds,
-      workingShelfThreadOverrides,
-    ],
-  );
+  const workingShelfPolicy = {
+    enabled: workingShelfEnabled,
+    returnPlacement: workingShelfReturn,
+    scope: workingShelfScope,
+    environmentIds: workingShelfEnvironmentIds,
+    threadOverrides: workingShelfThreadOverrides,
+  } satisfies SidebarWorkingShelfPolicy;
   const inboxTimeOrdered = isSidebarInboxTimeOrdered(workingShelfPolicy);
-  const updateClientSettings = useUpdateClientSettings();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
     settleThread,
@@ -3093,7 +3082,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                       dragTargetSection !== "active"))
                                 }
                                 isDropTarget={dragTargetSection === "active"}
-                                restingRule={pinnedThreads.length > 0}
                               />,
                             );
                             break;

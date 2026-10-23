@@ -81,7 +81,7 @@ export function SidebarDragBoundary(props: {
       {showRestingRule ? (
         <div
           aria-hidden
-          data-testid={`${"sidebar"}-${props.marker}-rule`}
+          data-testid={`sidebar-${props.marker}-rule`}
           className="absolute inset-x-2 top-0.5 h-px bg-sidebar-foreground/20"
         />
       ) : null}

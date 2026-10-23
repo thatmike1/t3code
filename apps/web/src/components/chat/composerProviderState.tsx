@@ -112,8 +112,8 @@ function resolveComposerOptionSelections(
 export function stepComposerEffort(
   input: Pick<
     TraitsRenderInput,
-    "provider" | "model" | "models" | "modelOptions" | "prompt" | "planModeEnabled"
-  >,
+    "provider" | "model" | "models" | "modelOptions" | "planModeEnabled"
+  > & { prompt: string },
   direction: -1 | 1,
 ): ReadonlyArray<ProviderOptionSelection> | null {
   const { selections } = resolveComposerOptionSelections(

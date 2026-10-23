@@ -146,7 +146,6 @@ export class WorkspaceFileSystem extends Context.Service<
       input: FilesystemGetMetadataInput,
     ) => Effect.Effect<FilesystemGetMetadataResult>;
 
-
     readonly readFile: (
       input: ProjectReadFileInput,
     ) => Effect.Effect<
@@ -296,17 +295,19 @@ export const make = Effect.gen(function* () {
           isMissingPath(cause) && input.allowMissing !== true
             ? new WorkspaceHostFileNotFoundError({ resolvedPath: absolutePath })
             : new WorkspaceFileSystemOperationError({
-            workspaceRoot: input.cwd,
-            relativePath: input.relativePath,
-            resolvedPath: absolutePath,
-            operationPath: absolutePath,
-            operation: "realpath-target",
-            cause,
-          }),
+                workspaceRoot: input.cwd,
+                relativePath: input.relativePath,
+                resolvedPath: absolutePath,
+                operationPath: absolutePath,
+                operation: "realpath-target",
+                cause,
+              }),
       }).pipe(
         Effect.catchIf(
           (error) =>
-            input.allowMissing === true && (error.cause as NodeJS.ErrnoException).code === "ENOENT",
+            input.allowMissing === true &&
+            error._tag === "WorkspaceFileSystemOperationError" &&
+            (error.cause as NodeJS.ErrnoException).code === "ENOENT",
           () => Effect.succeed(null),
         ),
       );
@@ -419,7 +420,9 @@ export const make = Effect.gen(function* () {
       }).pipe(
         Effect.catchIf(
           (error) =>
-            input.allowMissing === true && (error.cause as NodeJS.ErrnoException).code === "ENOENT",
+            input.allowMissing === true &&
+            error._tag === "WorkspaceFileSystemOperationError" &&
+            (error.cause as NodeJS.ErrnoException).code === "ENOENT",
           () => Effect.succeed(null),
         ),
       ),
@@ -585,11 +588,40 @@ export const make = Effect.gen(function* () {
     "WorkspaceFileSystem.writeFile",
   )(function* (input) {
     yield* knownWorkspaces.assertContains(input.cwd);
-    const requestedPath = expandHomePath(
+    const expandedPath = expandHomePath(
       input.relativePath.trim(),
       yield* HostProcess.HomeDirectory,
     );
+    if (
+      isNetworkPath(expandedPath) &&
+      !KnownWorkspaces.isWithinRoot(path, path.resolve(expandedPath), path.resolve(input.cwd))
+    ) {
+      return yield* new WorkspacePaths.WorkspacePathOutsideRootError({
+        workspaceRoot: input.cwd,
+        relativePath: input.relativePath,
+      });
+    }
+    const requestedPath = isNetworkPath(expandedPath) ? path.resolve(expandedPath) : expandedPath;
     if (path.isAbsolute(requestedPath)) {
+      if (
+        yield* Effect.tryPromise({
+          try: () => isInGitFolder(requestedPath),
+          catch: (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: requestedPath,
+              operationPath: requestedPath,
+              operation: "stat",
+              cause,
+            }),
+        })
+      ) {
+        return yield* new WorkspacePaths.WorkspacePathOutsideRootError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+        });
+      }
       if (input.createIfMissing === true) {
         if (Buffer.byteLength(input.contents, "utf8") > PROJECT_READ_FILE_MAX_BYTES) {
           return yield* new WorkspaceHostFileTooLargeError({ resolvedPath: requestedPath });
@@ -640,6 +672,25 @@ export const make = Effect.gen(function* () {
             cause,
           }),
       });
+      if (
+        yield* Effect.tryPromise({
+          try: () => isInGitFolder(realTargetPath),
+          catch: (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: realTargetPath,
+              operationPath: realTargetPath,
+              operation: "stat",
+              cause,
+            }),
+        })
+      ) {
+        return yield* new WorkspacePaths.WorkspacePathOutsideRootError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+        });
+      }
       return yield* Effect.acquireUseRelease(
         Effect.tryPromise({
           try: () =>

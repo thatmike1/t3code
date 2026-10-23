@@ -1,3 +1,6 @@
+import { isCommandPaletteOpen } from "../../commandPaletteBus";
+import { resolveShortcutCommand } from "../../keybindings";
+import { getTerminalFocusOwner } from "../../lib/terminalFocus";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
 import { DESKTOP_PASTE_AS_TEXT_EVENT } from "../../lib/desktopPasteAsText";
@@ -214,7 +217,11 @@ import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
 import { buildPullRequestReferenceContext } from "../pullRequest/pullRequestDetail.logic";
-import { getComposerPromptInjectionState, getComposerReasoningStep, stepComposerEffort } from "./composerProviderState";
+import {
+  getComposerPromptInjectionState,
+  getComposerReasoningStep,
+  stepComposerEffort,
+} from "./composerProviderState";
 import { readPromptUltrathink } from "./TraitsPicker";
 import {
   providerSupportsManualCompaction,
@@ -2717,11 +2724,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       if (!nextOptions) {
         return;
       }
-      setComposerProviderModelOptions(threadTarget, selectedProvider, nextOptions, {
-        instanceId: selectedInstanceId,
-        model: selectedModel,
-        persistSticky: true,
-      });
+      useComposerDraftStore
+        .getState()
+        .setProviderModelOptions(threadTarget, selectedProvider, nextOptions, {
+          instanceId: selectedInstanceId,
+          model: selectedModel,
+          persistSticky: true,
+        });
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
@@ -2737,11 +2746,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     selectedModel,
     selectedProvider,
     selectedProviderModels,
-    setComposerProviderModelOptions,
     settings.planModeEnabled,
     terminalOpen,
   ]);
-
 
   const insertComposerText = (
     text: string,

@@ -85,9 +85,10 @@ function createFileSaveSession({
 }) {
   const coordinatorRef = createRef<FileSaveCoordinator>();
   const hostFile = isAbsolutePath(relativePath) || relativePath.startsWith("~/");
-  let lastConfirmedContents = hostFile && getUnsavedProjectFileQueryData(environmentId, cwd, relativePath)
-    ? (getConfirmedProjectFileContents(environmentId, cwd, relativePath) ?? initialContents)
-    : initialContents;
+  let lastConfirmedContents =
+    hostFile && getUnsavedProjectFileQueryData(environmentId, cwd, relativePath)
+      ? (getConfirmedProjectFileContents(environmentId, cwd, relativePath) ?? initialContents)
+      : initialContents;
   return {
     change: (contents: string) => coordinatorRef.current?.change(contents),
     setup: () => {
@@ -98,7 +99,12 @@ function createFileSaveSession({
         persist: (nextContents) =>
           writeFile({
             environmentId,
-            input: { cwd, relativePath, contents: nextContents, ...(hostFile ? { expectedContents: lastConfirmedContents } : {}) },
+            input: {
+              cwd,
+              relativePath,
+              contents: nextContents,
+              ...(hostFile ? { expectedContents: lastConfirmedContents } : {}),
+            },
           }),
         onConfirmed: (confirmedContents) => {
           lastConfirmedContents = confirmedContents;

@@ -143,12 +143,11 @@ export const make = Effect.gen(function* () {
     environment.linuxDesktopEntryName,
   );
   const iconsDir = environment.path.join(environment.linuxApplicationsDir, "..", "icons");
-  const iconPath = environment.path.join(iconsDir, `${environment.linuxDesktopEntryName}.png`);
   const hicolorDir = environment.path.join(iconsDir, "hicolor");
   const themeIconDir = environment.path.join(hicolorDir, LINUX_THEME_ICON_SIZE, "apps");
 
-  const writeDesktopEntry = (iconPath?: string) =>
-    Effect.gen(function* () {
+  const writeDesktopEntry = Effect.fn("desktop.linuxUrlHandler.writeDesktopEntry")(
+    function* (iconPath: string | undefined) {
       // inside the mounted AppImage, process.execPath points at a transient
       // /tmp/.mount_* path — the handler must launch the AppImage itself.
       const execTarget = Option.getOrElse(environment.appImagePath, () => process.execPath);
@@ -166,17 +165,17 @@ export const make = Effect.gen(function* () {
       if (existing === content) return;
       yield* fileSystem.makeDirectory(environment.linuxApplicationsDir, { recursive: true });
       yield* fileSystem.writeFileString(desktopEntryPath, content);
-    }).pipe(
-      Effect.mapError(
-        (cause) =>
-          new DesktopLinuxUrlHandlerRegistrationError({
-            step: "write-desktop-entry",
-            scheme,
-            desktopEntryPath,
-            cause,
-          }),
-      ),
-    );
+    },
+    Effect.mapError(
+      (cause) =>
+        new DesktopLinuxUrlHandlerRegistrationError({
+          step: "write-desktop-entry",
+          scheme,
+          desktopEntryPath,
+          cause,
+        }),
+    ),
+  );
 
   const updateDesktopDatabase = Effect.scoped(
     Effect.gen(function* () {
@@ -308,24 +307,11 @@ export const make = Effect.gen(function* () {
   // a launcher with a themed Icon= name (often read-only, so the entry above cannot be
   // rewritten) shows whatever hicolor/<size>/apps/<name>.png holds. Replace only icons
   // that are already installed under the names this app answers to.
-  const hicolorDir = environment.path.join(iconsDir, "hicolor");
+
   const themedIconNames = [
     environment.linuxDesktopEntryName.replace(/\.desktop$/, ""),
     environment.linuxWmClass,
   ];
-
-  const refreshIconThemeCache = Effect.scoped(
-    Effect.gen(function* () {
-      const handle = yield* spawner.spawn(
-        ChildProcess.make("gtk-update-icon-cache", ["-f", "-t", hicolorDir], {
-          stdin: "ignore",
-          stdout: "ignore",
-          stderr: "ignore",
-        }),
-      );
-      yield* handle.exitCode.pipe(Effect.timeout("5 seconds"));
-    }),
-  );
 
   const syncThemedIcons = Effect.fn("desktop.linuxUrlHandler.syncThemedIcons")(
     function* (png: string) {
@@ -381,7 +367,7 @@ export const make = Effect.gen(function* () {
       return;
     }
     if (!environment.isPackaged) {
-      yield* writeDesktopEntry();
+      yield* writeDesktopEntry(undefined);
       return;
     }
 

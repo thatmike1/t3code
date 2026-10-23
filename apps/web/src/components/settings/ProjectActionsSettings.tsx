@@ -91,7 +91,6 @@ export function ProjectActionsSettings() {
           script.command === fileScript.command ||
           script.name.toLowerCase() === fileScript.name.toLowerCase(),
       ),
-
   );
   const importFileScript = async (fileScript: T3ProjectFileScript) => {
     const payload: NewProjectScriptInput = {
@@ -104,6 +103,7 @@ export function ProjectActionsSettings() {
       keybinding: null,
       previewUrl: fileScript.previewUrl ?? null,
       autoOpenPreview: fileScript.previewUrl ? (fileScript.autoOpenPreview ?? false) : false,
+      openTerminal: fileScript.openTerminal ?? true,
     };
     const result = await submit(null, payload);
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {

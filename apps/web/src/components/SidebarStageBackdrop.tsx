@@ -11,7 +11,6 @@ import { primaryServerConfigAtom } from "../state/server";
 export type SidebarStageBackdropVariant = "nightly" | "dev" | "scribble" | ForkArtworkDirection;
 export type EnvironmentIdentificationPillLabel = "Dev" | "Nightly";
 
-
 const STAGE_BACKDROP_VIEW_BOX = "0 0 8192 96";
 
 export function resolveSidebarStageBackdropVariant(

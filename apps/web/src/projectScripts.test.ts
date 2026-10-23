@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { settleProjectScript, setupProjectScript } from "@t3tools/shared/projectScripts";
 
 import {
+  buildProjectScript,
   commandForProjectScript,
   nextProjectScriptId,
   primaryProjectScript,
@@ -69,6 +70,7 @@ describe("projectScripts helpers", () => {
       waitForSetup: false,
       previewUrl: null,
       autoOpenPreview: false,
+      openTerminal: true,
     } as const;
     const holder = {
       id: "holder",
@@ -88,5 +90,24 @@ describe("projectScripts helpers", () => {
     expect(
       releaseClaimedRoles(holder, { ...input, runOnWorktreeCreate: false, runOnSettle: false }),
     ).toBe(holder);
+  });
+  it("only records openTerminal when the action runs in the background", () => {
+    const input = {
+      name: "Pages",
+      command: "./pages",
+      icon: "play",
+      runOnWorktreeCreate: false,
+      waitForSetup: false,
+      runOnSettle: false,
+      previewUrl: null,
+      autoOpenPreview: false,
+      openTerminal: true,
+    } as const;
+    expect(buildProjectScript("pages", { ...input, openTerminal: true })).not.toHaveProperty(
+      "openTerminal",
+    );
+    expect(buildProjectScript("pages", { ...input, openTerminal: false })).toMatchObject({
+      openTerminal: false,
+    });
   });
 });

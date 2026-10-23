@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createVoicePlayer, type VoicePlayerState } from "./claudeVoicePlayer";
 
@@ -30,7 +30,7 @@ function harness(options: { failText?: string } = {}) {
     setState: (state) => states.push(state),
     onError: (error) => errors.push(error),
   });
-  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const flush = () => vi.advanceTimersByTimeAsync(0);
   return { player, fetched, plays, states, errors, flush };
 }
 
@@ -40,6 +40,8 @@ const LONG = Array.from(
 ).join(" ");
 
 describe("createVoicePlayer", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
   it("prefetches the next chunk while the current one plays", async () => {
     const { player, fetched, plays, flush } = harness();
     player.speak(LONG, { mode: "interrupt", messageId: "m1" });
@@ -118,7 +120,7 @@ describe("createVoicePlayer", () => {
       onError: vi.fn(),
     });
     player.speak("  \n```\ncode\n```", { mode: "interrupt" });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await vi.advanceTimersByTimeAsync(0);
     expect(setState).not.toHaveBeenCalled();
   });
 });

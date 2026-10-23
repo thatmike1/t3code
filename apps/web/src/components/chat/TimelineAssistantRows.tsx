@@ -176,7 +176,11 @@ function AssistantMessageMeta({
         showCopyButton={showCopyButton}
         streaming={copyStreaming}
       />
-      <AssistantSpeakButton message={message} showSpeakButton={showCopyButton} streaming={copyStreaming} />
+      <AssistantSpeakButton
+        message={message}
+        showSpeakButton={showCopyButton}
+        streaming={copyStreaming}
+      />
       {projectedItem?.item.type === "assistant_message" ? (
         <AssistantForkButton projectedItem={projectedItem} />
       ) : null}

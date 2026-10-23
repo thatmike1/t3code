@@ -5,7 +5,7 @@ import {
 } from "@t3tools/contracts/settings";
 import * as Schema from "effect/Schema";
 
-import { useClientSettings, useUpdateClientSettings } from "../../hooks/useSettings";
+import { useClientSettings, updateClientSettings } from "../../hooks/useSettings";
 import { useEnvironmentIdentities } from "../../state/environments";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
@@ -26,7 +26,7 @@ const isScope = Schema.is(SidebarWorkingShelfScope);
     defaults reproduce upstream's beta. */
 export function WorkingShelfSettings() {
   const settings = useClientSettings();
-  const update = useUpdateClientSettings();
+  const update = updateClientSettings;
   const environments = useEnvironmentIdentities();
   const picked = new Set<string>(settings.sidebarWorkingShelfEnvironmentIds);
   // A picked environment that left the catalog stays listed so it can be unpicked.

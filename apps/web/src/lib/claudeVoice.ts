@@ -136,8 +136,6 @@ export function chunkForSpeech(
   return chunks;
 }
 
-// --- live mode ------------------------------------------------------------
-
 export interface LiveVoiceMessage {
   readonly id: string;
   readonly role: string;

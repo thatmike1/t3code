@@ -65,7 +65,6 @@ describe("buildThreadActionMenuItems", () => {
     },
   );
 
-
   it("disables archive while the thread is running", () => {
     const archiveItem = buildThreadActionMenuItems({ ...baseState, isRunning: true }).find(
       (item) => item.id === "archive",
