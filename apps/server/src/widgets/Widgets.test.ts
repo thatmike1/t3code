@@ -1,3 +1,4 @@
+import * as Deferred from "effect/Deferred";
 import type { WidgetsSnapshot } from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
@@ -75,6 +76,53 @@ it.live("streams the published set as the directory changes", () =>
         Widgets.layer.pipe(Layer.provideMerge(ServerConfig.layerTest(process.cwd(), baseDir))),
       ),
       Effect.timeout("30 seconds"),
+    );
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+it.live("waits for the watcher before exposing its initial snapshot", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3code-widgets-startup-" });
+    const widgetsDir = path.join(baseDir, "userdata", "widgets");
+    const watchStarted = yield* Deferred.make<void>();
+    const allowWatch = yield* Deferred.make<void>();
+    const available = yield* Deferred.make<WidgetsSnapshot>();
+    const delayedFs: typeof fs = {
+      ...fs,
+      watch: (directory, options) =>
+        fs
+          .watch(directory, options)
+          .pipe(
+            Stream.onStart(
+              Deferred.succeed(watchStarted, undefined).pipe(
+                Effect.andThen(Deferred.await(allowWatch)),
+              ),
+            ),
+          ),
+    };
+    yield* Effect.gen(function* () {
+      const widgets = yield* Widgets.Widgets;
+      yield* Deferred.succeed(available, yield* widgets.latest);
+      return yield* Effect.never;
+    }).pipe(
+      Effect.provide(
+        Widgets.layer.pipe(
+          Layer.provideMerge(ServerConfig.layerTest(process.cwd(), baseDir)),
+          Layer.provide(Layer.succeed(FileSystem.FileSystem, delayedFs)),
+        ),
+      ),
+      Effect.forkScoped({ startImmediately: true }),
+    );
+    yield* Deferred.await(watchStarted);
+    assert.isFalse(yield* Deferred.isDone(available));
+    yield* fs.writeFileString(path.join(widgetsDir, "phone-mic.json"), PHONE_MIC_FILE);
+    yield* Deferred.succeed(allowWatch, undefined);
+    const snapshot = yield* Deferred.await(available);
+    assert.deepEqual(
+      snapshot.widgets.map((widget) => widget.id),
+      ["phone-mic"],
     );
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
