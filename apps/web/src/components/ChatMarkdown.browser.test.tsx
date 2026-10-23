@@ -132,6 +132,10 @@ vi.mock(import("../hooks/useSettings"), async (original) => {
   return { ...actual, useClientSettings };
 });
 
+vi.mock(import("../lib/beadBoardIds"), () => ({
+  useBeadBoardIds: () => new Set<string>(),
+}));
+
 import ChatMarkdown from "./ChatMarkdown";
 import { chatMarkdownClipboardPayload } from "../markdown-clipboard";
 import { AudioPreview } from "./files/AudioPreview";
