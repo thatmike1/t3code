@@ -117,8 +117,6 @@ export function createVoicePlayer(deps: VoicePlayerDeps): VoicePlayer {
   };
 }
 
-// --- browser wiring -------------------------------------------------------
-
 export const useVoicePlayerStore = create<VoicePlayerState>(() => IDLE);
 
 async function fetchClipFromService(text: string, signal: AbortSignal): Promise<Blob> {

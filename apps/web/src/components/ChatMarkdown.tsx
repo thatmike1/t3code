@@ -109,7 +109,6 @@ import { AssistantCitationEmbed } from "./chat/AssistantCitationChip";
 import { MarkdownThreadLink } from "./chat/MarkdownThreadLink";
 import { mathKind } from "@t3tools/shared/markdownMath";
 import remarkMath from "remark-math";
-import { isWindowsAbsolutePath } from "@t3tools/shared/path";
 import {
   beadBoardHref,
   beadIdCandidate,
@@ -810,28 +809,25 @@ function useChatMarkdownState({
   };
   // a bead reuses the thread's board tab when it has one, so opening beads one by one does not
   // stack a tab per bead; a reuse that fails still gets the bead a fresh tab.
-  const openBeadBoardInPreview = useCallback(
-    async (href: string) => {
-      if (threadRef) {
-        const reused = await navigateBoardPreviewTab(threadRef, href).catch((cause: unknown) => {
-          reportMarkdownActionFailure({ operation: "open-link-in-preview", target: href }, cause);
-          return false;
-        });
-        if (reused) {
-          recordVisitForThread(threadRef, href);
-          return;
-        }
+  const openBeadBoardInPreview = async (href: string) => {
+    if (threadRef) {
+      const reused = await navigateBoardPreviewTab(threadRef, href).catch((cause: unknown) => {
+        reportMarkdownActionFailure({ operation: "open-link-in-preview", target: href }, cause);
+        return false;
+      });
+      if (reused) {
+        recordVisitForThread(threadRef, href);
+        return;
       }
-      const result = await openExternalLinkInPreview(href);
-      if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-        reportMarkdownActionFailure(
-          { operation: "open-link-in-preview", target: href },
-          result.cause,
-        );
-      }
-    },
-    [openExternalLinkInPreview, threadRef],
-  );
+    }
+    const result = await openExternalLinkInPreview(href);
+    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      reportMarkdownActionFailure(
+        { operation: "open-link-in-preview", target: href },
+        result.cause,
+      );
+    }
+  };
   const openMarkdownFileInPreview = (path: string) => {
     const preparedConnection = threadRef ? readPreparedConnection(threadRef.environmentId) : null;
     if (!threadRef || !canOperatePreview || preparedConnection === null) {
@@ -1252,7 +1248,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
       openChangeRequestLink,
       openIssueLink,
       openDeferredMarkdownLink,
-    openBeadBoardInPreview,
       linkTargetPreference,
       openBeadBoardInPreview,
       openExternalLinkInPreview,
@@ -1585,8 +1580,17 @@ const CHAT_MARKDOWN_COMPONENTS = {
     );
   },
   code: function MarkdownCode({ node, children, className, ...props }) {
-    const { cwd, imageBaseDir, inlineCodeFileLinkMetaByText, fileLinkChip, mathEnabled, inline, canOperatePreview, threadRef, openBeadBoardInPreview } =
-      use(ChatMarkdownRendererContext);
+    const {
+      cwd,
+      imageBaseDir,
+      inlineCodeFileLinkMetaByText,
+      fileLinkChip,
+      mathEnabled,
+      inline,
+      canOperatePreview,
+      threadRef,
+      openBeadBoardInPreview,
+    } = use(ChatMarkdownRendererContext);
     const beadBoards = useClientSettings((settings) => settings.beadBoards);
     const knownBeadIds = useBeadBoardIds(beadBoards);
     const math = mathEnabled ? mathKind(className) : null;

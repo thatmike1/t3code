@@ -1,6 +1,6 @@
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   advanceLiveVoice,
@@ -54,7 +54,7 @@ export function useLiveVoice(input: {
     selectLiveVoiceEnabled(state.byThreadKey, threadRef),
   );
   const threadKey = threadRef ? scopedThreadKey(threadRef) : null;
-  const messages = useMemo(() => liveVoiceMessagesFromTimeline(timelineEntries), [timelineEntries]);
+  const messages = liveVoiceMessagesFromTimeline(timelineEntries);
   const trackerRef = useRef<LiveVoiceTracker | null>(null);
 
   useEffect(() => {
