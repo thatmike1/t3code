@@ -138,30 +138,30 @@ export const make = Effect.gen(function* () {
   const themeIconDir = environment.path.join(hicolorDir, LINUX_THEME_ICON_SIZE, "apps");
 
   // fork: packaged builds pass the icon of the chosen artwork; without one the entry has no Icon=
-  const writeDesktopEntry = (entryIconPath?: string) =>
-    Effect.gen(function* () {
-    // Distribution packages that run on a shared Electron set
-    // T3CODE_DESKTOP_LAUNCHER_PATH, because process.execPath is that Electron.
-    // Inside the mounted AppImage, process.execPath points at a transient
-    // /tmp/.mount_* path — the handler must launch the AppImage itself.
-    const execTarget = environment.desktopLauncherPath.pipe(
-      Option.orElse(() => environment.appImagePath),
-      Option.getOrElse(() => process.execPath),
-    );
-    const content = renderUrlHandlerDesktopEntry({
-      displayName: environment.displayName,
-      execTarget,
-      scheme,
-      ...(entryIconPath === undefined ? {} : { iconPath: entryIconPath }),
-    });
-    // Avoid truncating the pre-ready entry while the portal may be reading it.
-    const existing = yield* fileSystem
-      .readFileString(desktopEntryPath)
-      .pipe(Effect.orElseSucceed(() => null));
-    if (existing === content) return;
-    yield* fileSystem.makeDirectory(environment.linuxApplicationsDir, { recursive: true });
-    yield* fileSystem.writeFileString(desktopEntryPath, content);
-  }).pipe(
+  const writeDesktopEntry = Effect.fn("desktop.linuxUrlHandler.writeDesktopEntry")(
+    function* (iconPath?: string) {
+      // Distribution packages that run on a shared Electron set
+      // T3CODE_DESKTOP_LAUNCHER_PATH, because process.execPath is that Electron.
+      // Inside the mounted AppImage, process.execPath points at a transient
+      // /tmp/.mount_* path — the handler must launch the AppImage itself.
+      const execTarget = environment.desktopLauncherPath.pipe(
+        Option.orElse(() => environment.appImagePath),
+        Option.getOrElse(() => process.execPath),
+      );
+      const content = renderUrlHandlerDesktopEntry({
+        displayName: environment.displayName,
+        execTarget,
+        scheme,
+        ...(iconPath === undefined ? {} : { iconPath }),
+      });
+      // Avoid truncating the pre-ready entry while the portal may be reading it.
+      const existing = yield* fileSystem
+        .readFileString(desktopEntryPath)
+        .pipe(Effect.orElseSucceed(() => null));
+      if (existing === content) return;
+      yield* fileSystem.makeDirectory(environment.linuxApplicationsDir, { recursive: true });
+      yield* fileSystem.writeFileString(desktopEntryPath, content);
+    },
     Effect.mapError(
       (cause) =>
         new DesktopLinuxUrlHandlerRegistrationError({
@@ -303,24 +303,11 @@ export const make = Effect.gen(function* () {
   // a launcher with a themed Icon= name (often read-only, so the entry above cannot be
   // rewritten) shows whatever hicolor/<size>/apps/<name>.png holds. Replace only icons
   // that are already installed under the names this app answers to.
-  const hicolorDir = environment.path.join(iconsDir, "hicolor");
+
   const themedIconNames = [
     environment.linuxDesktopEntryName.replace(/\.desktop$/, ""),
     environment.linuxWmClass,
   ];
-
-  const refreshIconThemeCache = Effect.scoped(
-    Effect.gen(function* () {
-      const handle = yield* spawner.spawn(
-        ChildProcess.make("gtk-update-icon-cache", ["-f", "-t", hicolorDir], {
-          stdin: "ignore",
-          stdout: "ignore",
-          stderr: "ignore",
-        }),
-      );
-      yield* handle.exitCode.pipe(Effect.timeout("5 seconds"));
-    }),
-  );
 
   const syncThemedIcons = Effect.fn("desktop.linuxUrlHandler.syncThemedIcons")(
     function* (png: string) {
@@ -376,7 +363,7 @@ export const make = Effect.gen(function* () {
       return;
     }
     if (!environment.isPackaged) {
-      yield* writeDesktopEntry();
+      yield* writeDesktopEntry(undefined);
       return;
     }
 

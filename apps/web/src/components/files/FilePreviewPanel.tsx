@@ -1248,7 +1248,7 @@ export default function FilePreviewPanel({
   };
 
   const refreshFile = file.refresh;
-  const handleCreateHostFile = useCallback(() => {
+  const handleCreateHostFile = () => {
     if (!relativePath || !isHostFile || creatingHostFile) return;
     setCreatingHostFile(true);
     void createHostFile({
@@ -1271,7 +1271,7 @@ export default function FilePreviewPanel({
         );
       })
       .finally(() => setCreatingHostFile(false));
-  }, [createHostFile, creatingHostFile, cwd, environmentId, refreshFile, isHostFile, relativePath]);
+  };
 
   if (attachment === undefined && !canReadFiles) {
     if (fileAccess.isPending) {

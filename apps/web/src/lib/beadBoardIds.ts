@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import type { ClientSettings } from "@t3tools/contracts/settings";
 
 const EMPTY_IDS: ReadonlySet<string> = new Set();
@@ -74,7 +74,7 @@ const stores = new Map<string, ReturnType<typeof createStore>>();
 
 /** shares one refreshed id index across all messages for a board configuration. */
 export function useBeadBoardIds(boards: ClientSettings["beadBoards"]): ReadonlySet<string> {
-  const store = useMemo(() => {
+  const store = (() => {
     const key = JSON.stringify(boards);
     let entry = stores.get(key);
     if (!entry) {
@@ -82,6 +82,6 @@ export function useBeadBoardIds(boards: ClientSettings["beadBoards"]): ReadonlyS
       stores.set(key, entry);
     }
     return entry;
-  }, [boards]);
+  })();
   return useSyncExternalStore(store.subscribe, store.getSnapshot, () => EMPTY_IDS);
 }

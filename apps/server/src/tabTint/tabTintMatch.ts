@@ -20,7 +20,6 @@ import { ThreadId } from "@t3tools/contracts";
 
 import type { ColoredTab } from "./firefoxSession.ts";
 
-// ---------------------------------------------------------------------------
 // shell lexing
 
 interface ShellWord {
@@ -167,7 +166,6 @@ export function lexShell(command: string): Array<Array<ShellWord>> {
   return commands;
 }
 
-// ---------------------------------------------------------------------------
 // finding opens in a command
 
 const OPENERS = new Set([
@@ -271,7 +269,6 @@ export function openTargetsInCommand(
   return targets;
 }
 
-// ---------------------------------------------------------------------------
 // reading commands out of stored turn items
 
 export interface TurnItemCommand {
@@ -304,7 +301,6 @@ export function commandFromTurnItemPayload(payload: unknown): TurnItemCommand | 
   return { command: payload.input, openedAt };
 }
 
-// ---------------------------------------------------------------------------
 // matching tabs to threads
 
 export interface OpenClaim {

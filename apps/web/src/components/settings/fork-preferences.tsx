@@ -1,7 +1,8 @@
+import { useEnvironmentProviders } from "../../state/environments";
 import { useAtomValue } from "@effect/atom-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-import { useClientSettings, useUpdateClientSettings } from "../../hooks/useSettings";
+import { useClientSettings, updateClientSettings } from "../../hooks/useSettings";
 import { shortcutLabelForCommand } from "../../keybindings";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
 import {
@@ -31,24 +32,16 @@ export function ForkPreferences() {
   const settings = useClientSettings();
   const scopedSettings = useScopedSettings();
   const { environment } = useSettingsScope();
-  const providers = environment?.serverConfig?.providers ?? EMPTY_SERVER_PROVIDERS;
-  const entries = useMemo(
-    () =>
-      sortProviderInstanceEntries(
-        applyProviderInstanceSettings(
-          deriveProviderInstanceEntries(providers),
-          scopedSettings,
-          null,
-        ),
-      ),
-    [providers, scopedSettings],
+  const providersByEnvironment = useEnvironmentProviders();
+  const providers =
+    (environment ? providersByEnvironment.get(environment.environmentId) : undefined) ??
+    EMPTY_SERVER_PROVIDERS;
+  const entries = sortProviderInstanceEntries(
+    applyProviderInstanceSettings(deriveProviderInstanceEntries(providers), scopedSettings, null),
   );
-  const modelOptions = useMemo(
-    () => getCustomModelOptionsByInstance(scopedSettings, providers),
-    [providers, scopedSettings],
-  );
+  const modelOptions = getCustomModelOptionsByInstance(scopedSettings, providers);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const update = useUpdateClientSettings();
+  const update = updateClientSettings;
   const [prefix, setPrefix] = useState("");
   const [origin, setOrigin] = useState("");
   const [modelError, setModelError] = useState("");
