@@ -117,7 +117,7 @@ export const SidebarWidgets = memo(function SidebarWidgets() {
   const snapshot = useWidgets();
   const nowMinute = useNowMinute();
   const widgets = snapshot?.widgets;
-  const sorted = useMemo(() => (widgets ? sortWidgets(widgets) : []), [widgets]);
+  const sorted = widgets ? sortWidgets(widgets) : [];
 
   if (sorted.length === 0) return null;
 

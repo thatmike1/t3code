@@ -1,6 +1,10 @@
 import { ForkArtworkSettings } from "./fork-artwork";
 import type { ChatAlignment } from "@t3tools/contracts";
-import { CHAT_LEFT_GUTTER_STEP, MIN_CHAT_LEFT_GUTTER, MAX_CHAT_LEFT_GUTTER } from "@t3tools/contracts/settings";
+import {
+  CHAT_LEFT_GUTTER_STEP,
+  MIN_CHAT_LEFT_GUTTER,
+  MAX_CHAT_LEFT_GUTTER,
+} from "@t3tools/contracts/settings";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import {

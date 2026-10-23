@@ -565,6 +565,7 @@ const registerWithRealFileSystem = (run: ThemeIconRun) =>
       DesktopLinuxUrlHandler.layer.pipe(
         Layer.provide(
           Layer.mergeAll(
+            DesktopClientSettings.layerTest(Option.none()),
             Layer.effect(
               DesktopEnvironment.DesktopEnvironment,
               Path.Path.pipe(
@@ -579,6 +580,7 @@ const registerWithRealFileSystem = (run: ThemeIconRun) =>
               DesktopAssets.DesktopAssets,
               Path.Path.pipe(
                 Effect.map((path) => ({
+                  resolveArtworkIconPath: () => Effect.succeed(Option.none()),
                   iconPaths: Effect.succeed({
                     png: Option.none(),
                     ico: Option.none(),

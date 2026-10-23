@@ -1,3 +1,4 @@
+import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
 import { scopedProjectKey, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { effectiveSnoozed } from "@t3tools/client-runtime/state/thread-settled";
 import { resolveSettledThreadTimestamp } from "@t3tools/client-runtime/state/thread-sort";
@@ -5,7 +6,7 @@ import type {
   EnvironmentProject,
   EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/shell";
-import type { EnvironmentId, ProjectId, ServerConfig } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { replaceComposerContextReferences } from "@t3tools/shared/composerContextReferences";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
@@ -23,9 +24,7 @@ import {
 import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
-  useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -43,7 +42,11 @@ import {
   type ProviderInstanceEntry,
   shouldShowInstanceBadge,
 } from "../providerInstances";
-import { useEnvironments, usePrimaryEnvironmentId } from "../state/environments";
+import {
+  useEnvironmentProviders,
+  useEnvironments,
+  usePrimaryEnvironmentId,
+} from "../state/environments";
 import { useProjects, useServerConfigs, useThreadShells } from "../state/entities";
 import {
   beginThreadSwitch,
@@ -123,7 +126,7 @@ function compactTimeLabel(timestamp: string | null): string {
 
 function isThreadSettled(
   thread: EnvironmentThreadShell,
-  config: ServerConfig | undefined,
+  config: EnvironmentServerConfig | undefined,
 ): boolean {
   return (
     config?.environment.capabilities?.threadSettlement === true &&
@@ -436,7 +439,7 @@ function ThreadSwitcherOverlay(props: {
   readonly gesture: ThreadSwitcherGesture;
   readonly threadByKey: ReadonlyMap<string, EnvironmentThreadShell>;
   readonly projectByKey: ReadonlyMap<string, EnvironmentProject>;
-  readonly serverConfigs: ReadonlyMap<EnvironmentId, ServerConfig>;
+  readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly remoteEnvironmentLabel: (environmentId: EnvironmentId) => string | null;
   readonly providerEntriesByEnvironment: ReadonlyMap<
     string,
@@ -448,7 +451,7 @@ function ThreadSwitcherOverlay(props: {
   const { gesture } = props;
   const draftSessions = useComposerDraftStore((state) => state.draftThreadsByThreadKey);
   const listRef = useRef<HTMLOListElement>(null);
-  const emptyProviders = useMemo(() => new Map<string, ProviderInstanceEntry>(), []);
+  const emptyProviders = new Map<string, ProviderInstanceEntry>();
 
   // follow the keyboard selection only when it moves, so wheel scrolling is
   // not yanked back by unrelated re-renders.
@@ -580,56 +583,41 @@ export function ThreadSwitcher() {
   const { environments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const serverConfigs = useServerConfigs();
+  const providersByEnvironment = useEnvironmentProviders();
   const [gesture, setGesture] = useState<ThreadSwitcherGesture | null>(null);
   const gestureRef = useRef<ThreadSwitcherGesture | null>(null);
   const priorFocusRef = useRef<HTMLElement | null>(null);
 
-  const threadByKey = useMemo(
-    () =>
-      new Map(
-        threads.map((thread) => [
-          scopedThreadKey({ environmentId: thread.environmentId, threadId: thread.id }),
-          thread,
-        ]),
-      ),
-    [threads],
+  const threadByKey = new Map(
+    threads.map((thread) => [
+      scopedThreadKey({ environmentId: thread.environmentId, threadId: thread.id }),
+      thread,
+    ]),
   );
-  const projectByKey = useMemo(
-    () =>
-      new Map(
-        projects.map((project) => [
-          scopedProjectKey({ environmentId: project.environmentId, projectId: project.id }),
-          project,
-        ]),
-      ),
-    [projects],
+  const projectByKey = new Map(
+    projects.map((project) => [
+      scopedProjectKey({ environmentId: project.environmentId, projectId: project.id }),
+      project,
+    ]),
   );
-  const environmentLabelById = useMemo(
-    () =>
-      new Map(environments.map((environment) => [environment.environmentId, environment.label])),
-    [environments],
+  const environmentLabelById = new Map(
+    environments.map((environment) => [environment.environmentId, environment.label]),
   );
-  const remoteEnvironmentLabel = useCallback(
-    (environmentId: EnvironmentId) =>
-      environmentId === primaryEnvironmentId
-        ? null
-        : (environmentLabelById.get(environmentId) ?? "Remote"),
-    [environmentLabelById, primaryEnvironmentId],
-  );
+  const remoteEnvironmentLabel = (environmentId: EnvironmentId) =>
+    environmentId === primaryEnvironmentId
+      ? null
+      : (environmentLabelById.get(environmentId) ?? "Remote");
   // instance ids are per-environment routing keys, so each thread resolves its
   // provider entry from its own environment's config, as the sidebar does.
-  const providerEntriesByEnvironment = useMemo(
-    () =>
-      deriveProviderEntriesByEnvironment(
-        [...serverConfigs].map(
-          ([environmentId, config]) => [environmentId, config.providers, config.settings] as const,
-        ),
-      ),
-    [serverConfigs],
+  const providerEntriesByEnvironment = deriveProviderEntriesByEnvironment(
+    [...serverConfigs].map(
+      ([environmentId, config]) =>
+        [environmentId, providersByEnvironment.get(environmentId) ?? [], config.settings] as const,
+    ),
   );
 
   // the view on screen as a switch target; a sent draft counts as its thread.
-  const currentTarget = useCallback((): SwitchTarget | null => {
+  const currentTarget = (): SwitchTarget | null => {
     const routeTarget = resolveThreadRouteTarget({
       environmentId: routeEnvironmentId,
       threadId: routeThreadId,
@@ -640,28 +628,25 @@ export function ThreadSwitcher() {
     const session = useComposerDraftStore.getState().draftThreadsByThreadKey[routeTarget.draftId];
     if (session?.promotedTo) return threadTarget(session.promotedTo);
     return draftTarget(routeTarget.draftId);
-  }, [routeDraftId, routeEnvironmentId, routeThreadId]);
+  };
 
   // drops archived or deleted threads and discarded drafts, swaps a sent
   // draft for its thread, and drops blank drafts no longer on screen. A thread
   // whose shell has not loaded yet (startup, a remote still connecting) stays
   // in the history; it is only left out of the list.
-  const resolveTarget = useCallback(
-    (target: SwitchTarget, keepBlankDraft: boolean): SwitchTarget | null => {
-      if (target.kind === "thread") {
-        const thread = threadByKey.get(scopedThreadKey(target.ref));
-        return thread && (thread.archivedAt !== null || thread.deletedAt !== null) ? null : target;
-      }
-      const store = useComposerDraftStore.getState();
-      const session = store.draftThreadsByThreadKey[target.draftId];
-      if (!session) return null;
-      if (session.promotedTo) return threadTarget(session.promotedTo);
-      if (keepBlankDraft) return target;
-      const composer = store.draftsByThreadKey[target.draftId];
-      return composer && composerDraftHasUserContent(composer) ? target : null;
-    },
-    [threadByKey],
-  );
+  const resolveTarget = (target: SwitchTarget, keepBlankDraft: boolean): SwitchTarget | null => {
+    if (target.kind === "thread") {
+      const thread = threadByKey.get(scopedThreadKey(target.ref));
+      return thread && (thread.archivedAt !== null || thread.deletedAt !== null) ? null : target;
+    }
+    const store = useComposerDraftStore.getState();
+    const session = store.draftThreadsByThreadKey[target.draftId];
+    if (!session) return null;
+    if (session.promotedTo) return threadTarget(session.promotedTo);
+    if (keepBlankDraft) return target;
+    const composer = store.draftsByThreadKey[target.draftId];
+    return composer && composerDraftHasUserContent(composer) ? target : null;
+  };
 
   useEffect(() => {
     const current = currentTarget();
@@ -676,7 +661,7 @@ export function ThreadSwitcher() {
     setRecentEntries(history);
   }, [currentTarget, resolveTarget]);
 
-  const closeGesture = useCallback((restoreFocus: boolean) => {
+  const closeGesture = (restoreFocus: boolean) => {
     const priorFocus = priorFocusRef.current;
     gestureRef.current = null;
     setGesture(null);
@@ -686,10 +671,10 @@ export function ThreadSwitcher() {
         if (priorFocus?.isConnected) priorFocus.focus();
       });
     }
-  }, []);
+  };
 
-  const cancel = useCallback(() => closeGesture(true), [closeGesture]);
-  const commit = useCallback(() => {
+  const cancel = () => closeGesture(true);
+  const commit = () => {
     const activeGesture = gestureRef.current;
     const selected = activeGesture ? selectedSwitchTarget(activeGesture) : null;
     closeGesture(false);
@@ -705,67 +690,58 @@ export function ThreadSwitcher() {
     } else {
       void navigate({ to: "/draft/$draftId", params: { draftId: resolved.draftId } });
     }
-  }, [closeGesture, navigate, resolveTarget, threadByKey]);
+  };
 
-  const activate = useCallback(
-    (index: number) => {
-      if (!gestureRef.current) return;
-      gestureRef.current = selectThreadSwitch(gestureRef.current, index);
-      // a click commits at once; the gesture is gone before Ctrl comes up, so
-      // the release that follows finds nothing to open twice.
-      commit();
-    },
-    [commit],
-  );
+  const activate = (index: number) => {
+    if (!gestureRef.current) return;
+    gestureRef.current = selectThreadSwitch(gestureRef.current, index);
+    // a click commits at once; the gesture is gone before Ctrl comes up, so
+    // the release that follows finds nothing to open twice.
+    commit();
+  };
 
-  const isEligible = useCallback(
-    (entry: RecentEntry, now: number): boolean => {
-      if (entry.target.kind === "draft") return true;
-      const thread = threadByKey.get(scopedThreadKey(entry.target.ref));
-      if (!thread || thread.archivedAt !== null || thread.deletedAt !== null) return false;
-      const capabilities = serverConfigs.get(thread.environmentId)?.environment.capabilities;
-      const settledTimestamp = resolveSettledThreadTimestamp(thread);
-      const settledAtMs = settledTimestamp === null ? null : Date.parse(settledTimestamp);
-      return isThreadSwitchEligible({
-        settled: isThreadSettled(thread, serverConfigs.get(thread.environmentId)),
-        snoozed:
-          capabilities?.threadSnooze === true &&
-          effectiveSnoozed(thread, { now: new Date(now).toISOString() }),
-        settledAtMs: settledAtMs !== null && Number.isNaN(settledAtMs) ? null : settledAtMs,
-        seenAt: entry.seenAt,
-        now,
-      });
-    },
-    [serverConfigs, threadByKey],
-  );
+  const isEligible = (entry: RecentEntry, now: number): boolean => {
+    if (entry.target.kind === "draft") return true;
+    const thread = threadByKey.get(scopedThreadKey(entry.target.ref));
+    if (!thread || thread.archivedAt !== null || thread.deletedAt !== null) return false;
+    const capabilities = serverConfigs.get(thread.environmentId)?.environment.capabilities;
+    const settledTimestamp = resolveSettledThreadTimestamp(thread);
+    const settledAtMs = settledTimestamp === null ? null : Date.parse(settledTimestamp);
+    return isThreadSwitchEligible({
+      settled: isThreadSettled(thread, serverConfigs.get(thread.environmentId)),
+      snoozed:
+        capabilities?.threadSnooze === true &&
+        effectiveSnoozed(thread, { now: new Date(now).toISOString() }),
+      settledAtMs: settledAtMs !== null && Number.isNaN(settledAtMs) ? null : settledAtMs,
+      seenAt: entry.seenAt,
+      now,
+    });
+  };
 
-  const step = useCallback(
-    (reverse: boolean): boolean => {
-      if (gestureRef.current) {
-        const next = stepThreadSwitch(gestureRef.current, reverse);
-        gestureRef.current = next;
-        setGesture(next);
-        return true;
-      }
-      const now = Date.now();
-      const current = currentTarget();
-      const currentKey = current === null ? null : switchTargetKey(current);
-      // existence is checked against the clock and data of this moment, so a
-      // memo that only changes on shell updates cannot keep expired entries.
-      const history = pruneRecentEntries(getRecentEntries(), (target) =>
-        resolveTarget(target, switchTargetKey(target) === currentKey),
-      );
-      setRecentEntries(history);
-      const next = beginThreadSwitch(history, current, reverse, (entry) => isEligible(entry, now));
-      if (!next) return false;
-      priorFocusRef.current =
-        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const step = (reverse: boolean): boolean => {
+    if (gestureRef.current) {
+      const next = stepThreadSwitch(gestureRef.current, reverse);
       gestureRef.current = next;
       setGesture(next);
       return true;
-    },
-    [currentTarget, isEligible, resolveTarget],
-  );
+    }
+    const now = Date.now();
+    const current = currentTarget();
+    const currentKey = current === null ? null : switchTargetKey(current);
+    // existence is checked against the clock and data of this moment, so a
+    // memo that only changes on shell updates cannot keep expired entries.
+    const history = pruneRecentEntries(getRecentEntries(), (target) =>
+      resolveTarget(target, switchTargetKey(target) === currentKey),
+    );
+    setRecentEntries(history);
+    const next = beginThreadSwitch(history, current, reverse, (entry) => isEligible(entry, now));
+    if (!next) return false;
+    priorFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    gestureRef.current = next;
+    setGesture(next);
+    return true;
+  };
 
   useEffect(() => {
     const nativeInput = window.desktopBridge?.onThreadSwitcherInput;

@@ -151,8 +151,8 @@ export const make = Effect.gen(function* () {
 
   return DesktopAssets.of({
     iconPaths: Effect.succeed(iconPaths),
-    resolveArtworkIconPath: (artwork) =>
-      Effect.gen(function* () {
+    resolveArtworkIconPath: Effect.fn("desktop.assets.resolveArtworkIconPath")(
+      function* (artwork) {
         const environment = yield* DesktopEnvironment.DesktopEnvironment;
         const fileName = resolveArtworkIconFileName(artwork);
         if (!environment.isPackaged) {
@@ -162,14 +162,12 @@ export const make = Effect.gen(function* () {
         }
         const bundled = yield* resolveResourcePath(`fork/${fileName}`);
         return Option.orElse(bundled, () => iconPaths.png);
-      }).pipe(
-        Effect.provide(context),
-        Effect.catch((error) =>
-          Effect.logWarning("Could not resolve fork app icon.", error).pipe(
-            Effect.as(iconPaths.png),
-          ),
-        ),
+      },
+      Effect.provide(context),
+      Effect.catch((error) =>
+        Effect.logWarning("Could not resolve fork app icon.", error).pipe(Effect.as(iconPaths.png)),
       ),
+    ),
     resolveResourcePath: Effect.fn("desktop.assets.resolveResourcePath.scoped")(
       function* (fileName) {
         return yield* resolveResourcePath(fileName).pipe(Effect.provide(context));

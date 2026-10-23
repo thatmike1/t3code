@@ -136,7 +136,7 @@ import { startNewThreadFromContext } from "../lib/chatThreadActions";
 import {
   useBoringSidebarEnabled,
   useClientSettings,
-  useUpdateClientSettings,
+  updateClientSettings,
 } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -968,7 +968,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       workingShelfThreadOverrides,
     ],
   );
-  const updateClientSettings = useUpdateClientSettings();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
     settleThread,
@@ -3568,7 +3567,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                       dragTargetSection !== "active"))
                                 }
                                 isDropTarget={dragTargetSection === "active"}
-                                restingRule={pinnedThreads.length > 0}
                               />,
                             );
                             break;

@@ -1,3 +1,4 @@
+import { BRAND_ASSET_PATHS } from "./lib/brand-assets.ts";
 // @effect-diagnostics nodeBuiltinImport:off - Tests use Node's glob matcher to verify electron-builder exclusions.
 import * as NodeCrypto from "node:crypto";
 import * as NodePath from "node:path";
@@ -23,6 +24,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import {
   buildDesktopBundles,
   copyDesktopBuildArtifacts,
+  resolveDesktopBuildIconAssets,
   DesktopBuildManifestRestoreError,
   BundleNotSelfContainedError,
   BuildCommandFailedError,
