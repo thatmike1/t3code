@@ -4,6 +4,8 @@ import { WebSocket } from "@effect/platform-node/NodeWS";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Bind an isolated WebSocket negotiation fixture.
 import * as NodeHttp from "node:http";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as Widgets from "./widgets/Widgets.ts";
+import * as TabTint from "./tabTint/TabTint.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
@@ -887,6 +889,8 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(WorkspaceEntries.WorkspaceEntries)({}),
   Layer.mock(WorkspaceFileSystem.WorkspaceFileSystem)({}),
   Layer.mock(WorktreeSetupTracker.WorktreeSetupTracker)({}),
+  Layer.mock(Widgets.Widgets)({}),
+  Layer.mock(TabTint.TabTint)({}),
 );
 
 const layerConfigSources = Layer.mergeAll(
