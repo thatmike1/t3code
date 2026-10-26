@@ -2,12 +2,16 @@ import { EnvironmentId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  buildHomeProjectMenuItems,
   buildSidebarMachineFilterOptions,
+  CLEAR_HOME_PROJECT_ITEM_ID,
+  homeProjectMenuItemId,
   buildSidebarProjectScopeMenu,
   isFavouriteProjectGroup,
   OTHER_PROJECTS_TOGGLE_VALUE,
   orderFavouriteProjectGroupsFirst,
   resolveEffectiveSidebarProjectSortOrder,
+  resolveHomeProject,
   toggleSidebarMachineFilter,
 } from "./sidebarProjectPreferences";
 
@@ -192,5 +196,84 @@ describe("sidebar machine filter", () => {
       { environmentId: vps, label: "VPS", isPrimary: false, connected: false },
       { environmentId: laptop, label: laptop, isPrimary: false, connected: false },
     ]);
+  });
+});
+
+describe("resolveHomeProject", () => {
+  const projects = [
+    { id: "p-desktop", environmentId: desktop, key: "env-desktop:/git/ccchat" },
+    { id: "p-vps", environmentId: vps, key: "env-vps:/git/ccchat" },
+  ];
+  const resolve = (key: string | null, connected = [desktop, vps]) =>
+    resolveHomeProject({
+      home: key === null ? null : { key, label: "ccChat on Desktop" },
+      projects,
+      projectKey: (project) => project.key,
+      connectedEnvironmentIds: connected,
+    });
+
+  it("picks the exact checkout even when the same path exists on another machine", () => {
+    expect(resolve("env-vps:/git/ccchat")).toEqual({ status: "ready", project: projects[1] });
+  });
+
+  it("reports an unset, missing or offline home instead of falling back", () => {
+    expect(resolve(null)).toEqual({ status: "unset" });
+    expect(resolve("env-laptop:/git/ccchat")).toEqual({
+      status: "missing",
+      label: "ccChat on Desktop",
+    });
+    expect(resolve("env-desktop:/git/ccchat", [vps])).toEqual({
+      status: "offline",
+      project: projects[0],
+    });
+  });
+});
+
+describe("buildHomeProjectMenuItems", () => {
+  const desktopMember = {
+    physicalProjectKey: "env-desktop:/git/ccchat",
+    environmentId: desktop,
+    environmentLabel: "Desktop",
+  };
+  const vpsMember = {
+    physicalProjectKey: "env-vps:/srv/ccchat",
+    environmentId: vps,
+    environmentLabel: "VPS",
+  };
+
+  it("offers set or clear for a single checkout", () => {
+    expect(
+      buildHomeProjectMenuItems({
+        members: [desktopMember],
+        homeKey: null,
+        primaryEnvironmentId: desktop,
+      }),
+    ).toEqual([
+      { id: homeProjectMenuItemId(desktopMember.physicalProjectKey), label: "Set as home project" },
+    ]);
+    expect(
+      buildHomeProjectMenuItems({
+        members: [desktopMember],
+        homeKey: desktopMember.physicalProjectKey,
+        primaryEnvironmentId: desktop,
+      }),
+    ).toEqual([{ id: CLEAR_HOME_PROJECT_ITEM_ID, label: "Clear home project" }]);
+  });
+
+  it("asks which machine's checkout of a grouped repo, this machine first", () => {
+    const [choose, clear] = buildHomeProjectMenuItems({
+      members: [vpsMember, desktopMember],
+      homeKey: vpsMember.physicalProjectKey,
+      primaryEnvironmentId: desktop,
+    });
+    expect(choose?.children).toEqual([
+      {
+        id: homeProjectMenuItemId(desktopMember.physicalProjectKey),
+        label: "Desktop",
+        checked: false,
+      },
+      { id: homeProjectMenuItemId(vpsMember.physicalProjectKey), label: "VPS", checked: true },
+    ]);
+    expect(clear?.id).toBe(CLEAR_HOME_PROJECT_ITEM_ID);
   });
 });

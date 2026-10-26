@@ -113,6 +113,7 @@ export const STATIC_KEYBINDING_COMMANDS = [
   ...QUICK_MODEL_KEYBINDING_COMMANDS,
   "chat.new",
   "chat.newLocal",
+  "chat.newHome",
   "chat.newWithoutProject",
   "chat.find",
   "editor.openFavorite",

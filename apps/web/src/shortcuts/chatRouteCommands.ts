@@ -9,6 +9,7 @@ import { dispatchPreviewAction, type PreviewAction } from "../components/preview
 import { isAppModalPage } from "../components/sidebar/mainAppLocation";
 import { shouldCreateNewThreadInCurrentProject } from "../components/Sidebar.logic";
 import { createNewThreadHandler, resolveDefaultProjectRef } from "../hooks/useHandleNewThread";
+import { startHomeThreadNow } from "../hooks/useHomeProject";
 import { createScratchProjectActions } from "../hooks/useScratchProject";
 import { getClientSettings } from "../hooks/useSettings";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
@@ -113,6 +114,10 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
   return registerCommands(
     {
       "chat.newLocal": startNewLocal,
+      "chat.newHome": (event) => {
+        claim(event);
+        void startHomeThreadNow(handleNewThread);
+      },
       "chat.newWithoutProject": (event) => {
         const { activeThread, activeDraftThread } = readThreadContext();
         const environmentId = scratch.scratchEnvironmentId(
