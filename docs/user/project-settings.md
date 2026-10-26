@@ -86,6 +86,14 @@ environment's time zone, which may differ from your phone's. Choose **Once**
 to run a task a single time at a date and time in your own time zone. If the
 environment is offline then, the task runs when it is back.
 
+A fixed-time run missed by more than ten minutes, because the environment was off
+or asleep, is normally skipped until the next scheduled day. Turn on **Catch up
+today if missed** to run it once as soon as the environment is back the same day.
+With catch up on, any run that day counts as the day's run, including **Run now**,
+so a task you ran by hand early does not run again at its scheduled time. A
+catch-up task never replays an earlier day. The environment must run a T3 Code
+version that supports the option.
+
 Deleting a thread also deletes tasks that post into that thread. Tasks that start
 a new thread on each run survive deletion of their previous threads.
 

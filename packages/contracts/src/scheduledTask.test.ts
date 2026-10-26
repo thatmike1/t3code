@@ -49,6 +49,23 @@ it.each(["literal", " ", "\t\n", "{{body.bad", "{{unknown.field}}"])(
     ).toThrow();
   },
 );
+describe("fixed-time catch-up flag", () => {
+  it("is optional, so stored fixed-time rows without it stay readable", () => {
+    expect(decodeSchedule({ type: "fixed_time", timeOfDay: "09:00" })).toEqual({
+      type: "fixed_time",
+      timeOfDay: "09:00",
+    });
+    for (const catchUpToday of [true, false]) {
+      const schedule = { type: "fixed_time", timeOfDay: "09:00", catchUpToday };
+      expect(decodeSchedule(schedule)).toEqual(schedule);
+      expect(decodeUpsertSchedule(schedule)).toEqual(schedule);
+    }
+    expect(() =>
+      decodeUpsertSchedule({ type: "fixed_time", timeOfDay: "09:00", catchUpToday: "yes" }),
+    ).toThrow();
+  });
+});
+
 describe("webhook filters", () => {
   const accepts = (filters: unknown) => {
     try {

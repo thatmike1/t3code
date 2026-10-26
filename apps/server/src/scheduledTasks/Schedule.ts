@@ -45,6 +45,49 @@ export function nextScheduledRunAt(
   return null;
 }
 
+type FixedTimeSchedule = Extract<ScheduledTaskSchedule, { type: "fixed_time" }>;
+
+export function catchesUpToday(schedule: ScheduledTaskSchedule): schedule is FixedTimeSchedule {
+  return schedule.type === "fixed_time" && schedule.catchUpToday === true;
+}
+
+function sameLocalDay(left: DateTime.DateTime, right: DateTime.DateTime): boolean {
+  const zoned = DateTime.isZoned(right) ? DateTime.setZone(left, right.zone) : left;
+  const a = DateTime.isZoned(right) ? DateTime.toParts(zoned) : DateTime.toPartsUtc(left);
+  const b = DateTime.isZoned(right) ? DateTime.toParts(right) : DateTime.toPartsUtc(right);
+  return a.year === b.year && a.month === b.month && a.day === b.day;
+}
+
+function todaysSlot(schedule: FixedTimeSchedule, now: DateTime.DateTime): DateTime.DateTime | null {
+  const time = parseTimeOfDay(schedule.timeOfDay);
+  if (time === null) return null;
+  const slot = DateTime.setParts(now, {
+    hour: time.hour,
+    minute: time.minute,
+    second: 0,
+    millisecond: 0,
+  });
+  const weekdays = schedule.weekdays ?? [];
+  return weekdays.length === 0 || weekdays.includes(DateTime.toParts(slot).weekDay) ? slot : null;
+}
+
+/**
+ * Next run of a fixed-time task that catches up a missed slot the same local
+ * day. Any attempt today, scheduled or Run now, used or failed, uses up
+ * today's slot; an unused slot already past is returned as is, so the task is
+ * due at once. Yesterday's missed slot is never replayed.
+ */
+export function nextCatchUpRunAt(
+  schedule: FixedTimeSchedule,
+  now: DateTime.DateTime,
+  lastRunAt: DateTime.DateTime | null,
+): DateTime.DateTime | null {
+  const slot = todaysSlot(schedule, now);
+  const usedToday = lastRunAt !== null && sameLocalDay(lastRunAt, now);
+  if (slot !== null && !usedToday) return slot;
+  return nextScheduledRunAt(schedule, DateTime.endOf(now, "day"));
+}
+
 function weekdayKey(weekdays: ReadonlyArray<number> | undefined): string {
   const unique = [...new Set(weekdays ?? [])].toSorted((x, y) => x - y);
   if (unique.length === 0 || unique.length === 7) return "daily";
@@ -66,7 +109,8 @@ export function isSameSchedule(a: ScheduledTaskSchedule, b: ScheduledTaskSchedul
     bTime !== null &&
     aTime.hour === bTime.hour &&
     aTime.minute === bTime.minute &&
-    weekdayKey(a.weekdays) === weekdayKey(b.weekdays)
+    weekdayKey(a.weekdays) === weekdayKey(b.weekdays) &&
+    (a.catchUpToday === true) === (b.catchUpToday === true)
   );
 }
 
