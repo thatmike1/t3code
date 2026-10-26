@@ -630,6 +630,7 @@ export function filterSidebarV2VisibleThreads<
   threads: readonly T[],
   scopedProjectKeys: ReadonlySet<string> | null,
   delegatedUnderParent: ReadonlySet<string>,
+  scopedEnvironmentIds: ReadonlySet<string> | null = null,
 ): T[] {
   return threads.filter(
     (thread) =>
@@ -639,6 +640,7 @@ export function filterSidebarV2VisibleThreads<
         thread.lineage,
         delegatedUnderParent,
       ) &&
+      (scopedEnvironmentIds === null || scopedEnvironmentIds.has(thread.environmentId)) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );
@@ -1125,7 +1127,7 @@ export function filterSidebarProjectScopeItems<TItem extends { readonly value: s
   return input.items.filter((item) => item.value !== "all" && input.matches(item, query));
 }
 
-interface SidebarProjectScopeMenuState {
+export interface SidebarProjectScopeMenuState {
   readonly open: boolean;
   readonly query: string;
 }

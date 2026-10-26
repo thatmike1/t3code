@@ -1,4 +1,4 @@
-import { ThreadId } from "@t3tools/contracts";
+import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -12,6 +12,7 @@ import {
   reorderProjects,
   resolveProjectExpanded,
   setProjectExpanded,
+  setProjectsFavourite,
   type UiState,
 } from "./uiStateStore";
 
@@ -20,6 +21,8 @@ function makeUiState(overrides: Partial<UiState> = {}): UiState {
     projectExpandedById: {},
     projectOrder: [],
     sidebarProjectScopeKeys: [],
+    favouriteProjectKeys: [],
+    sidebarMachineFilter: null,
     threadLastVisitedAtById: {},
     threadChangedFilesExpandedById: {},
     defaultAdvertisedEndpointKey: null,
@@ -94,7 +97,32 @@ describe("uiStateStore pure functions", () => {
   });
 });
 
+describe("setProjectsFavourite", () => {
+  it("adds and removes every checkout of a grouped project together", () => {
+    const keys = ["env-local:/repo/a", "env-vps:/srv/a"];
+    const favourited = setProjectsFavourite(
+      makeUiState({ favouriteProjectKeys: ["env-local:/repo/b"] }),
+      keys,
+      true,
+    );
+    expect(favourited.favouriteProjectKeys).toEqual(["env-local:/repo/b", ...keys]);
+    expect(setProjectsFavourite(favourited, keys, true)).toBe(favourited);
+
+    const unfavourited = setProjectsFavourite(favourited, keys, false);
+    expect(unfavourited.favouriteProjectKeys).toEqual(["env-local:/repo/b"]);
+  });
+});
+
 describe("parsePersistedState", () => {
+  it("drops malformed and duplicate favourite keys, defaulting to none", () => {
+    expect(parsePersistedState({}).favouriteProjectKeys).toEqual([]);
+    expect(
+      parsePersistedState({
+        favouriteProjectKeys: ["a", "", "a", 3 as unknown as string, "b"],
+      }).favouriteProjectKeys,
+    ).toEqual(["a", "b"]);
+  });
+
   it("hydrates raw UI-owned state without server entities", () => {
     const parsed = parsePersistedState({
       projectExpandedById: {
@@ -126,6 +154,8 @@ describe("parsePersistedState", () => {
       },
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
       sidebarProjectScopeKeys: [],
+      favouriteProjectKeys: [],
+      sidebarMachineFilter: null,
       pullRequestMergeMethod: "merge",
       threadChangedFilesExpandedById: {
         "environment:thread-1": {
@@ -232,6 +262,7 @@ describe("uiStateStore persistence", () => {
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
       sidebarProjectScopeKeys: [],
       sidebarProjectScopeKey: null,
+      favouriteProjectKeys: [],
       threadChangedFilesExpansionVersion: 2,
       threadChangedFilesExpandedById: {
         "environment:thread-1": {
@@ -244,6 +275,24 @@ describe("uiStateStore persistence", () => {
     expect(parsePersistedState(persisted)).toEqual({
       ...state,
     });
+  });
+
+  it("keeps favourite projects across reloads but never the machine filter", () => {
+    persistState(
+      makeUiState({
+        favouriteProjectKeys: ["env-local:/repo/a", "env-vps:/srv/a"],
+        sidebarMachineFilter: [EnvironmentId.make("env-local")],
+      }),
+    );
+
+    const persisted = JSON.parse(
+      localStorageStub.getItem(PERSISTED_STATE_KEY) ?? "{}",
+    ) as PersistedUiState & { sidebarMachineFilter?: unknown };
+
+    expect(persisted.sidebarMachineFilter).toBeUndefined();
+    const restored = parsePersistedState(persisted);
+    expect(restored.favouriteProjectKeys).toEqual(["env-local:/repo/a", "env-vps:/srv/a"]);
+    expect(restored.sidebarMachineFilter).toBeNull();
   });
 
   it("restores the sidebar project scope across reloads", () => {
