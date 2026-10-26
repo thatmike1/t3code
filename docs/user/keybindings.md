@@ -190,6 +190,9 @@ through the pages you have visited, like a browser's back and forward buttons.
 `chat.newLocal` skips that chooser. Both use your
 [new-thread defaults](./thread-sidebar.md#start-a-thread). `chat.newWithoutProject`
 (`mod+alt+n`) starts a thread [without a project](./thread-sidebar.md#start-without-a-project).
+`chat.newHome` (`mod+alt+shift+n`) always starts the thread in your home project,
+wherever you are. Choose the home project by right-clicking a project in the
+sidebar's project filter and picking **Set as home project**.
 
 ## Reserved shortcuts
 

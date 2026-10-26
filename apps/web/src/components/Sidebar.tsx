@@ -65,6 +65,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   FolderIcon,
+  HouseIcon,
   ListFilterIcon,
   PlusIcon,
   SettingsIcon,
@@ -113,6 +114,9 @@ import {
 } from "../sidebarProjectGrouping";
 import { resolveProjectExpanded, useUiStateStore } from "../uiStateStore";
 import {
+  buildHomeProjectMenuItems,
+  CLEAR_HOME_PROJECT_ITEM_ID,
+  homeProjectMenuItemId,
   type SidebarProjectScopeItem,
 } from "../sidebarProjectPreferences";
 import {
@@ -1063,6 +1067,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     { open: false, query: "" },
   );
   const projectScopeFilter = useComboboxFilter();
+  const homeProject = useUiStateStore((store) => store.homeProject);
+  const setHomeProject = useUiStateStore((store) => store.setHomeProject);
   const allProjectSnapshotsReady = useAllEnvironmentProjectSnapshotsReady();
   const allProjectConfigsReady = useAtomValue(environmentProjects.projectConfigsReadyAtom);
   // Safari may click after Ctrl+click opens settings; suppress that selection until the picker reopens.
@@ -1315,6 +1321,70 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       suppressNextScopeChangeRef.current = true;
       dispatchProjectScopeMenu({ type: "project-settings-opened" });
       openProjectSettings(projectGroup);
+    },
+  );
+  // right-clicking a row in the project picker: pin, home project, settings.
+  const handleProjectScopeContextMenu = useStableCallback(
+    async (event: ReactMouseEvent<HTMLElement>, projectGroup: SidebarProjectSnapshot) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const api = readLocalApi();
+      if (!api) return;
+      suppressNextScopeChangeRef.current = true;
+      const homeItems = buildHomeProjectMenuItems({
+        members: projectGroup.memberProjects,
+        homeKey: homeProject?.key ?? null,
+        primaryEnvironmentId,
+      });
+      const clicked = await settlePromise(() =>
+        api.contextMenu.show<string>(
+          [
+            ...(canPinProject(projectGroup)
+              ? [
+                  projectGroup.pinned
+                    ? { id: "unpin", label: "Unpin project", icon: "pin-off" as const }
+                    : { id: "pin", label: "Pin project", icon: "pin" as const },
+                ]
+              : []),
+            ...homeItems,
+            {
+              id: "project-settings",
+              label: "Project settings",
+              icon: "settings" as const,
+              separatorBefore: true,
+            },
+          ],
+          { x: event.clientX, y: event.clientY },
+        ),
+      );
+      if (clicked._tag === "Failure" || clicked.value === null) return;
+      if (clicked.value === CLEAR_HOME_PROJECT_ITEM_ID) {
+        setHomeProject(null);
+        return;
+      }
+      const homeMember = projectGroup.memberProjects.find(
+        (member) => homeProjectMenuItemId(member.physicalProjectKey) === clicked.value,
+      );
+      if (homeMember) {
+        setHomeProject({
+          key: homeMember.physicalProjectKey,
+          label:
+            projectGroup.memberProjects.length > 1 && homeMember.environmentLabel
+              ? `${projectGroup.displayName} on ${homeMember.environmentLabel}`
+              : projectGroup.displayName,
+        });
+        return;
+      }
+      switch (clicked.value) {
+        case "pin":
+        case "unpin":
+          setProjectGroupPinned(projectGroup, clicked.value === "pin");
+          return;
+        case "project-settings":
+          dispatchProjectScopeMenu({ type: "project-settings-opened" });
+          openProjectSettings(projectGroup);
+          return;
+      }
     },
   );
   const startThreadInProjectFolder = useStableCallback((group: SidebarProjectSnapshot) => {
@@ -3235,7 +3305,22 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 <FolderIcon className="size-4 shrink-0" />
                               )}
                             </ProjectScopeRowIcon>
-                            <span className="min-w-0 truncate text-sm">{item.label}</span>
+                            <span className="min-w-0 flex-1 truncate text-sm">{item.label}</span>
+                            {project && canPinProject(project) ? (
+                              <ProjectPinButton
+                                name={project.displayName}
+                                pinned={project.pinned}
+                                shortcutLabel={shortcutLabelForCommand(keybindings, "thread.pin")}
+                                onToggle={() => toggleProjectGroupPin(project)}
+                              />
+                            ) : null}
+                            {project &&
+                            homeProject !== null &&
+                            project.memberProjects.some(
+                              (member) => member.physicalProjectKey === homeProject.key,
+                            ) ? (
+                              <HouseIcon className="size-3.5 shrink-0" aria-label="Home project" />
+                            ) : null}
                             {project && showProjectEnvironments ? (
                               <ProjectEnvironmentBadge
                                 group={project}

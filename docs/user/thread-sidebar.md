@@ -248,7 +248,8 @@ thread** from its long-press menu on mobile.
 The project filter beside the sidebar search shows one project's threads. Star
 the projects you work in most: they move to the top of that menu and the rest fold
 under **Other projects**, which search still reaches. Right-click a project, or
-press the context-menu key while it is highlighted, to star it from the keyboard.
+press the context-menu key while it is highlighted, to star it from the keyboard
+or make it the home project that `mod+alt+shift+n` opens a new thread in.
 
 With more than one machine connected, the machine filter next to it shows only the
 threads of the machines you check. It resets when T3 Code restarts and never
