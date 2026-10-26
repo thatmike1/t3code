@@ -51,6 +51,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   FolderIcon,
+  HouseIcon,
   ListFilterIcon,
   PlusIcon,
   SettingsIcon,
@@ -99,7 +100,10 @@ import {
 } from "../sidebarProjectGrouping";
 import { useUiStateStore } from "../uiStateStore";
 import {
+  buildHomeProjectMenuItems,
   buildSidebarProjectScopeMenu,
+  CLEAR_HOME_PROJECT_ITEM_ID,
+  homeProjectMenuItemId,
   isFavouriteProjectGroup,
   OTHER_PROJECTS_TOGGLE_VALUE,
   projectGroupFavouriteKeys,
@@ -906,6 +910,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const projectScopeFilter = useComboboxFilter();
   const favouriteProjectKeys = useUiStateStore((store) => store.favouriteProjectKeys);
   const setProjectsFavourite = useUiStateStore((store) => store.setProjectsFavourite);
+  const homeProject = useUiStateStore((store) => store.homeProject);
+  const setHomeProject = useUiStateStore((store) => store.setHomeProject);
   const [otherProjectsExpanded, setOtherProjectsExpanded] = useState(false);
   const allProjectSnapshotsReady = useAllEnvironmentProjectSnapshotsReady();
   const allProjectConfigsReady = useAtomValue(environmentProjects.projectConfigsReadyAtom);
@@ -1119,19 +1125,42 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ? { x: event.clientX, y: event.clientY }
           : { x: anchor?.left ?? 0, y: anchor?.bottom ?? 0 };
       const favourite = isFavouriteProjectGroup(projectGroup, favouriteKeySet);
+      const homeItems = buildHomeProjectMenuItems({
+        members: projectGroup.memberProjects,
+        homeKey: homeProject?.key ?? null,
+        primaryEnvironmentId,
+      });
       const clicked = await settlePromise(() =>
-        api.contextMenu.show(
+        api.contextMenu.show<string>(
           [
             {
               id: "toggle-favourite",
               label: favourite ? "Remove from favourites" : "Add to favourites",
             },
+            ...homeItems,
             { id: "project-settings", label: "Project settings", separatorBefore: true },
-          ] as const,
+          ],
           position,
         ),
       );
-      if (clicked._tag === "Failure") return;
+      if (clicked._tag === "Failure" || clicked.value === null) return;
+      if (clicked.value === CLEAR_HOME_PROJECT_ITEM_ID) {
+        setHomeProject(null);
+        return;
+      }
+      const homeMember = projectGroup.memberProjects.find(
+        (member) => homeProjectMenuItemId(member.physicalProjectKey) === clicked.value,
+      );
+      if (homeMember) {
+        setHomeProject({
+          key: homeMember.physicalProjectKey,
+          label:
+            projectGroup.memberProjects.length > 1 && homeMember.environmentLabel
+              ? `${projectGroup.displayName} on ${homeMember.environmentLabel}`
+              : projectGroup.displayName,
+        });
+        return;
+      }
       switch (clicked.value) {
         case "toggle-favourite":
           toggleProjectFavourite(projectGroup);
@@ -2909,6 +2938,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               <FolderIcon className="size-4 shrink-0" />
                             )}
                             <span className="min-w-0 flex-1 truncate text-sm">{item.label}</span>
+                            {project &&
+                            homeProject !== null &&
+                            project.memberProjects.some(
+                              (member) => member.physicalProjectKey === homeProject.key,
+                            ) ? (
+                              <HouseIcon className="size-3.5 shrink-0" aria-label="Home project" />
+                            ) : null}
                             {project && showProjectEnvironments ? (
                               <ProjectEnvironmentBadge
                                 group={project}

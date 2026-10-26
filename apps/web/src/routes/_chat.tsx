@@ -17,6 +17,7 @@ import { buildSidebarProjectSnapshots } from "../sidebarProjectGrouping";
 import { dispatchPreviewAction } from "../components/preview/previewActionBus";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useScratchProject } from "../hooks/useScratchProject";
+import { useStartHomeThread } from "../hooks/useHomeProject";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { isTerminalFocused } from "../lib/terminalFocus";
@@ -45,6 +46,7 @@ function ChatRouteGlobalShortcuts() {
   const projects = useProjects();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const { scratchEnvironmentId, startScratchThread } = useScratchProject();
+  const { startHomeThread } = useStartHomeThread();
   const projectGroupCount = buildSidebarProjectSnapshots({
     projects,
     settings: projectGroupingSettings,
@@ -97,6 +99,13 @@ function ChatRouteGlobalShortcuts() {
           defaultProjectRef,
           handleNewThread,
         });
+        return;
+      }
+
+      if (command === "chat.newHome") {
+        event.preventDefault();
+        event.stopPropagation();
+        void startHomeThread();
         return;
       }
 
@@ -188,6 +197,7 @@ function ChatRouteGlobalShortcuts() {
     scratchEnvironmentId,
     selectedThreadKeysSize,
     startScratchThread,
+    startHomeThread,
     legacySidebarEnabled,
     terminalOpen,
   ]);

@@ -57,6 +57,7 @@ import {
   FolderIcon,
   FolderPlusIcon,
   MessageSquareDashedIcon,
+  HouseIcon,
   LinkIcon,
   MessageSquareIcon,
   PaletteIcon,
@@ -105,6 +106,7 @@ import { sourceControlEnvironment } from "../state/sourceControl";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
 import { useScratchProject } from "../hooks/useScratchProject";
+import { useStartHomeThread } from "../hooks/useHomeProject";
 import { useNewProject } from "../hooks/useNewProject";
 import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import {
@@ -498,6 +500,7 @@ function OpenCommandPaletteDialog(props: {
     reportFailure: false,
   });
   const { scratchEnvironmentId, scratchWorkspaceRootFor, startScratchThread } = useScratchProject();
+  const { homeProject, startHomeThread } = useStartHomeThread();
   const lookupRepository = useAtomQueryRunner(sourceControlEnvironment.repository, {
     reportFailure: false,
   });
@@ -1212,6 +1215,26 @@ function OpenCommandPaletteDialog(props: {
         },
       });
     }
+
+    actionItems.push({
+      kind: "action",
+      value: "action:new-thread-in-home",
+      searchTerms: ["new thread", "home", "home project", "chat"],
+      title:
+        homeProject === null ? (
+          "New thread in home project"
+        ) : (
+          <>
+            New thread in home project{" "}
+            <span className="font-semibold">
+              {homeProject.status === "missing" ? homeProject.label : homeProject.project.title}
+            </span>
+          </>
+        ),
+      icon: <HouseIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "chat.newHome",
+      run: startHomeThread,
+    });
 
     actionItems.push({
       kind: "submenu",
@@ -2325,6 +2348,7 @@ function OpenCommandPaletteDialog(props: {
       event.keyCode !== 229 &&
       (command === "chat.new" ||
         command === "chat.newLocal" ||
+        command === "chat.newHome" ||
         command === "chat.newWithoutProject");
     const matchingItem =
       isJump || isNewThread
