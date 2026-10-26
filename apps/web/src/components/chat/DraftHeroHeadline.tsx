@@ -17,6 +17,8 @@ import { useScratchProject } from "~/hooks/useScratchProject";
 import { isTriagePrompt } from "@t3tools/shared/triagePrompt";
 import { useClientSettings } from "~/hooks/useSettings";
 import { seedDraftModelSelection } from "~/lib/seedDraftModelSelection";
+import { orderFavouriteProjectGroupsFirst } from "~/sidebarProjectPreferences";
+import { useUiStateStore } from "~/uiStateStore";
 import {
   deriveLogicalProjectKeyFromSettings,
   pickableProjectGroups,
@@ -70,6 +72,7 @@ export function DraftHeroHeadline({
   const { environments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
+  const favouriteProjectKeys = useUiStateStore((store) => store.favouriteProjectKeys);
   const setLogicalProjectDraftThreadId = useComposerDraftStore(
     (store) => store.setLogicalProjectDraftThreadId,
   );
@@ -91,7 +94,10 @@ export function DraftHeroHeadline({
   const environmentLabelById = new Map(
     environments.map((environment) => [environment.environmentId, environment.label] as const),
   );
-  const projectGroups = useSortedProjectGroups(environmentLabelById);
+  const projectGroups = orderFavouriteProjectGroupsFirst(
+    useSortedProjectGroups(environmentLabelById),
+    new Set(favouriteProjectKeys),
+  );
   const showProjectEnvironments = projectGroupsSpanEnvironments(projectGroups);
   const environmentMachineById = new Map(
     environments.map(

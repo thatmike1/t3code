@@ -6,8 +6,15 @@ import {
 import { buildSidebarProjectSnapshots } from "../sidebarProjectGrouping";
 import { useEnvironmentIdentities, usePrimaryEnvironmentId } from "../state/environments";
 import { useDelegatedUnderParent, useProjects, useQuietThreadShells } from "../state/entities";
+import { resolveEffectiveSidebarProjectSortOrder } from "../sidebarProjectPreferences";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
 import { useClientSettings } from "./useSettings";
+
+// no sidebar left in 0.1.7 can set a manual order, so a stored "manual" sorts by activity.
+export function useEffectiveSidebarProjectSortOrder() {
+  const sortOrder = useClientSettings((s) => s.sidebarProjectSortOrder);
+  return resolveEffectiveSidebarProjectSortOrder(sortOrder, false);
+}
 
 export function useSidebarProjectGroups() {
   const projects = useProjects();
@@ -16,7 +23,7 @@ export function useSidebarProjectGroups() {
   const threads = useQuietThreadShells();
   const delegatedUnderParent = useDelegatedUnderParent();
   const projectOrder = useUiStateStore((store) => store.projectOrder);
-  const sortOrder = useClientSettings((s) => s.sidebarProjectSortOrder);
+  const sortOrder = useEffectiveSidebarProjectSortOrder();
   const groupingSettings = useClientSettings(selectProjectGroupingSettings);
   const environments = useEnvironmentIdentities();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
