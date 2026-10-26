@@ -215,6 +215,8 @@ export function useSidebarDrafts(
   scopedProjectKeys: ReadonlySet<string> | null,
   routeDraftId: string | null,
   terminalLabels: ReadonlyMap<string, string>,
+  // fork: the sidebar machine filter; null shows every machine
+  scopedEnvironmentIds: ReadonlySet<string> | null = null,
 ): { draftIds: readonly DraftId[]; routeDraftComposer: ComposerThreadDraftState | null } {
   const [frozenRoute, setFrozenRoute] = useState<{
     routeDraftId: string | null;
@@ -234,6 +236,9 @@ export function useSidebarDrafts(
           scopedProjectKeys !== null &&
           !scopedProjectKeys.has(`${session.environmentId}:${session.projectId}`)
         ) {
+          continue;
+        }
+        if (scopedEnvironmentIds !== null && !scopedEnvironmentIds.has(session.environmentId)) {
           continue;
         }
         // Composer edits stay frozen while open; terminals come and go live.
