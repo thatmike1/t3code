@@ -176,6 +176,7 @@ const EMPTY_DRAFT: DraftState = {
   runAt: "",
   savedRunAt: "",
   weekdays: new Set([1, 2, 3, 4, 5]),
+  catchUpToday: false,
   projectId: "",
   threadId: "",
   threadMode: "new_thread",
@@ -2127,6 +2128,28 @@ function ScheduledTaskEditorForm({
               </div>
             )}
           </div>
+
+          {draft.scheduleMode === "fixed" ? (
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 space-y-1">
+                <Label htmlFor="scheduled-task-catch-up">Catch up today if missed</Label>
+                <p
+                  id="scheduled-task-catch-up-description"
+                  className="text-sm text-muted-foreground"
+                >
+                  Uses this environment's time zone. Run now also counts as today's run.
+                </p>
+              </div>
+              <Switch
+                id="scheduled-task-catch-up"
+                aria-describedby="scheduled-task-catch-up-description"
+                checked={draft.catchUpToday}
+                onCheckedChange={(catchUpToday) =>
+                  setDraft((current) => ({ ...current, catchUpToday }))
+                }
+              />
+            </div>
+          ) : null}
 
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 space-y-1">
