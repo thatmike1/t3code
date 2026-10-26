@@ -52,6 +52,10 @@ const ScheduledTaskFixedTimeSchedule = Schema.Struct({
       description: "Optional weekdays; omit to run every day.",
     }),
   ),
+  catchUpToday: Schema.optional(Schema.Boolean).annotate({
+    description:
+      "When true, a slot missed earlier the same local day (the server was off or asleep) runs once as soon as possible. Any run that day, including Run now, uses up the slot. Defaults to false: a slot missed by more than ten minutes is skipped.",
+  }),
 }).annotate({
   description: "Run at a fixed local wall-clock time on selected weekdays.",
 });

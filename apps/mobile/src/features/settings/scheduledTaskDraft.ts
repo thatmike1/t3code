@@ -54,6 +54,7 @@ export type ScheduleDraft = {
   readonly mode: "fixed_time" | "interval" | "webhook";
   readonly timeOfDay: string;
   readonly weekdays: ReadonlyArray<number>;
+  readonly catchUpToday: boolean;
   readonly intervalMinutes: string;
   readonly signature: ScheduledTaskWebhookSignature | null;
   readonly maxDeliveryAgeMinutes: string;
@@ -69,6 +70,7 @@ export const DEFAULT_SCHEDULE: ScheduleDraft = {
   mode: "fixed_time",
   timeOfDay: "09:00",
   weekdays: [1, 2, 3, 4, 5],
+  catchUpToday: false,
   intervalMinutes: "15",
   signature: null,
   maxDeliveryAgeMinutes: "",
@@ -88,6 +90,7 @@ export function scheduleDraftForTask(task: Pick<ScheduledTask, "schedule">): Sch
         weekdays: task.schedule.weekdays?.length
           ? [...new Set(task.schedule.weekdays)].sort((a, b) => a - b)
           : [0, 1, 2, 3, 4, 5, 6],
+        catchUpToday: task.schedule.catchUpToday === true,
       };
     case "interval":
       return {
@@ -179,6 +182,7 @@ export function scheduleFromDraft(draft: ScheduleDraft): ScheduledTaskUpsertSche
     type: "fixed_time",
     timeOfDay: draft.timeOfDay,
     ...(weekdays.length === 7 ? {} : { weekdays }),
+    ...(draft.catchUpToday ? { catchUpToday: true } : {}),
   };
 }
 
@@ -212,6 +216,7 @@ function draftSignature(draft: ScheduledTaskDraft): string {
     draft.schedule.mode,
     draft.schedule.timeOfDay,
     [...draft.schedule.weekdays].sort((a, b) => a - b),
+    draft.schedule.catchUpToday,
     draft.schedule.intervalMinutes,
     draft.schedule.maxDeliveryAgeMinutes,
     draft.schedule.replayKey,
