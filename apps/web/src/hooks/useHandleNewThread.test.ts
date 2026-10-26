@@ -230,9 +230,15 @@ vi.mock("../state/entities", () => {
     defaultThreadEnvMode: null,
     defaultModelSelection: null,
   };
+  const localProject = {
+    ...project,
+    id: "project-local",
+    environmentId: "environment-primary",
+    workspaceRoot: "/local/project",
+  };
   return {
     readProject: () => (testState.projectRemoved ? null : project),
-    readProjects: () => (testState.projectRemoved ? [] : [project]),
+    readProjects: () => (testState.projectRemoved ? [] : [project, localProject]),
     readThreadShell: () => null,
     readThreadShells: () => [],
     useProjects: () => [],
@@ -434,5 +440,29 @@ describe("default project selection", () => {
         "last-used:project",
       ),
     ).toEqual({ environmentId: "first", projectId: "project" });
+  });
+});
+
+describe("useNewThreadHandler with an explicit checkout", () => {
+  it("moves an empty same-repo draft from another machine onto the requested checkout", async () => {
+    testState.reset({
+      draftId: "draft-existing",
+      environmentId: "environment-ssh",
+      promotedTo: null,
+      threadId: "thread-existing",
+    });
+
+    const opened = await useNewThreadHandler()({
+      environmentId: "environment-primary",
+      projectId: "project-local",
+    } as never);
+
+    expect(opened).toEqual({ draftId: "draft-existing", threadId: "thread-existing" });
+    expect(testState.draftStore.setLogicalProjectDraftThreadId).toHaveBeenCalledWith(
+      "remote-project",
+      { environmentId: "environment-primary", projectId: "project-local" },
+      "draft-existing",
+      expect.objectContaining({ threadId: "thread-existing" }),
+    );
   });
 });
