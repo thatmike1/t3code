@@ -1,4 +1,4 @@
-import type { EnvironmentId, SidebarProjectSortOrder } from "@t3tools/contracts";
+import type { ContextMenuItem, EnvironmentId, SidebarProjectSortOrder } from "@t3tools/contracts";
 
 export const OTHER_PROJECTS_TOGGLE_VALUE = "\0other-projects";
 
@@ -159,4 +159,86 @@ export function toggleSidebarMachineFilter(input: {
   if (next.length === 0) return input.selected;
   const all = new Set(input.allEnvironmentIds);
   return next.length >= all.size && [...all].every((id) => next.includes(id)) ? null : next;
+}
+
+export interface HomeProjectPreference {
+  // physical project key: one exact checkout on one machine.
+  readonly key: string;
+  // shown when that checkout cannot be reached, since its project is unknown then.
+  readonly label: string;
+}
+
+export type HomeProjectResolution<TProject> =
+  | { readonly status: "unset" }
+  | { readonly status: "ready"; readonly project: TProject }
+  | { readonly status: "offline"; readonly project: TProject }
+  | { readonly status: "missing"; readonly label: string };
+
+// never falls back to another project: a missing home is reported, not guessed.
+export function resolveHomeProject<
+  TProject extends { readonly environmentId: EnvironmentId },
+>(input: {
+  readonly home: HomeProjectPreference | null;
+  readonly projects: readonly TProject[];
+  readonly projectKey: (project: TProject) => string;
+  readonly connectedEnvironmentIds: ReadonlyArray<EnvironmentId>;
+}): HomeProjectResolution<TProject> {
+  const { home } = input;
+  if (home === null) return { status: "unset" };
+  const project = input.projects.find((candidate) => input.projectKey(candidate) === home.key);
+  if (project === undefined) return { status: "missing", label: home.label };
+  return input.connectedEnvironmentIds.includes(project.environmentId)
+    ? { status: "ready", project }
+    : { status: "offline", project };
+}
+
+export const CLEAR_HOME_PROJECT_ITEM_ID = "home:clear";
+
+export function homeProjectMenuItemId(physicalProjectKey: string): string {
+  return `home:set:${physicalProjectKey}`;
+}
+
+// a grouped repo has one checkout per machine, so home names which one; this
+// machine's checkout comes first and nothing is picked on the user's behalf.
+export function buildHomeProjectMenuItems(input: {
+  readonly members: ReadonlyArray<{
+    readonly physicalProjectKey: string;
+    readonly environmentId: EnvironmentId;
+    readonly environmentLabel: string | null;
+  }>;
+  readonly homeKey: string | null;
+  readonly primaryEnvironmentId: EnvironmentId | null;
+}): ContextMenuItem<string>[] {
+  const isHome = input.members.some((member) => member.physicalProjectKey === input.homeKey);
+  const clear: ContextMenuItem<string>[] = isHome
+    ? [{ id: CLEAR_HOME_PROJECT_ITEM_ID, label: "Clear home project" }]
+    : [];
+  const [onlyMember] = input.members;
+  if (input.members.length === 1 && onlyMember) {
+    return isHome
+      ? clear
+      : [
+          {
+            id: homeProjectMenuItemId(onlyMember.physicalProjectKey),
+            label: "Set as home project",
+          },
+        ];
+  }
+  const members = input.members.toSorted(
+    (left, right) =>
+      Number(right.environmentId === input.primaryEnvironmentId) -
+      Number(left.environmentId === input.primaryEnvironmentId),
+  );
+  return [
+    {
+      id: "home:choose",
+      label: "Set as home project",
+      children: members.map((member) => ({
+        id: homeProjectMenuItemId(member.physicalProjectKey),
+        label: member.environmentLabel ?? member.physicalProjectKey,
+        checked: member.physicalProjectKey === input.homeKey,
+      })),
+    },
+    ...clear,
+  ];
 }

@@ -3,6 +3,7 @@ import { type EnvironmentId, PullRequestMergeMethod } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import { create } from "zustand";
 import { normalizeProjectPathForComparison } from "@t3tools/client-runtime/state/projects";
+import type { HomeProjectPreference } from "./sidebarProjectPreferences";
 
 export const PERSISTED_STATE_KEY = "t3code:ui-state:v1";
 const LEGACY_PERSISTED_STATE_KEYS = [
@@ -29,6 +30,7 @@ export interface PersistedUiState {
   sidebarProjectScopeKey?: string | null;
   sidebarProjectScopeKeys?: string[];
   favouriteProjectKeys?: string[];
+  homeProject?: HomeProjectPreference | null;
   pullRequestMergeMethod?: string;
 }
 
@@ -39,6 +41,7 @@ export interface UiProjectState {
   // physical project keys (environment + normalized root), so a favourite
   // survives grouping changes and a machine going offline.
   favouriteProjectKeys: string[];
+  homeProject: HomeProjectPreference | null;
   // transient: the sidebar machine filter resets on reload and is never persisted.
   sidebarMachineFilter: readonly EnvironmentId[] | null;
 }
@@ -63,6 +66,7 @@ const initialState: UiState = {
   projectOrder: [],
   sidebarProjectScopeKeys: [],
   favouriteProjectKeys: [],
+  homeProject: null,
   sidebarMachineFilter: null,
   threadLastVisitedAtById: {},
   defaultAdvertisedEndpointKey: null,
@@ -120,6 +124,14 @@ function sanitizeTimestampRecord(value: unknown): Record<string, string> {
   );
 }
 
+function sanitizeHomeProject(value: unknown): HomeProjectPreference | null {
+  if (!value || typeof value !== "object") return null;
+  const { key, label } = value as Record<string, unknown>;
+  return typeof key === "string" && key.length > 0 && typeof label === "string"
+    ? { key, label }
+    : null;
+}
+
 export function parsePersistedState(parsed: PersistedUiState): UiState {
   const projectExpandedById =
     parsed.projectExpandedById === undefined
@@ -153,6 +165,7 @@ export function parsePersistedState(parsed: PersistedUiState): UiState {
       parsed.sidebarProjectScopeKeys ?? [parsed.sidebarProjectScopeKey],
     ),
     favouriteProjectKeys: sanitizeStringArray(parsed.favouriteProjectKeys),
+    homeProject: sanitizeHomeProject(parsed.homeProject),
     sidebarMachineFilter: null,
     pullRequestMergeMethod: isPullRequestMergeMethod(parsed.pullRequestMergeMethod)
       ? parsed.pullRequestMergeMethod
@@ -201,6 +214,7 @@ export function persistState(state: UiState): void {
             ? (state.sidebarProjectScopeKeys[0] ?? null)
             : null,
         favouriteProjectKeys: state.favouriteProjectKeys,
+        homeProject: state.homeProject,
         pullRequestMergeMethod: state.pullRequestMergeMethod,
       } satisfies PersistedUiState),
     );
@@ -306,6 +320,16 @@ export function setProjectsFavourite(
   return { ...state, favouriteProjectKeys };
 }
 
+function setHomeProject(state: UiState, homeProject: HomeProjectPreference | null): UiState {
+  if (
+    state.homeProject?.key === homeProject?.key &&
+    state.homeProject?.label === homeProject?.label
+  ) {
+    return state;
+  }
+  return { ...state, homeProject };
+}
+
 function setSidebarMachineFilter(
   state: UiState,
   environmentIds: readonly EnvironmentId[] | null,
@@ -404,6 +428,7 @@ interface UiStateStore extends UiState {
   setSidebarProjectScopeKeys: (projectKeys: readonly string[]) => void;
   setProjectsFavourite: (projectKeys: readonly string[], favourite: boolean) => void;
   setSidebarMachineFilter: (environmentIds: readonly EnvironmentId[] | null) => void;
+  setHomeProject: (homeProject: HomeProjectPreference | null) => void;
   setPullRequestMergeMethod: (method: PullRequestMergeMethod) => void;
   setProjectExpanded: (projectIds: string | readonly string[], expanded: boolean) => void;
   reorderProjects: (
@@ -427,6 +452,7 @@ export const useUiStateStore = create<UiStateStore>((set) => ({
     set((state) => setProjectsFavourite(state, projectKeys, favourite)),
   setSidebarMachineFilter: (environmentIds) =>
     set((state) => setSidebarMachineFilter(state, environmentIds)),
+  setHomeProject: (homeProject) => set((state) => setHomeProject(state, homeProject)),
   setPullRequestMergeMethod: (method) => set((state) => setPullRequestMergeMethod(state, method)),
   setProjectExpanded: (projectIds, expanded) =>
     set((state) => setProjectExpanded(state, projectIds, expanded)),

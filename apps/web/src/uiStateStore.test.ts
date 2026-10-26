@@ -22,6 +22,7 @@ function makeUiState(overrides: Partial<UiState> = {}): UiState {
     projectOrder: [],
     sidebarProjectScopeKeys: [],
     favouriteProjectKeys: [],
+    homeProject: null,
     sidebarMachineFilter: null,
     threadLastVisitedAtById: {},
     defaultAdvertisedEndpointKey: null,
@@ -113,6 +114,20 @@ describe("setProjectsFavourite", () => {
 });
 
 describe("parsePersistedState", () => {
+  it("ignores a malformed home project", () => {
+    expect(parsePersistedState({}).homeProject).toBeNull();
+    expect(
+      parsePersistedState({
+        homeProject: { key: "", label: "x" },
+      }).homeProject,
+    ).toBeNull();
+    expect(
+      parsePersistedState({
+        homeProject: "env:/repo" as unknown as NonNullable<PersistedUiState["homeProject"]>,
+      }).homeProject,
+    ).toBeNull();
+  });
+
   it("drops malformed and duplicate favourite keys, defaulting to none", () => {
     expect(parsePersistedState({}).favouriteProjectKeys).toEqual([]);
     expect(
@@ -147,6 +162,7 @@ describe("parsePersistedState", () => {
       defaultAdvertisedEndpointKey: "desktop-core:lan:http",
       sidebarProjectScopeKeys: [],
       favouriteProjectKeys: [],
+      homeProject: null,
       sidebarMachineFilter: null,
       pullRequestMergeMethod: "merge",
     });
@@ -236,6 +252,7 @@ describe("uiStateStore persistence", () => {
       sidebarProjectScopeKeys: [],
       sidebarProjectScopeKey: null,
       favouriteProjectKeys: [],
+      homeProject: null,
       pullRequestMergeMethod: "merge",
     });
     expect(parsePersistedState(persisted)).toEqual({
@@ -259,6 +276,17 @@ describe("uiStateStore persistence", () => {
     const restored = parsePersistedState(persisted);
     expect(restored.favouriteProjectKeys).toEqual(["env-local:/repo/a", "env-vps:/srv/a"]);
     expect(restored.sidebarMachineFilter).toBeNull();
+  });
+
+  it("keeps the home project across reloads", () => {
+    const homeProject = { key: "env-local:/git/ccchat", label: "ccChat on Desktop" };
+    persistState(makeUiState({ homeProject }));
+
+    const persisted = JSON.parse(
+      localStorageStub.getItem(PERSISTED_STATE_KEY) ?? "{}",
+    ) as PersistedUiState;
+
+    expect(parsePersistedState(persisted).homeProject).toEqual(homeProject);
   });
 
   it("restores the sidebar project scope across reloads", () => {

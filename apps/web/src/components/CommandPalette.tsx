@@ -71,6 +71,7 @@ import {
   FolderIcon,
   FolderPlusIcon,
   MessageSquareDashedIcon,
+  HouseIcon,
   LinkIcon,
   MessageSquareIcon,
   PaletteIcon,
@@ -134,6 +135,7 @@ import { useScratchProject } from "../hooks/useScratchProject";
 import { useWorkflowEnvironmentIds } from "./workflows/useWorkflowEnvironmentIds";
 import { useStartTriage } from "../hooks/useStartTriage";
 import { pickTriageEnvironment } from "../lib/triageTarget";
+import { useStartHomeThread } from "../hooks/useHomeProject";
 import { useNewProject } from "../hooks/useNewProject";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
 import { reportProjectFailure, useProjectPin } from "../hooks/useProjectGroupUpdate";
@@ -488,6 +490,7 @@ function OpenCommandPaletteDialog(props: {
   });
   const { scratchEnvironmentId, scratchWorkspaceRootFor, startScratchThread } = useScratchProject();
   const startTriage = useStartTriage();
+  const { homeProject, startHomeThread } = useStartHomeThread();
   const lookupRepository = useAtomQueryRunner(sourceControlEnvironment.repository, {
     reportFailure: false,
   });
@@ -1381,6 +1384,26 @@ function OpenCommandPaletteDialog(props: {
         },
       });
     }
+
+    actionItems.push({
+      kind: "action",
+      value: "action:new-thread-in-home",
+      searchTerms: ["new thread", "home", "home project", "chat"],
+      title:
+        homeProject === null ? (
+          "New thread in home project"
+        ) : (
+          <>
+            New thread in home project{" "}
+            <span className="font-semibold">
+              {homeProject.status === "missing" ? homeProject.label : homeProject.project.title}
+            </span>
+          </>
+        ),
+      icon: <HouseIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "chat.newHome",
+      run: startHomeThread,
+    });
 
     actionItems.push({
       kind: "submenu",
@@ -2722,6 +2745,7 @@ function OpenCommandPaletteDialog(props: {
       event.keyCode !== 229 &&
       (command === "chat.new" ||
         command === "chat.newLocal" ||
+        command === "chat.newHome" ||
         command === "chat.newWithoutProject");
     const matchingItem =
       isJump || isNewThread
