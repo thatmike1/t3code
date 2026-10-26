@@ -72,6 +72,7 @@ export interface DraftState {
   /** The stored ISO run time, sent back unchanged when the field was not edited. */
   readonly savedRunAt: string;
   readonly weekdays: ReadonlySet<number>;
+  readonly catchUpToday: boolean;
   readonly projectId: string;
   readonly threadId: string;
   readonly threadMode: ScheduledTaskThreadMode;
@@ -235,6 +236,7 @@ export function scheduleFromDraft(draft: DraftState): ScheduledTaskUpsertSchedul
     type: "fixed_time",
     timeOfDay: draft.timeOfDay || "09:00",
     ...(selectedEveryDay ? {} : { weekdays: [...draft.weekdays].toSorted() }),
+    ...(draft.catchUpToday ? { catchUpToday: true } : {}),
   };
 }
 
@@ -258,6 +260,7 @@ export function taskToDraft(task: ScheduledTask): DraftState {
     runAt: schedule.type === "once" ? toDateTimeLocalValue(new Date(schedule.runAt)) : "",
     savedRunAt: schedule.type === "once" ? schedule.runAt : "",
     weekdays,
+    catchUpToday: schedule.type === "fixed_time" && schedule.catchUpToday === true,
     projectId: task.projectId,
     threadId: task.threadId ?? "",
     threadMode: scheduledTaskThreadMode(task),

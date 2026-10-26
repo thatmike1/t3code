@@ -233,6 +233,38 @@ describe("one-time scheduled tasks", () => {
   });
 });
 
+describe("fixed-time catch-up", () => {
+  const fixedTask = (schedule: ScheduledTask["schedule"]): ScheduledTask => ({
+    ...legacyTask,
+    schedule,
+  });
+
+  it("keeps the flag across an edit and leaves it off by default", () => {
+    const withCatchUp = taskToDraft(
+      fixedTask({ type: "fixed_time", timeOfDay: "09:00", catchUpToday: true }),
+    );
+    expect(withCatchUp.catchUpToday).toBe(true);
+    expect(scheduleFromDraft(withCatchUp)).toEqual({
+      type: "fixed_time",
+      timeOfDay: "09:00",
+      catchUpToday: true,
+    });
+
+    const plain = taskToDraft(fixedTask({ type: "fixed_time", timeOfDay: "09:00" }));
+    expect(plain.catchUpToday).toBe(false);
+    expect(scheduleFromDraft(plain)).toEqual({ type: "fixed_time", timeOfDay: "09:00" });
+  });
+
+  it("never sends the flag with an interval schedule", () => {
+    const draft = {
+      ...taskToDraft(fixedTask({ type: "fixed_time", timeOfDay: "09:00", catchUpToday: true })),
+      scheduleMode: "interval" as const,
+      intervalMinutes: "30",
+    };
+    expect(scheduleFromDraft(draft)).toEqual({ type: "interval", everyMs: 1_800_000 });
+  });
+});
+
 describe("webhook scheduled tasks", () => {
   const signature = { header: "x-signature", encoding: "base64", prefix: "" } as const;
   const webhookTask: ScheduledTask = {

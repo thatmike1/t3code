@@ -57,7 +57,13 @@ import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as ManagedPolicy from "../policy/ManagedPolicy.ts";
 import * as DueHint from "../scheduling/DueHint.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
-import { isMissedFixedTimeRun, isSameSchedule, nextScheduledRunAt } from "./Schedule.ts";
+import {
+  catchesUpToday,
+  isMissedFixedTimeRun,
+  isSameSchedule,
+  nextCatchUpRunAt,
+  nextScheduledRunAt,
+} from "./Schedule.ts";
 import {
   redactHeaders,
   redactQuery,
@@ -308,14 +314,20 @@ function iso(value: DateTime.DateTime): string {
 
 const localNow = DateTime.withCurrentZoneLocal(DateTime.nowInCurrentZone);
 
+// Every path that writes next_run_at goes through here (save, enable, run
+// completion, release, startup recovery), so a catch-up task's slot follows
+// one rule: its last attempt decides whether today's slot is used.
 function nextRunAt(
-  task: Pick<ScheduledTask, "enabled" | "schedule">,
+  task: Pick<ScheduledTask, "enabled" | "schedule" | "lastRunAt">,
   from: DateTime.DateTime,
 ): string | null {
   if (!task.enabled) return null;
   // Decoded intervals can overflow DateTime; unrepresentable occurrences have no next run.
   try {
-    const next = nextScheduledRunAt(task.schedule, from);
+    const lastRunAt = task.lastRunAt === null ? Option.none() : DateTime.make(task.lastRunAt);
+    const next = catchesUpToday(task.schedule)
+      ? nextCatchUpRunAt(task.schedule, from, Option.getOrNull(lastRunAt))
+      : nextScheduledRunAt(task.schedule, from);
     return next !== null && Number.isFinite(DateTime.toEpochMillis(next)) ? iso(next) : null;
   } catch {
     return null;
@@ -346,9 +358,21 @@ function requireFutureOnce(
   now: DateTime.DateTime,
   taskId: ScheduledTaskId,
 ) {
-  return task.enabled && task.schedule.type === "once" && nextRunAt(task, now) === null
+  return task.enabled && task.schedule.type === "once" && nextRunAt({ ...task, lastRunAt: null }, now) === null
     ? taskError("The run time has passed. Pick a time in the future.", { taskId })
     : Effect.void;
+}
+
+// A catch-up task is due when the shared rule puts its next run at or before
+// now. A stale next_run_at from days ago then fires today's slot once instead
+// of skipping it, and a slot already used by an earlier run today does not fire.
+function isCatchUpDue(
+  task: Pick<ScheduledTask, "enabled" | "schedule" | "lastRunAt">,
+  now: DateTime.DateTime,
+): boolean {
+  if (!catchesUpToday(task.schedule)) return true;
+  const next = nextRunAt(task, now);
+  return next !== null && Date.parse(next) <= DateTime.toEpochMillis(now);
 }
 
 function errorMessage(error: unknown): string {
@@ -888,7 +912,8 @@ export const layer = Layer.effect(
           trigger === "scheduled" &&
           (!active.enabled ||
             Option.isNone(parsedNextRunAt) ||
-            DateTime.toEpochMillis(parsedNextRunAt.value) > DateTime.toEpochMillis(startedAt))
+            DateTime.toEpochMillis(parsedNextRunAt.value) > DateTime.toEpochMillis(startedAt) ||
+            !isCatchUpDue(active, startedAt))
         ) {
           return { task: active, threadId: null, dispatchFailed: false };
         }
@@ -1028,7 +1053,7 @@ export const layer = Layer.effect(
             lastRunAt: startedAtIso,
             // A manual run that starts before a one-time run must not use it up.
             nextRunAt: nextRunAt(
-              scheduleSource,
+              { ...scheduleSource, lastRunAt: startedAtIso },
               scheduleSource.schedule.type === "once" ? startedAt : completedAt,
             ),
             lastRunStatus,
@@ -1121,11 +1146,14 @@ export const layer = Layer.effect(
         missedRunAt: task.nextRunAt,
         rescheduledTo: next,
       });
+      // Matching the polled next_run_at keeps a save or run that landed since
+      // the poll from being overwritten with a slot computed from stale state.
       yield* sql`
         UPDATE scheduled_tasks
         SET next_run_at = ${next},
             updated_at = ${iso(now)}
-        WHERE task_id = ${task.id}
+        WHERE task_id = ${task.id} AND next_run_at IS ${task.nextRunAt}
+          AND last_run_status <> 'running'
       `.pipe(
         Effect.mapError((cause) =>
           taskError("Could not reschedule missed schedule task run.", { taskId: task.id, cause }),
@@ -1168,7 +1196,11 @@ export const layer = Layer.effect(
         due,
         ({ task, dueAt }) =>
           Effect.suspend(() =>
-            isMissedFixedTimeRun(task.schedule, dueAt, now)
+            (
+              catchesUpToday(task.schedule)
+                ? !isCatchUpDue(task, now)
+                : isMissedFixedTimeRun(task.schedule, dueAt, now)
+            )
               ? rescheduleMissedRun(task, now)
               : runTask(task, "scheduled"),
           ).pipe(
@@ -1428,7 +1460,10 @@ export const layer = Layer.effect(
         updatedAt: iso(now),
         nextRunAt: scheduleUnchanged
           ? existingTask.nextRunAt
-          : nextRunAt({ enabled: input.enabled, schedule }, now),
+          : nextRunAt(
+              { enabled: input.enabled, schedule, lastRunAt: existingTask?.lastRunAt ?? null },
+              now,
+            ),
         lastRunAt: existingTask?.lastRunAt ?? null,
         lastRunStatus: existingTask?.lastRunStatus ?? "never",
         lastRunError: existingTask?.lastRunError ?? null,
@@ -1469,7 +1504,7 @@ export const layer = Layer.effect(
         now,
         input.id,
       );
-      const next = nextRunAt({ enabled: input.enabled, schedule: existing.schedule }, now);
+      const next = nextRunAt({ ...existing, enabled: input.enabled }, now);
       // RETURNING so a task deleted between the load and this UPDATE is a
       // visible not-found error, not a false success.
       const updated = yield* sql<{ task_id: string }>`
