@@ -47,7 +47,15 @@ import {
   type ThreadId,
 } from "@t3tools/contracts";
 
-import { FolderIcon, ListFilterIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  FolderIcon,
+  ListFilterIcon,
+  PlusIcon,
+  SettingsIcon,
+  StarIcon,
+} from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -90,6 +98,13 @@ import {
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
 import { useUiStateStore } from "../uiStateStore";
+import {
+  buildSidebarProjectScopeMenu,
+  isFavouriteProjectGroup,
+  OTHER_PROJECTS_TOGGLE_VALUE,
+  projectGroupFavouriteKeys,
+  type SidebarProjectScopeItem,
+} from "../sidebarProjectPreferences";
 import {
   getThreadKeysToDeselectAfterDelete,
   useThreadSelectionStore,
@@ -141,7 +156,6 @@ import {
   buildBulkTitleRegenerationContextMenuItem,
   buildBulkUnpinContextMenuItem,
   deleteSelectedThreadEntries,
-  filterSidebarProjectScopeItems,
   firstValidTimestampMs,
   isSidebarInboxTimeOrdered,
   isSidebarNestedLinkClick,
@@ -211,6 +225,7 @@ import {
   type SidebarSweepAction,
 } from "./sidebar/SidebarThreadRow";
 import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
+import { SidebarMachineFilter } from "./sidebar/SidebarMachineFilter";
 import {
   SidebarDragBoundary,
   SidebarSectionHeader,
@@ -295,6 +310,7 @@ type SidebarOptimisticDrop = {
 interface SidebarThreadPartitionInput {
   readonly threads: readonly EnvironmentThreadShell[];
   readonly scopedProjectKeys: ReadonlySet<string> | null;
+  readonly scopedEnvironmentIds: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly optimisticDrop: SidebarOptimisticDrop | null;
   readonly workingShelfPolicy: SidebarWorkingShelfPolicy;
@@ -358,12 +374,19 @@ function useSidebarThreads(input: {
   readonly workingShelfPolicy: SidebarWorkingShelfPolicy;
   readonly projectScopeKey: string | null;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
+  readonly scopedEnvironmentIds: ReadonlySet<string> | null;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly optimisticDrop: SidebarOptimisticDrop | null;
   readonly routeThreadRef: ScopedThreadRef | null;
 }) {
-  const { projectScopeKey, scopedProjectKeys, serverConfigs, optimisticDrop, routeThreadRef } =
-    input;
+  const {
+    projectScopeKey,
+    scopedProjectKeys,
+    scopedEnvironmentIds,
+    serverConfigs,
+    optimisticDrop,
+    routeThreadRef,
+  } = input;
   const threads = useQuietThreadShells();
   const routeRowThreadKey =
     routeThreadRef === null
@@ -403,20 +426,24 @@ function useSidebarThreads(input: {
     false,
     Schema.Boolean,
   );
-  // The settled tail restarts whenever the project scope changes.
+  // The settled tail restarts whenever the project or machine scope changes.
+  const tailScopeKey = `${projectScopeKey ?? ""}\0${
+    scopedEnvironmentIds === null ? "" : [...scopedEnvironmentIds].toSorted().join(",")
+  }`;
   const [settledTail, setSettledTail] = useState({
-    scopeKey: projectScopeKey,
+    scopeKey: tailScopeKey,
     count: SETTLED_TAIL_INITIAL_COUNT,
   });
-  if (settledTail.scopeKey !== projectScopeKey) {
-    setSettledTail({ scopeKey: projectScopeKey, count: SETTLED_TAIL_INITIAL_COUNT });
+  if (settledTail.scopeKey !== tailScopeKey) {
+    setSettledTail({ scopeKey: tailScopeKey, count: SETTLED_TAIL_INITIAL_COUNT });
   }
   const settledVisibleCount =
-    settledTail.scopeKey === projectScopeKey ? settledTail.count : SETTLED_TAIL_INITIAL_COUNT;
+    settledTail.scopeKey === tailScopeKey ? settledTail.count : SETTLED_TAIL_INITIAL_COUNT;
 
   const partition = partitionSidebarThreads({
     threads,
     scopedProjectKeys,
+    scopedEnvironmentIds,
     serverConfigs,
     optimisticDrop,
     workingShelfPolicy,
@@ -508,10 +535,17 @@ function useSidebarThreads(input: {
 }
 
 function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
-  const { threads, scopedProjectKeys, serverConfigs, optimisticDrop, workingShelfPolicy } = input;
+  const {
+    threads,
+    scopedProjectKeys,
+    scopedEnvironmentIds,
+    serverConfigs,
+    optimisticDrop,
+    workingShelfPolicy,
+  } = input;
   const inboxTimeOrdered = isSidebarInboxTimeOrdered(workingShelfPolicy);
   const preciseNow = new Date().toISOString();
-  const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys);
+  const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, scopedEnvironmentIds);
   inboxReturns.observe(inboxTimeOrdered ? threads : null);
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
@@ -697,10 +731,6 @@ function useSidebarLookups() {
   const projectGroupByScopeKey = new Map(
     projectGroups.map((project) => [project.projectKey, project] as const),
   );
-  const projectScopeItems = [
-    { value: "all", label: "All projects" },
-    ...projectGroups.map((project) => ({ value: project.projectKey, label: project.displayName })),
-  ];
   return {
     projects,
     serverConfigs,
@@ -710,7 +740,6 @@ function useSidebarLookups() {
     projectByKey,
     projectDisplayNameByKey,
     projectGroupByScopeKey,
-    projectScopeItems,
   };
 }
 
@@ -759,7 +788,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectByKey,
     projectDisplayNameByKey,
     projectGroupByScopeKey,
-    projectScopeItems,
   } = useSidebarLookups();
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -876,6 +904,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     { open: false, query: "" },
   );
   const projectScopeFilter = useComboboxFilter();
+  const favouriteProjectKeys = useUiStateStore((store) => store.favouriteProjectKeys);
+  const setProjectsFavourite = useUiStateStore((store) => store.setProjectsFavourite);
+  const [otherProjectsExpanded, setOtherProjectsExpanded] = useState(false);
   const allProjectSnapshotsReady = useAllEnvironmentProjectSnapshotsReady();
   const allProjectConfigsReady = useAtomValue(environmentProjects.projectConfigsReadyAtom);
   const headerSearchRef = useRef<HTMLDivElement | null>(null);
@@ -890,7 +921,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const threadSearchInputRef = useRef<HTMLInputElement>(null);
   const [threadSearchQuery, setThreadSearchQuery] = useState("");
   const [searchHighlight, setSearchHighlight] = useState({ orderKey: "", index: 0 });
-  const searchEnvironmentIds = useConnectedEnvironmentIds();
+  const connectedEnvironmentIds = useConnectedEnvironmentIds();
+  const machineFilter = useUiStateStore((store) => store.sidebarMachineFilter);
+  const setStoredMachineFilter = useUiStateStore((store) => store.setSidebarMachineFilter);
+  const scopedEnvironmentIds = machineFilter === null ? null : new Set<string>(machineFilter);
+  const searchEnvironmentIds =
+    scopedEnvironmentIds === null
+      ? connectedEnvironmentIds
+      : connectedEnvironmentIds.filter((environmentId) => scopedEnvironmentIds.has(environmentId));
   const threadSearch = useThreadSearch(searchEnvironmentIds, threadSearchQuery);
   const handleNewThreadRef = useRef(newThreadContext.handleNewThread);
   const queuePendingFileDrop = useSidebarPendingFileDropStore((s) => s.queuePendingFileDrop);
@@ -929,6 +967,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     clearSelection();
     setPersistedProjectScopeKey(key);
   };
+  const setMachineFilter = (environmentIds: readonly EnvironmentId[] | null) => {
+    clearSelection();
+    setStoredMachineFilter(environmentIds);
+  };
   const projectScopeKey = resolveSidebarProjectScopeKey({
     groups: projectGroups,
     key: persistedProjectScopeKey,
@@ -948,15 +990,27 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     }
     return environmentLabelById.get(thread.environmentId) ?? null;
   };
-  const selectedProjectScopeItem =
-    projectScopeItems.find((item) => item.value === (projectScopeKey ?? "all")) ??
-    projectScopeItems[0]!;
-  const filteredProjectScopeItems = filterSidebarProjectScopeItems({
-    items: projectScopeItems,
+  const favouriteKeySet = new Set(favouriteProjectKeys);
+  const projectScopeMenu = buildSidebarProjectScopeMenu({
+    groups: projectGroups,
+    favouriteKeys: favouriteKeySet,
+    otherExpanded: otherProjectsExpanded,
+    selectedKey: projectScopeKey,
     query: projectScopeMenuState.query,
     matches: (item, query) =>
       projectScopeFilter.contains(item, query, (candidate) => candidate.label),
   });
+  const projectScopeItems = projectScopeMenu.items;
+  const filteredProjectScopeItems = projectScopeMenu.visibleItems;
+  const selectedProjectScopeItem =
+    projectScopeItems.find((item) => item.value === (projectScopeKey ?? "all")) ??
+    projectScopeItems[0]!;
+  const toggleProjectFavourite = (projectGroup: SidebarProjectSnapshot) => {
+    setProjectsFavourite(
+      projectGroupFavouriteKeys(projectGroup),
+      !isFavouriteProjectGroup(projectGroup, favouriteKeySet),
+    );
+  };
   const scopedProjectGroup =
     projectScopeKey === null
       ? null
@@ -1005,6 +1059,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       ) {
         continue;
       }
+      if (scopedEnvironmentIds !== null && !scopedEnvironmentIds.has(session.environmentId)) {
+        continue;
+      }
       count += 1;
     }
     return count;
@@ -1038,6 +1095,51 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       suppressNextScopeChangeRef.current = true;
       dispatchProjectScopeMenu({ type: "project-settings-opened" });
       openProjectSettings(projectGroup);
+    },
+  );
+  // Right-click, the context-menu key or Shift+F10 on a picker row: the
+  // keyboard path to the row's star and gear buttons.
+  const handleProjectScopeContextMenu = useStableCallback(
+    async (
+      event: ReactMouseEvent<HTMLElement> | ReactKeyboardEvent<HTMLInputElement>,
+      projectGroup: SidebarProjectSnapshot,
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+      suppressNextScopeChangeRef.current = true;
+      dispatchProjectScopeMenu({ type: "project-settings-opened" });
+      const api = readLocalApi();
+      if (!api) {
+        openProjectSettings(projectGroup);
+        return;
+      }
+      const anchor = headerSearchRef.current?.getBoundingClientRect();
+      const position =
+        "clientX" in event
+          ? { x: event.clientX, y: event.clientY }
+          : { x: anchor?.left ?? 0, y: anchor?.bottom ?? 0 };
+      const favourite = isFavouriteProjectGroup(projectGroup, favouriteKeySet);
+      const clicked = await settlePromise(() =>
+        api.contextMenu.show(
+          [
+            {
+              id: "toggle-favourite",
+              label: favourite ? "Remove from favourites" : "Add to favourites",
+            },
+            { id: "project-settings", label: "Project settings", separatorBefore: true },
+          ] as const,
+          position,
+        ),
+      );
+      if (clicked._tag === "Failure") return;
+      switch (clicked.value) {
+        case "toggle-favourite":
+          toggleProjectFavourite(projectGroup);
+          return;
+        case "project-settings":
+          openProjectSettings(projectGroup);
+          return;
+      }
     },
   );
 
@@ -1078,6 +1180,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     workingShelfPolicy,
     projectScopeKey,
     scopedProjectKeys,
+    scopedEnvironmentIds,
     serverConfigs,
     optimisticDrop,
     routeThreadRef,
@@ -1098,6 +1201,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     if (revealKey === null) return;
     const thread = threads.find((candidate) => threadShellKey(candidate) === revealKey);
     if (thread === undefined) return;
+    // The machine filter is a deliberate, temporary choice; a thread it hides
+    // stays open in the main view without widening it.
+    if (
+      scopedEnvironmentIds !== null &&
+      filterSidebarV2VisibleThreads([thread], null, scopedEnvironmentIds).length === 0
+    ) {
+      completeSidebarRouteReveal(routeReveal);
+      mountRevealOwed.current = false;
+      return;
+    }
     if (
       pendingKey !== null &&
       scopedProjectKeys !== null &&
@@ -2672,15 +2785,20 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             <SidebarThreadHeader
               searchFieldRef={headerSearchRef}
               hasProjects={projectGroups.length > 0}
+              machineScope={
+                <SidebarMachineFilter selected={machineFilter} onChange={setMachineFilter} />
+              }
               projectScope={
-                <Combobox
+                <Combobox<SidebarProjectScopeItem>
                   items={projectScopeItems}
                   filteredItems={filteredProjectScopeItems}
                   autoHighlight
                   itemToStringLabel={(item) => item.label}
                   isItemEqualToValue={(a, b) => a.value === b.value}
                   open={projectScopeMenuState.open}
-                  onOpenChange={(open) => {
+                  onOpenChange={(open, eventDetails) => {
+                    // the Other projects row folds the list without closing it.
+                    if (eventDetails.isCanceled) return;
                     if (open) suppressNextScopeChangeRef.current = false;
                     dispatchProjectScopeMenu({ type: "open-changed", open });
                   }}
@@ -2688,12 +2806,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     highlightedProjectScopeKeyRef.current = item?.value ?? null;
                   }}
                   value={selectedProjectScopeItem}
-                  onValueChange={(item) => {
+                  onValueChange={(item, eventDetails) => {
                     if (suppressNextScopeChangeRef.current) {
                       suppressNextScopeChangeRef.current = false;
                       return;
                     }
                     if (!item) return;
+                    if (item.value === OTHER_PROJECTS_TOGGLE_VALUE) {
+                      eventDetails.cancel();
+                      setOtherProjectsExpanded((expanded) => !expanded);
+                      return;
+                    }
                     setProjectScopeKey(item.value === "all" ? null : item.value);
                   }}
                 >
@@ -2738,7 +2861,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         }
                         const scopeKey = highlightedProjectScopeKeyRef.current;
                         const project = scopeKey ? projectGroupByScopeKey.get(scopeKey) : null;
-                        if (project) handleProjectSettings(event, project);
+                        if (project) void handleProjectScopeContextMenu(event, project);
                       }}
                       onChange={(event) =>
                         dispatchProjectScopeMenu({
@@ -2750,14 +2873,34 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     <ComboboxEmpty>No matching projects.</ComboboxEmpty>
                     <ComboboxList>
                       {(item: (typeof projectScopeItems)[number]) => {
+                        if (item.kind === "other-toggle") {
+                          return (
+                            <ComboboxItem
+                              key={item.value}
+                              hideIndicator
+                              value={item}
+                              aria-expanded={item.expanded}
+                            >
+                              {item.expanded ? (
+                                <ChevronDownIcon className="size-4 shrink-0" />
+                              ) : (
+                                <ChevronRightIcon className="size-4 shrink-0" />
+                              )}
+                              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                                {item.label}
+                              </span>
+                            </ComboboxItem>
+                          );
+                        }
                         const project = projectGroupByScopeKey.get(item.value) ?? null;
+                        const favourite = item.kind === "project" && item.favourite;
                         return (
                           <ComboboxItem
                             key={item.value}
                             hideIndicator
                             value={item}
                             onContextMenu={(event) => {
-                              if (project) handleProjectSettings(event, project);
+                              if (project) void handleProjectScopeContextMenu(event, project);
                             }}
                           >
                             {project ? (
@@ -2774,13 +2917,43 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               />
                             ) : null}
                             {project ? (
+                              <span
+                                className={cn(
+                                  "ml-auto flex",
+                                  !favourite &&
+                                    "opacity-0 in-data-highlighted:opacity-100 in-[[data-slot=combobox-item]:hover]:opacity-100",
+                                )}
+                              >
+                                <Button
+                                  size="icon-xs"
+                                  variant="ghost-muted"
+                                  tabIndex={-1}
+                                  aria-hidden="true"
+                                  title={
+                                    favourite
+                                      ? `Remove ${project.displayName} from favourites`
+                                      : `Add ${project.displayName} to favourites`
+                                  }
+                                  onPointerDown={(event) => event.stopPropagation()}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    toggleProjectFavourite(project);
+                                  }}
+                                >
+                                  <StarIcon
+                                    className={cn("size-3.5", favourite && "fill-current")}
+                                  />
+                                </Button>
+                              </span>
+                            ) : null}
+                            {project ? (
                               <Button
                                 size="icon-xs"
                                 variant="ghost-muted"
                                 tabIndex={-1}
                                 aria-hidden="true"
                                 title={`Project settings for ${project.displayName}`}
-                                className="ml-auto"
                                 onPointerDown={(event) => event.stopPropagation()}
                                 onClick={(event) => {
                                   void handleProjectSettings(event, project);
@@ -3034,6 +3207,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           projectByKey={projectByKey}
                           projectDisplayNameByKey={projectDisplayNameByKey}
                           scopedProjectKeys={scopedProjectKeys}
+                          scopedEnvironmentIds={scopedEnvironmentIds}
                           routeDraftId={routeDraftIdForRows}
                           onNavigateToDraft={navigateToDraft}
                           onDraftContextMenu={handleDraftContextMenu}

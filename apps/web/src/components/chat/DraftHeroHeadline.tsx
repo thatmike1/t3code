@@ -13,6 +13,9 @@ import { primaryServerKeybindingsAtom } from "~/state/server";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useScratchProject } from "~/hooks/useScratchProject";
 import { useClientSettings } from "~/hooks/useSettings";
+import { useEffectiveSidebarProjectSortOrder } from "~/hooks/useSidebarProjectGroups";
+import { orderFavouriteProjectGroupsFirst } from "~/sidebarProjectPreferences";
+import { useUiStateStore } from "~/uiStateStore";
 import { hasExplicitComposerModelSelection } from "~/lib/chatThreadActions";
 import {
   deriveLogicalProjectKeyFromSettings,
@@ -67,7 +70,8 @@ export function DraftHeroHeadline({
   const { environments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
-  const projectSortOrder = useClientSettings((settings) => settings.sidebarProjectSortOrder);
+  const projectSortOrder = useEffectiveSidebarProjectSortOrder();
+  const favouriteProjectKeys = useUiStateStore((store) => store.favouriteProjectKeys);
   const setLogicalProjectDraftThreadId = useComposerDraftStore(
     (store) => store.setLogicalProjectDraftThreadId,
   );
@@ -85,15 +89,18 @@ export function DraftHeroHeadline({
   const environmentLabelById = new Map(
     environments.map((environment) => [environment.environmentId, environment.label] as const),
   );
-  const projectGroups = sortLogicalProjectsForSidebar(
-    buildSidebarProjectSnapshots({
-      projects,
-      settings: projectGroupingSettings,
-      primaryEnvironmentId,
-      resolveEnvironmentLabel: (environmentId) => environmentLabelById.get(environmentId) ?? null,
-    }),
-    threads,
-    projectSortOrder,
+  const projectGroups = orderFavouriteProjectGroupsFirst(
+    sortLogicalProjectsForSidebar(
+      buildSidebarProjectSnapshots({
+        projects,
+        settings: projectGroupingSettings,
+        primaryEnvironmentId,
+        resolveEnvironmentLabel: (environmentId) => environmentLabelById.get(environmentId) ?? null,
+      }),
+      threads,
+      projectSortOrder,
+    ),
+    new Set(favouriteProjectKeys),
   );
   const showProjectEnvironments = projectGroupsSpanEnvironments(projectGroups);
   const environmentMachineById = new Map(

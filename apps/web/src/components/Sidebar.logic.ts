@@ -548,11 +548,16 @@ export function filterSidebarV2VisibleThreads<
     environmentId: string;
     projectId: string;
   },
->(threads: readonly T[], scopedProjectKeys: ReadonlySet<string> | null): T[] {
+>(
+  threads: readonly T[],
+  scopedProjectKeys: ReadonlySet<string> | null,
+  scopedEnvironmentIds: ReadonlySet<string> | null = null,
+): T[] {
   return threads.filter(
     (thread) =>
       thread.archivedAt === null &&
       !isSidebarSubagentThread(thread) &&
+      (scopedEnvironmentIds === null || scopedEnvironmentIds.has(thread.environmentId)) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );
@@ -1056,16 +1061,6 @@ export function pullRequestMatchesSearchQuery(
   if (normalizedQuery.length === 0) return false;
   const haystack = normalizeSearchText(threadPullRequestSearchTerms(pullRequest).join(" "));
   return normalizedQuery.split(" ").every((token) => haystack.includes(token));
-}
-
-export function filterSidebarProjectScopeItems<TItem extends { readonly value: string }>(input: {
-  items: readonly TItem[];
-  query: string;
-  matches: (item: TItem, query: string) => boolean;
-}): readonly TItem[] {
-  const query = input.query.trim();
-  if (query.length === 0) return input.items;
-  return input.items.filter((item) => item.value !== "all" && input.matches(item, query));
 }
 
 export interface SidebarProjectScopeMenuState {

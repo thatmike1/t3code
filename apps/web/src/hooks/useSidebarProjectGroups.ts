@@ -3,8 +3,14 @@ import { getProjectOrderKey, selectProjectGroupingSettings } from "../logicalPro
 import { buildSidebarProjectSnapshots } from "../sidebarProjectGrouping";
 import { useEnvironmentIdentities, usePrimaryEnvironmentId } from "../state/environments";
 import { useProjects, useQuietThreadShells } from "../state/entities";
+import { resolveEffectiveSidebarProjectSortOrder } from "../sidebarProjectPreferences";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
-import { useClientSettings } from "./useSettings";
+import { useClientSettings, useLegacySidebarEnabled } from "./useSettings";
+
+export function useEffectiveSidebarProjectSortOrder() {
+  const sortOrder = useClientSettings((s) => s.sidebarProjectSortOrder);
+  return resolveEffectiveSidebarProjectSortOrder(sortOrder, useLegacySidebarEnabled());
+}
 
 export function useSidebarProjectGroups() {
   const projects = useProjects();
@@ -12,7 +18,7 @@ export function useSidebarProjectGroups() {
   // real change; reading every tick re-rendered the whole sidebar with it.
   const threads = useQuietThreadShells();
   const projectOrder = useUiStateStore((store) => store.projectOrder);
-  const sortOrder = useClientSettings((s) => s.sidebarProjectSortOrder);
+  const sortOrder = useEffectiveSidebarProjectSortOrder();
   const groupingSettings = useClientSettings(selectProjectGroupingSettings);
   const environments = useEnvironmentIdentities();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
