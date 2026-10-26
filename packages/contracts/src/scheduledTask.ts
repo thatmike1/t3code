@@ -43,6 +43,10 @@ const ScheduledTaskFixedTimeSchedule = Schema.Struct({
       description: "Default: every day.",
     }),
   ),
+  catchUpToday: Schema.optional(Schema.Boolean).annotate({
+    description:
+      "True runs a slot missed earlier the same local day once; any run that day uses it up. Default false.",
+  }),
 });
 
 const ISO_WITH_OFFSET =

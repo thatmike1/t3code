@@ -65,6 +65,10 @@ export function scheduleLabel(
       ? resolve(msg("Every {minutes} min", { minutes }))
       : resolve(msg("Every {seconds} sec", { seconds: Math.round(schedule.everyMs / 1000) }));
   }
+  if (schedule.catchUpToday) {
+    const label = scheduleLabel({ ...schedule, catchUpToday: false }, timeZone, runAt, resolve, locale);
+    return resolve(msg("{label}, catches up", { label }));
+  }
   const weekdays = schedule.weekdays ?? [];
   const time = formatTimeOfDay(schedule.timeOfDay, timestampFormat);
   const zone = scheduleTimeZoneLabel(timeZone, runAt);
@@ -127,6 +131,7 @@ export interface DraftState {
   /** The stored ISO run time, sent back unchanged when the field was not edited. */
   readonly savedRunAt: string;
   readonly weekdays: ReadonlySet<number>;
+  readonly catchUpToday: boolean;
   readonly projectId: string;
   readonly threadId: string;
   /** The thread the form opened with, so a save can tell a cleared destination from an unbound one. */
@@ -305,6 +310,7 @@ export function scheduleFromDraft(draft: DraftState): ScheduledTaskUpsertSchedul
     type: "fixed_time",
     timeOfDay: draft.timeOfDay,
     ...(selectedEveryDay ? {} : { weekdays: [...draft.weekdays].toSorted() }),
+    ...(draft.catchUpToday ? { catchUpToday: true } : {}),
   };
 }
 
@@ -328,6 +334,7 @@ export function taskToDraft(task: ScheduledTask): DraftState {
     runAt: schedule.type === "once" ? toDateTimeLocalValue(new Date(schedule.runAt)) : "",
     savedRunAt: schedule.type === "once" ? schedule.runAt : "",
     weekdays,
+    catchUpToday: schedule.type === "fixed_time" && schedule.catchUpToday === true,
     projectId: task.projectId,
     threadId: task.threadId ?? "",
     savedThreadId: task.threadId ?? "",
