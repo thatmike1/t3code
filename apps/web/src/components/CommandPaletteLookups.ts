@@ -6,6 +6,7 @@ import {
 
 import { isDesktopLocalConnectionTarget } from "../connection/desktopLocal";
 import { useClientSettings } from "../hooks/useSettings";
+import { useEffectiveSidebarProjectSortOrder } from "../hooks/useSidebarProjectGroups";
 import { getProjectOrderKey } from "@t3tools/client-runtime/state/project-grouping";
 import { useProjects, useVisibleThreadShells } from "../state/entities";
 import { useEnvironments, usePrimaryEnvironmentId } from "../state/environments";
@@ -49,7 +50,6 @@ export function useProjectLookups() {
 export const selectCommandPaletteClientSettings = (settings: ClientSettings) => ({
   sidebarProjectGroupingMode: settings.sidebarProjectGroupingMode,
   sidebarProjectGroupingOverrides: settings.sidebarProjectGroupingOverrides,
-  sidebarProjectSortOrder: settings.sidebarProjectSortOrder,
   sidebarThreadSortOrder: settings.sidebarThreadSortOrder,
 });
 
@@ -58,6 +58,7 @@ export function useSortedProjectGroups(environmentLabelById: ReadonlyMap<Environ
   const threads = useVisibleThreadShells();
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const clientSettings = useClientSettings(selectCommandPaletteClientSettings);
+  const sortOrder = useEffectiveSidebarProjectSortOrder();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const projectGroupingSettings = {
     sidebarProjectGroupingMode: clientSettings.sidebarProjectGroupingMode,
@@ -73,14 +74,10 @@ export function useSortedProjectGroups(environmentLabelById: ReadonlyMap<Environ
     ],
   });
   const unsortedProjectGroups = buildSidebarProjectSnapshots({
-    projects: clientSettings.sidebarProjectSortOrder === "manual" ? orderedProjects : projects,
+    projects: sortOrder === "manual" ? orderedProjects : projects,
     settings: projectGroupingSettings,
     primaryEnvironmentId,
     resolveEnvironmentLabel: (environmentId) => environmentLabelById.get(environmentId) ?? null,
   });
-  return sortLogicalProjectsForSidebar(
-    unsortedProjectGroups,
-    threads,
-    clientSettings.sidebarProjectSortOrder,
-  );
+  return sortLogicalProjectsForSidebar(unsortedProjectGroups, threads, sortOrder);
 }

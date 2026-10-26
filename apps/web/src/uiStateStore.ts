@@ -1,5 +1,5 @@
 import { Debouncer } from "@tanstack/react-pacer";
-import type { PullRequestMergeMethod } from "@t3tools/contracts";
+import type { EnvironmentId, PullRequestMergeMethod } from "@t3tools/contracts";
 import { create } from "zustand";
 import { normalizeProjectPathForComparison } from "@t3tools/client-runtime/state/projects";
 
@@ -28,6 +28,7 @@ export interface PersistedUiState {
   defaultAdvertisedEndpointKey?: string | null;
   sidebarProjectScopeKey?: string | null;
   sidebarProjectScopeKeys?: string[];
+  favouriteProjectKeys?: string[];
   threadChangedFilesExpansionVersion?: number;
   threadChangedFilesExpandedById?: Record<string, Record<string, boolean>>;
   pullRequestMergeMethod?: string;
@@ -37,6 +38,11 @@ export interface UiProjectState {
   projectExpandedById: Record<string, boolean>;
   projectOrder: string[];
   sidebarProjectScopeKeys: string[];
+  // physical project keys (environment + normalized root), so a favourite
+  // survives grouping changes and a machine going offline.
+  favouriteProjectKeys: string[];
+  // transient: the sidebar machine filter resets on reload and is never persisted.
+  sidebarMachineFilter: readonly EnvironmentId[] | null;
 }
 
 export interface UiThreadState {
@@ -59,6 +65,8 @@ const initialState: UiState = {
   projectExpandedById: {},
   projectOrder: [],
   sidebarProjectScopeKeys: [],
+  favouriteProjectKeys: [],
+  sidebarMachineFilter: null,
   threadLastVisitedAtById: {},
   threadChangedFilesExpandedById: {},
   defaultAdvertisedEndpointKey: null,
@@ -154,6 +162,8 @@ export function parsePersistedState(parsed: PersistedUiState): UiState {
     sidebarProjectScopeKeys: sanitizeStringArray(
       parsed.sidebarProjectScopeKeys ?? [parsed.sidebarProjectScopeKey],
     ),
+    favouriteProjectKeys: sanitizeStringArray(parsed.favouriteProjectKeys),
+    sidebarMachineFilter: null,
     pullRequestMergeMethod: isPullRequestMergeMethod(parsed.pullRequestMergeMethod)
       ? parsed.pullRequestMergeMethod
       : initialState.pullRequestMergeMethod,
@@ -233,6 +243,7 @@ export function persistState(state: UiState): void {
           state.sidebarProjectScopeKeys.length === 1
             ? (state.sidebarProjectScopeKeys[0] ?? null)
             : null,
+        favouriteProjectKeys: state.favouriteProjectKeys,
         threadChangedFilesExpansionVersion: THREAD_CHANGED_FILES_EXPANSION_VERSION,
         threadChangedFilesExpandedById: state.threadChangedFilesExpandedById,
         pullRequestMergeMethod: state.pullRequestMergeMethod,
@@ -345,6 +356,32 @@ function setSidebarProjectScopeKeys(state: UiState, projectKeys: readonly string
   };
 }
 
+export function setProjectsFavourite(
+  state: UiState,
+  projectKeys: readonly string[],
+  favourite: boolean,
+): UiState {
+  const keys = new Set(projectKeys);
+  const favouriteProjectKeys = favourite
+    ? [...new Set([...state.favouriteProjectKeys, ...keys])]
+    : state.favouriteProjectKeys.filter((key) => !keys.has(key));
+  if (
+    favouriteProjectKeys.length === state.favouriteProjectKeys.length &&
+    favouriteProjectKeys.every((key, index) => key === state.favouriteProjectKeys[index])
+  ) {
+    return state;
+  }
+  return { ...state, favouriteProjectKeys };
+}
+
+function setSidebarMachineFilter(
+  state: UiState,
+  environmentIds: readonly EnvironmentId[] | null,
+): UiState {
+  const next = environmentIds === null || environmentIds.length === 0 ? null : environmentIds;
+  return state.sidebarMachineFilter === next ? state : { ...state, sidebarMachineFilter: next };
+}
+
 function setPullRequestMergeMethod(state: UiState, method: PullRequestMergeMethod): UiState {
   return state.pullRequestMergeMethod === method
     ? state
@@ -434,6 +471,8 @@ interface UiStateStore extends UiState {
   setThreadChangedFilesExpanded: (threadId: string, turnId: string, expanded: boolean) => void;
   setDefaultAdvertisedEndpointKey: (key: string | null) => void;
   setSidebarProjectScopeKeys: (projectKeys: readonly string[]) => void;
+  setProjectsFavourite: (projectKeys: readonly string[], favourite: boolean) => void;
+  setSidebarMachineFilter: (environmentIds: readonly EnvironmentId[] | null) => void;
   setPullRequestMergeMethod: (method: PullRequestMergeMethod) => void;
   setProjectExpanded: (projectIds: string | readonly string[], expanded: boolean) => void;
   reorderProjects: (
@@ -455,6 +494,10 @@ export const useUiStateStore = create<UiStateStore>((set) => ({
     set((state) => setDefaultAdvertisedEndpointKey(state, key)),
   setSidebarProjectScopeKeys: (projectKeys) =>
     set((state) => setSidebarProjectScopeKeys(state, projectKeys)),
+  setProjectsFavourite: (projectKeys, favourite) =>
+    set((state) => setProjectsFavourite(state, projectKeys, favourite)),
+  setSidebarMachineFilter: (environmentIds) =>
+    set((state) => setSidebarMachineFilter(state, environmentIds)),
   setPullRequestMergeMethod: (method) => set((state) => setPullRequestMergeMethod(state, method)),
   setProjectExpanded: (projectIds, expanded) =>
     set((state) => setProjectExpanded(state, projectIds, expanded)),

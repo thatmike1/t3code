@@ -8,6 +8,7 @@ import { AsyncResult } from "effect/reactivity";
 import {
   shouldCreateNewThreadInCurrentProject,
   deleteSelectedThreadEntries,
+  filterSidebarV2VisibleThreads,
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
   resolveSidebarRowThreadId,
@@ -761,6 +762,44 @@ describe("sortScopedProjectsForSidebar", () => {
     expect(sorted.map((project) => project.title)).toEqual([
       "Visible project",
       "Archived-only project",
+    ]);
+  });
+});
+
+describe("filterSidebarV2VisibleThreads", () => {
+  it("intersects the machine filter with the project scope", () => {
+    const remoteEnvironmentId = EnvironmentId.make("environment-remote");
+    const projectId = ProjectId.make("project-shared");
+    const otherProjectId = ProjectId.make("project-other");
+    const threads = [
+      makeThread({ id: ThreadId.make("local-shared"), projectId }),
+      makeThread({ id: ThreadId.make("local-other"), projectId: otherProjectId }),
+      makeThread({
+        id: ThreadId.make("remote-shared"),
+        projectId,
+        environmentId: remoteEnvironmentId,
+      }),
+      makeThread({
+        id: ThreadId.make("local-archived"),
+        projectId,
+        archivedAt: "2026-03-09T10:00:00.000Z",
+      }),
+    ];
+    const ids = (list: readonly { id: string }[]) => list.map((thread) => thread.id);
+    const sharedProjectKeys = new Set([
+      `${localEnvironmentId}:${projectId}`,
+      `${remoteEnvironmentId}:${projectId}`,
+    ]);
+
+    expect(
+      ids(filterSidebarV2VisibleThreads(threads, null, new Set([localEnvironmentId]))),
+    ).toEqual(["local-shared", "local-other"]);
+    expect(
+      ids(filterSidebarV2VisibleThreads(threads, sharedProjectKeys, new Set([localEnvironmentId]))),
+    ).toEqual(["local-shared"]);
+    expect(ids(filterSidebarV2VisibleThreads(threads, sharedProjectKeys, null))).toEqual([
+      "local-shared",
+      "remote-shared",
     ]);
   });
 });

@@ -3,6 +3,7 @@ import { ForkPreferences } from "./fork-preferences";
 import { WorkingShelfSettings } from "./fork-working-shelf";
 import { NotificationSettings } from "./NotificationSettings";
 import { PRIVACY_POLICY_URL } from "../../legalLinks";
+import { resolveEffectiveSidebarProjectSortOrder } from "../../sidebarProjectPreferences";
 import { CheckIcon } from "lucide-react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -787,6 +788,14 @@ export function GeneralSettingsPanel() {
   const lastEnabledProjectGroupingMode = useRef<SidebarProjectGroupingMode>(
     readLastEnabledProjectGroupingMode(),
   );
+  // no sidebar left can set a manual project order.
+  const effectiveProjectSortOrder = resolveEffectiveSidebarProjectSortOrder(
+    settings.sidebarProjectSortOrder,
+    false,
+  );
+  const projectSortOrderChoices = SidebarProjectSortOrder.literals.filter(
+    (sortOrder) => sortOrder !== "manual",
+  );
 
   return (
     <SettingsPageContainer>
@@ -861,7 +870,7 @@ export function GeneralSettingsPanel() {
           }
           control={
             <Select
-              value={settings.sidebarProjectSortOrder}
+              value={effectiveProjectSortOrder}
               onValueChange={(value) => {
                 if (isSidebarProjectSortOrder(value)) {
                   updateSettings({ sidebarProjectSortOrder: value });
@@ -870,11 +879,11 @@ export function GeneralSettingsPanel() {
             >
               <SelectTrigger size="sm" className="w-full sm:w-44" aria-label="Project order">
                 <SelectValue>
-                  {SIDEBAR_PROJECT_SORT_ORDER_LABELS[settings.sidebarProjectSortOrder]}
+                  {SIDEBAR_PROJECT_SORT_ORDER_LABELS[effectiveProjectSortOrder]}
                 </SelectValue>
               </SelectTrigger>
               <SelectPopup align="end" alignItemWithTrigger={false}>
-                {SidebarProjectSortOrder.literals.map((sortOrder) => (
+                {projectSortOrderChoices.map((sortOrder) => (
                   <SelectItem hideIndicator key={sortOrder} value={sortOrder}>
                     {SIDEBAR_PROJECT_SORT_ORDER_LABELS[sortOrder]}
                   </SelectItem>

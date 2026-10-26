@@ -243,6 +243,17 @@ thread** from its long-press menu on mobile.
 **Thread ID** copies the bare ID for scripts and the `t3` CLI. See
 [keybindings](./keybindings.md) for custom configuration.
 
+### Narrow the thread list
+
+The project filter beside the sidebar search shows one project's threads. Star
+the projects you work in most: they move to the top of that menu and the rest fold
+under **Other projects**, which search still reaches. Right-click a project, or
+press the context-menu key while it is highlighted, to star it from the keyboard.
+
+With more than one machine connected, the machine filter next to it shows only the
+threads of the machines you check. It resets when T3 Code restarts and never
+changes where new threads start.
+
 ## Inspect agent work
 
 **Limited** means the provider stopped on a usage or rate limit. The conversation
