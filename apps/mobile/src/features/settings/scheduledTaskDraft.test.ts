@@ -14,6 +14,8 @@ import {
   scheduledTaskDefaultModel,
   DEFAULT_SCHEDULE,
   scheduleDraftForTask,
+  createDraft,
+  hasScheduledTaskDraftChanges,
   scheduleFromDraft,
 } from "./scheduledTaskDraft";
 
@@ -83,6 +85,24 @@ describe("scheduleDraftForTask", () => {
     expect(
       scheduleFromDraft({ ...draft, filters: [{ id: "f1", path: "", op: "exists", value: "" }] }),
     ).toBeNull();
+  });
+});
+
+describe("fixed-time catch-up", () => {
+  it("keeps the flag through a mobile edit and notices a change to it alone", () => {
+    const draft = scheduleDraftForTask({
+      schedule: { type: "fixed_time", timeOfDay: "09:00", catchUpToday: true },
+    });
+    expect(scheduleFromDraft(draft)).toEqual({
+      type: "fixed_time",
+      timeOfDay: "09:00",
+      catchUpToday: true,
+    });
+    expect(scheduleFromDraft(DEFAULT_SCHEDULE)).not.toHaveProperty("catchUpToday");
+
+    const initial = createDraft(null, null);
+    const toggled = { ...initial, schedule: { ...initial.schedule, catchUpToday: true } };
+    expect(hasScheduledTaskDraftChanges(initial, toggled)).toBe(true);
   });
 });
 

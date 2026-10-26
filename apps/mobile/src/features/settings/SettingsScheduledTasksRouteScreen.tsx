@@ -1277,6 +1277,18 @@ function TaskForm({
                   });
                 }}
               />
+              <View className="min-h-14 flex-row items-center gap-3 border-t border-border-subtle px-4 py-3">
+                <Text className="min-w-0 flex-1 text-lg text-foreground">
+                  Catch up today if missed
+                </Text>
+                <ThemedSwitch
+                  accessibilityLabel="Catch up today if missed"
+                  value={draft.schedule.catchUpToday}
+                  onValueChange={(catchUpToday) =>
+                    setDraft({ ...draft, schedule: { ...draft.schedule, catchUpToday } })
+                  }
+                />
+              </View>
             </>
           ) : draft.schedule.mode === "webhook" && webhookDenial !== undefined && draft.enabled ? (
             <Text className="border-t border-border-subtle px-4 py-3 text-sm text-foreground-muted">
@@ -1465,7 +1477,11 @@ function TaskForm({
         </SettingsSection>
         {draft.schedule.mode === "fixed_time" ? (
           <Text className="px-2 text-sm text-foreground-muted">
-            <T>Time uses the environment's time zone, which may differ from your phone's.</T>
+            <T>
+              Time uses the environment's time zone, which may differ from your phone's. With catch up
+              on, a run missed earlier today starts once when the environment is back, and Run now
+              counts as today's run.
+            </T>
           </Text>
         ) : null}
       </View>
