@@ -259,6 +259,7 @@ overrides:
   expo-modules-core: 58.0.22
   '@exodus/bytes>@noble/hashes': 1.8.0
   '@react-navigation/core': 7.24.0
+  node-pty: 1.2.0-beta.15
   dbus-next>usocket: '-'
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-darwin-arm64': '-'
   '@anthropic-ai/claude-agent-sdk>@anthropic-ai/claude-agent-sdk-darwin-x64': '-'
@@ -890,7 +891,7 @@ importers:
         specifier: 'catalog:'
         version: 6.2.2
       node-pty:
-        specifier: ^1.2.0-beta.15
+        specifier: 1.2.0-beta.15
         version: 1.2.0-beta.15(patch_hash=f1e680afec85f650699ea756f91f469844ec4c976f4f168492a45c6b3f67d651)
       playwright-core:
         specifier: 1.60.0
