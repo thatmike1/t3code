@@ -135,6 +135,8 @@ overrides:
   # Move this with @react-navigation/native: an older core than it requires crashes
   # every native stack at launch.
   "@react-navigation/core": 7.24.0
+  # the cli archive stage installs without the lockfile, so pin the patched node-pty (upstream #23798)
+  node-pty: 1.2.0-beta.15
   # The dbus-next patch drops usocket from the package, but pnpm resolves from the
   # registry manifest, so the edge has to be cut here as well.
   "dbus-next>usocket": "-"
