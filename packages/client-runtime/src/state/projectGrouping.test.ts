@@ -287,7 +287,7 @@ describe("buildProjectGroups", () => {
       "github.com/julius/t3code-fork",
     ]);
     expect(groups[1]?.members.map((member) => member.project.id)).toEqual(["fork", "fork-2"]);
-    expect(groups[1]?.label).toBe("julius/t3code-fork");
+    expect(groups[1]?.label).toBe("t3code-fork");
   });
 
   it("applies a physical-project override without dropping its siblings", () => {
