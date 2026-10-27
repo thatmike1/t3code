@@ -1074,6 +1074,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // Safari may click after Ctrl+click opens settings; suppress that selection until the picker reopens.
   const suppressNextScopeChangeRef = useRef(false);
   const highlightedProjectScopeKeyRef = useRef<string | null>(null);
+  // a row's context menu takes focus (the DOM fallback) and pointer presses
+  // outside the popup; neither should close the picker behind it.
+  const projectScopeContextMenuOpenRef = useRef(false);
   // Hold dropped rows until server placement is confirmed; block another pickup from replacing the hold.
   const [optimisticDrop, setOptimisticDrop] = useState<SidebarOptimisticDrop | null>(null);
   const threadSearchInputRef = useRef<HTMLInputElement>(null);
@@ -1336,6 +1339,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         homeKey: homeProject?.key ?? null,
         primaryEnvironmentId,
       });
+      // the picker stays open behind the menu, so a pin or home change
+      // lands in place; only Project settings closes it.
+      projectScopeContextMenuOpenRef.current = true;
       const clicked = await settlePromise(() =>
         api.contextMenu.show<string>(
           [
@@ -1357,6 +1363,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           { x: event.clientX, y: event.clientY },
         ),
       );
+      projectScopeContextMenuOpenRef.current = false;
+      suppressNextScopeChangeRef.current = false;
       if (clicked._tag === "Failure" || clicked.value === null) return;
       if (clicked.value === CLEAR_HOME_PROJECT_ITEM_ID) {
         setHomeProject(null);
@@ -3145,6 +3153,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   open={projectScopeMenuState.open}
                   onOpenChange={(open, eventDetails) => {
                     if (eventDetails.isCanceled) return;
+                    if (!open && projectScopeContextMenuOpenRef.current) {
+                      eventDetails.cancel();
+                      return;
+                    }
                     if (open) suppressNextScopeChangeRef.current = false;
                     dispatchProjectScopeMenu({ type: "open-changed", open });
                   }}
