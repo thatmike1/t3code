@@ -100,12 +100,22 @@ function resolveProjectGroupingMode(
   );
 }
 
+// a per-repo deploy key lives behind an ssh config alias such as
+// `git@github-ccchat:owner/repo.git`, and the server keeps the alias as the
+// key's host. every `github-<name>` alias points at github.com; a dotless host
+// is never a public https host, so only aliases match. the remote url itself
+// stays untouched because git needs the alias.
+const GITHUB_SSH_ALIAS_HOST = /^github-[^./]+\//i;
+
 function deriveRepositoryScopedKey(
   project: Pick<EnvironmentProject, "workspaceRoot" | "repositoryIdentity">,
   groupingMode: SidebarProjectGroupingMode,
 ): string | null {
   const canonicalKey = project.repositoryIdentity
-    ? repositoryGroupingKeyOf(project.repositoryIdentity)
+    ? repositoryGroupingKeyOf(project.repositoryIdentity).replace(
+        GITHUB_SSH_ALIAS_HOST,
+        "github.com/",
+      )
     : null;
   // A NUL reserves the scratch key namespace outside valid repository identities.
   if (!canonicalKey || canonicalKey.includes("\0")) {
