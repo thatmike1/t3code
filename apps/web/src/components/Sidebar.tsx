@@ -920,6 +920,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // selection, then clear the guard when the picker opens again.
   const suppressNextScopeChangeRef = useRef(false);
   const highlightedProjectScopeKeyRef = useRef<string | null>(null);
+  // a row's context menu takes focus (the DOM fallback) and pointer presses
+  // outside the popup; neither should close the picker behind it.
+  const projectScopeContextMenuOpenRef = useRef(false);
   // Keep a dropped row at its destination while its server applies the
   // lifecycle command and any order-key writes. The next pickup waits for
   // this hold so a second drop cannot replace an unconfirmed placement.
@@ -1112,13 +1115,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     ) => {
       event.preventDefault();
       event.stopPropagation();
-      suppressNextScopeChangeRef.current = true;
-      dispatchProjectScopeMenu({ type: "project-settings-opened" });
       const api = readLocalApi();
       if (!api) {
+        dispatchProjectScopeMenu({ type: "project-settings-opened" });
         openProjectSettings(projectGroup);
         return;
       }
+      suppressNextScopeChangeRef.current = true;
       const anchor = headerSearchRef.current?.getBoundingClientRect();
       const position =
         "clientX" in event
@@ -1130,6 +1133,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         homeKey: homeProject?.key ?? null,
         primaryEnvironmentId,
       });
+      // the picker stays open behind the menu, so a favourite or home change
+      // lands in place; only Project settings closes it.
+      projectScopeContextMenuOpenRef.current = true;
       const clicked = await settlePromise(() =>
         api.contextMenu.show<string>(
           [
@@ -1143,6 +1149,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           position,
         ),
       );
+      projectScopeContextMenuOpenRef.current = false;
+      suppressNextScopeChangeRef.current = false;
       if (clicked._tag === "Failure" || clicked.value === null) return;
       if (clicked.value === CLEAR_HOME_PROJECT_ITEM_ID) {
         setHomeProject(null);
@@ -1166,6 +1174,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           toggleProjectFavourite(projectGroup);
           return;
         case "project-settings":
+          dispatchProjectScopeMenu({ type: "project-settings-opened" });
           openProjectSettings(projectGroup);
           return;
       }
@@ -2828,6 +2837,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   onOpenChange={(open, eventDetails) => {
                     // the Other projects row folds the list without closing it.
                     if (eventDetails.isCanceled) return;
+                    if (!open && projectScopeContextMenuOpenRef.current) {
+                      eventDetails.cancel();
+                      return;
+                    }
                     if (open) suppressNextScopeChangeRef.current = false;
                     dispatchProjectScopeMenu({ type: "open-changed", open });
                   }}
