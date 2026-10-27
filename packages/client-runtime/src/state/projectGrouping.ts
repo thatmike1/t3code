@@ -231,7 +231,9 @@ export function deriveProjectGroupLabel(input: {
     return sharedTitle;
   }
   if (sharedDisplayNames.length === 1) {
-    return sharedDisplayNames[0]!;
+    // fork: drop the owner, "thatmike1/ccChat-general" reads as "ccChat-general"
+    const displayName = sharedDisplayNames[0]!;
+    return displayName.slice(displayName.lastIndexOf("/") + 1) || displayName;
   }
 
   if (sharedRepositoryNames.length === 1) {
