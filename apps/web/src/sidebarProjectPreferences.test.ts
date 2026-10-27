@@ -1,5 +1,9 @@
-import { EnvironmentId } from "@t3tools/contracts";
+import { EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
+
+import { getProjectOrderKey } from "./logicalProject";
+import { buildSidebarProjectSnapshots } from "./sidebarProjectGrouping";
+import type { Project } from "./types";
 
 import {
   buildHomeProjectMenuItems,
@@ -275,5 +279,62 @@ describe("buildHomeProjectMenuItems", () => {
       { id: homeProjectMenuItemId(vpsMember.physicalProjectKey), label: "VPS", checked: true },
     ]);
     expect(clear?.id).toBe(CLEAR_HOME_PROJECT_ITEM_ID);
+  });
+});
+
+describe("favourites and home across ssh alias remotes", () => {
+  function project(id: string, environmentId: EnvironmentId, canonicalKey: string): Project {
+    return {
+      environmentId,
+      id: ProjectId.make(id),
+      title: "ccChat-general",
+      workspaceRoot: `/${id}`,
+      repositoryIdentity: {
+        canonicalKey,
+        locator: { source: "git-remote", remoteName: "origin", remoteUrl: canonicalKey },
+      },
+      defaultModelSelection: null,
+      scripts: [],
+      createdAt: "2026-10-27T00:00:00.000Z",
+      updatedAt: "2026-10-27T00:00:00.000Z",
+    };
+  }
+  const projects = [
+    project("desktop", desktop, "github.com/thatmike1/ccchat-general"),
+    project("vps", vps, "github-ccchat/thatmike1/ccchat-general"),
+    project("laptop", laptop, "github.com/thatmike1/ccchat-general"),
+  ];
+  const snapshots = (mode: "repository" | "separate") =>
+    buildSidebarProjectSnapshots({
+      projects,
+      settings: { sidebarProjectGroupingMode: mode, sidebarProjectGroupingOverrides: {} },
+      primaryEnvironmentId: desktop,
+      resolveEnvironmentLabel: (environmentId) => environmentId,
+    });
+
+  it("marks the merged group favourite from keys starred on the separate projects", () => {
+    const separate = snapshots("separate");
+    expect(separate).toHaveLength(3);
+    const starredWhileSeparate = new Set([separate[1]!.memberProjects[0]!.physicalProjectKey]);
+    const merged = snapshots("repository");
+    expect(merged).toHaveLength(1);
+    expect(isFavouriteProjectGroup(merged[0]!, starredWhileSeparate)).toBe(true);
+  });
+
+  it("keeps the home project on the desktop checkout once grouped", () => {
+    const home = {
+      key: snapshots("separate")[0]!.memberProjects[0]!.physicalProjectKey,
+      label: "x",
+    };
+    const resolution = resolveHomeProject({
+      home,
+      projects,
+      projectKey: getProjectOrderKey,
+      connectedEnvironmentIds: [desktop, vps, laptop],
+    });
+    expect(resolution).toMatchObject({ status: "ready", project: { environmentId: desktop } });
+    expect(
+      snapshots("repository")[0]!.memberProjects.map((member) => member.physicalProjectKey),
+    ).toContain(home.key);
   });
 });

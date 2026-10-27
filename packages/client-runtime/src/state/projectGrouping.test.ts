@@ -1,4 +1,5 @@
 import { EnvironmentId, ProjectId, SourceControlProviderKind } from "@t3tools/contracts";
+import { normalizeGitRemoteUrl } from "@t3tools/shared/git";
 import { describe, expect, it } from "vite-plus/test";
 
 import type { EnvironmentProject } from "./models.ts";
@@ -402,6 +403,123 @@ describe("project pins and archives", () => {
       { key: "d", pinned: false, archived: true },
     ]);
     expect(pickable.map((entry) => entry.key)).toEqual(["c", "a"]);
+  });
+});
+
+describe("github ssh alias remotes", () => {
+  const desktop = EnvironmentId.make("desktop");
+  const vps = EnvironmentId.make("vps");
+  const laptop = EnvironmentId.make("laptop");
+
+  // the server derives canonicalKey with normalizeGitRemoteUrl; mirror that so
+  // each case starts from the raw remote git reports.
+  function projectFromRemote(
+    id: string,
+    environment: EnvironmentId,
+    remoteUrl: string,
+    origin?: string,
+  ): EnvironmentProject {
+    return makeProject(id, `/${id}`, {
+      environmentId: environment,
+      repositoryIdentity: {
+        canonicalKey: normalizeGitRemoteUrl(remoteUrl),
+        locator: { source: "git-remote", remoteName: "origin", remoteUrl },
+        ...(origin
+          ? { origin: { canonicalKey: normalizeGitRemoteUrl(origin), remoteUrl: origin } }
+          : {}),
+      },
+    });
+  }
+
+  const desktopCheckout = projectFromRemote(
+    "desktop-ccchat",
+    desktop,
+    "git@github.com:thatmike1/ccChat-general.git",
+  );
+  const vpsCheckout = projectFromRemote(
+    "vps-ccchat",
+    vps,
+    "git@github-ccchat:thatmike1/ccChat-general.git",
+  );
+  const laptopCheckout = projectFromRemote(
+    "laptop-ccchat",
+    laptop,
+    "https://github.com/thatmike1/ccChat-general",
+  );
+
+  it.each(["repository", "repository_path"] as const)(
+    "groups scp alias, scp github.com and https remotes of one repo in %s mode",
+    (mode) => {
+      const groups = buildProjectGroups({
+        projects: [desktopCheckout, vpsCheckout, laptopCheckout],
+        settings: settings(mode),
+      });
+      expect(groups.map((group) => group.key)).toEqual(["github.com/thatmike1/ccchat-general"]);
+      expect(groups[0]?.members.map((member) => member.project.id)).toEqual([
+        "desktop-ccchat",
+        "vps-ccchat",
+        "laptop-ccchat",
+      ]);
+    },
+  );
+
+  it("groups an ssh:// alias remote and an alias origin the same way", () => {
+    const sshUrl = projectFromRemote(
+      "vps-ssh-url",
+      vps,
+      "ssh://git@github-ccchat/thatmike1/ccChat-general.git",
+    );
+    const aliasOrigin = projectFromRemote(
+      "vps-origin",
+      vps,
+      "git@github-upstream:someone/ccChat-general.git",
+      "git@github-ccchat:thatmike1/ccChat-general.git",
+    );
+    for (const project of [sshUrl, aliasOrigin]) {
+      expect(deriveLogicalProjectKeyFromSettings(project, settings("repository"))).toBe(
+        deriveLogicalProjectKeyFromSettings(desktopCheckout, settings("repository")),
+      );
+    }
+  });
+
+  it("leaves the remote url and the physical keys alone", () => {
+    expect(vpsCheckout.repositoryIdentity?.locator.remoteUrl).toBe(
+      "git@github-ccchat:thatmike1/ccChat-general.git",
+    );
+    // the home project and favourites are stored as physical keys, so grouping
+    // cannot move them off the desktop checkout.
+    expect(derivePhysicalProjectKey(desktopCheckout)).toBe("desktop:/desktop-ccchat");
+    expect(
+      buildProjectGroups({
+        projects: [desktopCheckout, vpsCheckout, laptopCheckout],
+        settings: settings("repository"),
+      })[0]?.members.map((member) => member.physicalProjectKey),
+    ).toEqual(["desktop:/desktop-ccchat", "vps:/vps-ccchat", "laptop:/laptop-ccchat"]);
+  });
+
+  it("keeps other hosts, other repos and forks apart", () => {
+    const projects = [
+      desktopCheckout,
+      vpsCheckout,
+      projectFromRemote("gitlab", desktop, "git@gitlab.com:thatmike1/ccChat-general.git"),
+      projectFromRemote("gitlab-alias", vps, "git@gitlab-ccchat:thatmike1/ccChat-general.git"),
+      projectFromRemote(
+        "dotted-host",
+        vps,
+        "git@github-ccchat.example.com:thatmike1/ccChat-general.git",
+      ),
+      projectFromRemote("other-repo", vps, "git@github-t3:thatmike1/t3code.git"),
+      projectFromRemote("fork", vps, "git@github-fork:someone/ccChat-general.git"),
+    ];
+    const groups = buildProjectGroups({ projects, settings: settings("repository") });
+    expect(groups.map((group) => group.key)).toEqual([
+      "github.com/thatmike1/ccchat-general",
+      "gitlab.com/thatmike1/ccchat-general",
+      "gitlab-ccchat/thatmike1/ccchat-general",
+      "github-ccchat.example.com/thatmike1/ccchat-general",
+      "github.com/thatmike1/t3code",
+      "github.com/someone/ccchat-general",
+    ]);
   });
 });
 
