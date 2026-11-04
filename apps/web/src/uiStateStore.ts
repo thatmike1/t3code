@@ -2,7 +2,6 @@ import { Debouncer } from "@tanstack/react-pacer";
 import type { EnvironmentId, PullRequestMergeMethod } from "@t3tools/contracts";
 import { create } from "zustand";
 import { normalizeProjectPathForComparison } from "@t3tools/client-runtime/state/projects";
-import { normalizeProjectPathForComparison } from "./lib/projectPaths";
 import type { HomeProjectPreference } from "./sidebarProjectPreferences";
 
 export const PERSISTED_STATE_KEY = "t3code:ui-state:v1";

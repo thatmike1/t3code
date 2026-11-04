@@ -5,11 +5,7 @@ import { useState } from "react";
 import { useClientSettings, updateClientSettings } from "../../hooks/useSettings";
 import { shortcutLabelForCommand } from "../../keybindings";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
-import {
-  applyProviderInstanceSettings,
-  deriveProviderInstanceEntries,
-  sortProviderInstanceEntries,
-} from "../../providerInstances";
+import { providerInstanceEntriesFor } from "../../providerInstances";
 import { QUICK_MODELS } from "../../quick-model-shortcuts";
 import { EMPTY_SERVER_PROVIDERS, primaryServerKeybindingsAtom } from "../../state/server";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
@@ -36,9 +32,7 @@ export function ForkPreferences() {
   const providers =
     (environment ? providersByEnvironment.get(environment.environmentId) : undefined) ??
     EMPTY_SERVER_PROVIDERS;
-  const entries = sortProviderInstanceEntries(
-    applyProviderInstanceSettings(deriveProviderInstanceEntries(providers), scopedSettings, null),
-  );
+  const entries = providerInstanceEntriesFor(providers, scopedSettings, null);
   const modelOptions = getCustomModelOptionsByInstance(scopedSettings, providers);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const update = updateClientSettings;

@@ -580,7 +580,7 @@ const registerWithRealFileSystem = (run: ThemeIconRun) =>
               DesktopAssets.DesktopAssets,
               Path.Path.pipe(
                 Effect.map((path) => ({
-                  resolveArtworkIconPath: () => Effect.succeed(Option.none()),
+                  resolveArtworkIconPath: () => Effect.succeedNone,
                   iconPaths: Effect.succeed({
                     png: Option.none(),
                     ico: Option.none(),

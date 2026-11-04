@@ -139,7 +139,7 @@ export const make = Effect.gen(function* () {
 
   // fork: packaged builds pass the icon of the chosen artwork; without one the entry has no Icon=
   const writeDesktopEntry = Effect.fn("desktop.linuxUrlHandler.writeDesktopEntry")(
-    function* (iconPath?: string) {
+    function* (iconPath: string | undefined) {
       // Distribution packages that run on a shared Electron set
       // T3CODE_DESKTOP_LAUNCHER_PATH, because process.execPath is that Electron.
       // Inside the mounted AppImage, process.execPath points at a transient
@@ -304,9 +304,10 @@ export const make = Effect.gen(function* () {
   // rewritten) shows whatever hicolor/<size>/apps/<name>.png holds. Replace only icons
   // that are already installed under the names this app answers to.
 
+  // the AppImage's StartupWMClass, set in scripts/build-desktop-artifact.ts.
   const themedIconNames = [
     environment.linuxDesktopEntryName.replace(/\.desktop$/, ""),
-    environment.linuxWmClass,
+    environment.isDevelopment ? "t3code-dev" : "t3code",
   ];
 
   const syncThemedIcons = Effect.fn("desktop.linuxUrlHandler.syncThemedIcons")(

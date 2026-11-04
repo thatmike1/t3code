@@ -58,6 +58,7 @@ vi.mock(import("./projectFilesQueryState"), async (original) => ({
     readError: null,
     isNotFile: false,
     isFile: true,
+    isMissingHostFile: false,
     refresh: vi.fn(),
   }),
   getOptimisticProjectFileQueryData: () => state.optimistic,

@@ -1251,7 +1251,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               />
             }
           >
-            <SidebarTabTintMarker environmentId={thread.environmentId} threadId={thread.id} recede={shouldRecede} />
+            <SidebarTabTintMarker
+              environmentId={thread.environmentId}
+              threadId={thread.id}
+              recede={shouldRecede}
+            />
             {/* `contents` keeps one-line rows a single flex row. */}
             <div className={multiline ? "flex h-6 min-w-0 items-center gap-2.5" : "contents"}>
               {accessibleTitle}
@@ -1442,7 +1446,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           }
         >
           {accessibleTitle}
-          <SidebarTabTintMarker environmentId={thread.environmentId} threadId={thread.id} recede={shouldRecede} />
+          <SidebarTabTintMarker
+            environmentId={thread.environmentId}
+            threadId={thread.id}
+            recede={shouldRecede}
+          />
           <div
             className={cn(
               "relative z-10 h-[4.875rem] px-(--sidebar-row-content-inset) py-(--sidebar-content-inset)",

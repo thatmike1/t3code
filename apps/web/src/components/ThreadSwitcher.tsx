@@ -6,7 +6,7 @@ import type {
   EnvironmentProject,
   EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/shell";
-import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectId, ProviderDriverKind } from "@t3tools/contracts";
 import { replaceComposerContextReferences } from "@t3tools/shared/composerContextReferences";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
@@ -20,6 +20,7 @@ import {
   PinIcon,
   ShieldQuestionIcon,
   SquarePenIcon,
+  UserRoundIcon,
 } from "lucide-react";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -71,7 +72,6 @@ import { useUiStateStore } from "../uiStateStore";
 import {
   hasUnseenCompletion,
   resolveSidebarThreadStatus,
-  resolveSidebarV2TopStatus,
   resolveThreadLastVisitedAt,
   resolveWorkingStartedAt,
   type SidebarV2TopStatusKind,
@@ -79,7 +79,7 @@ import {
 import { SidebarProviderStack, WorkingDuration } from "./sidebar/SidebarThreadRow";
 import { ThreadCommandSubtitle } from "./ThreadCommandSubtitle";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
-import { getTriggerDisplayModelLabel, type ModelEsque } from "./chat/providerIconUtils";
+import { getTriggerDisplayModelName, type ModelEsque } from "./chat/providerIconUtils";
 import { CommandFooter } from "./ui/command";
 import { DIALOG_BACKDROP_CLASS, DIALOG_POPUP_CLASS } from "./ui/dialog-styles";
 import { Kbd, KbdGroup } from "./ui/kbd";
@@ -88,6 +88,7 @@ export function threadSwitcherAgentLabel(
   thread: Pick<EnvironmentThreadShell, "modelSelection" | "runtime">,
   providerEntry: {
     readonly displayName: string;
+    readonly driverKind?: ProviderDriverKind;
     readonly models: ReadonlyArray<ModelEsque>;
   } | null,
 ): string {
@@ -95,7 +96,7 @@ export function threadSwitcherAgentLabel(
     (model) => model.slug === thread.modelSelection.model,
   );
   return selectedModel
-    ? getTriggerDisplayModelLabel(selectedModel)
+    ? getTriggerDisplayModelName(selectedModel, providerEntry?.driverKind)
     : (providerEntry?.displayName ?? thread.runtime?.providerName ?? thread.modelSelection.model);
 }
 
@@ -143,7 +144,7 @@ const TOP_STATUS_PRESENTATION: Record<
   working: {
     label: "Working",
     icon: <CircleDashedIcon aria-hidden className="size-3.5 shrink-0" />,
-    className: "text-info",
+    className: "text-info-foreground",
   },
   waiting: {
     label: "Waiting",
@@ -160,27 +161,41 @@ const TOP_STATUS_PRESENTATION: Record<
     icon: <MessageCircleQuestionIcon aria-hidden className="size-3.5 shrink-0" />,
     className: "text-indigo-600 dark:text-indigo-300",
   },
+  request: {
+    label: "Request",
+    icon: <UserRoundIcon aria-hidden className="size-3.5 shrink-0" />,
+    className: "text-guest-foreground",
+  },
   limited: {
     label: "Limited",
     icon: <CircleAlertIcon aria-hidden className="size-3.5 shrink-0" />,
-    className: "text-warning",
+    className: "text-warning-foreground",
   },
   failed: {
     label: "Failed",
     icon: <CircleAlertIcon aria-hidden className="size-3.5 shrink-0" />,
-    className: "text-error",
+    className: "text-error-foreground",
   },
   woke: {
     label: "Woke",
     icon: <AlarmClockIcon aria-hidden className="size-3.5 shrink-0" />,
-    className: "text-warning",
+    className: "text-warning-foreground",
   },
   done: {
     label: "Done",
     icon: <CircleCheckIcon aria-hidden className="size-3.5 shrink-0" />,
-    className: "text-success",
+    className: "text-success-foreground",
   },
 };
+
+// the row's own order in SidebarThreadRow: live states first, then unread done.
+function resolveTopStatus(
+  status: ReturnType<typeof resolveSidebarThreadStatus>,
+  isUnread: boolean,
+): SidebarV2TopStatusKind | null {
+  if (status === "ready") return isUnread ? "done" : null;
+  return status;
+}
 
 function ThreadSwitcherStatus(props: {
   readonly thread: EnvironmentThreadShell;
@@ -190,18 +205,21 @@ function ThreadSwitcherStatus(props: {
   const threadKey = scopedThreadKey({ environmentId: thread.environmentId, threadId: thread.id });
   const localLastVisitedAt = useUiStateStore((state) => state.threadLastVisitedAtById[threadKey]);
   const status = resolveSidebarThreadStatus(thread);
-  const topStatus = resolveSidebarV2TopStatus({
+  const topStatus = resolveTopStatus(
     status,
-    isUnread: hasUnseenCompletion({
+    hasUnseenCompletion({
       ...thread,
       lastVisitedAt: resolveThreadLastVisitedAt(thread.lastVisitedAt, localLastVisitedAt),
     }),
-    isWoke: false,
-  });
+  );
   // settling is a deliberate "done with it": a finished run's Failed or Done
   // is noise there, but work still in flight keeps its status.
   const inFlight =
-    status === "working" || status === "waiting" || status === "approval" || status === "input";
+    status === "working" ||
+    status === "waiting" ||
+    status === "approval" ||
+    status === "input" ||
+    status === "request";
   if (topStatus === null || (props.settled && !inFlight)) {
     return props.settled ? (
       <span className="inline-flex items-center gap-1 text-muted-foreground">
@@ -426,7 +444,9 @@ function DraftRow(props: {
               iconClassName="size-3 opacity-60"
             />
             <span className="max-w-40 truncate">
-              {model ? getTriggerDisplayModelLabel(model) : providerEntry.displayName}
+              {model
+                ? getTriggerDisplayModelName(model, providerEntry.driverKind)
+                : providerEntry.displayName}
             </span>
           </>
         ) : null

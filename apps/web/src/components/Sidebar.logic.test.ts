@@ -792,15 +792,21 @@ describe("filterSidebarV2VisibleThreads", () => {
     ]);
 
     expect(
-      ids(filterSidebarV2VisibleThreads(threads, null, new Set([localEnvironmentId]))),
+      ids(filterSidebarV2VisibleThreads(threads, null, new Set(), new Set([localEnvironmentId]))),
     ).toEqual(["local-shared", "local-other"]);
     expect(
-      ids(filterSidebarV2VisibleThreads(threads, sharedProjectKeys, new Set([localEnvironmentId]))),
+      ids(
+        filterSidebarV2VisibleThreads(
+          threads,
+          sharedProjectKeys,
+          new Set(),
+          new Set([localEnvironmentId]),
+        ),
+      ),
     ).toEqual(["local-shared"]);
-    expect(ids(filterSidebarV2VisibleThreads(threads, sharedProjectKeys, null))).toEqual([
-      "local-shared",
-      "remote-shared",
-    ]);
+    expect(ids(filterSidebarV2VisibleThreads(threads, sharedProjectKeys, new Set(), null))).toEqual(
+      ["local-shared", "remote-shared"],
+    );
   });
 });
 

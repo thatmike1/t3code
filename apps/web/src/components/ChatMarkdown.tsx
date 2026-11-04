@@ -1879,7 +1879,10 @@ function ChatMarkdown({
         ...extraRemarkPlugins,
         createIncrementalMarkdownPlugin(),
       ]
-    : withExtraPlugins(withExtraPlugins(sharedRemarkPlugins, beadRemarkPlugins), extraRemarkPlugins);
+    : withExtraPlugins(
+        withExtraPlugins(sharedRemarkPlugins, beadRemarkPlugins),
+        extraRemarkPlugins,
+      );
   const blocks = streamingBlocks ?? [text];
 
   return (
