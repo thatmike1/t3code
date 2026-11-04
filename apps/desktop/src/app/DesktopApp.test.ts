@@ -155,6 +155,7 @@ it.effect.each([false, true])(
               Effect.andThen(Deferred.await(releaseRegistration)),
               Effect.ensuring(Deferred.succeed(registrationStopped, undefined)),
             ),
+            syncIcon: () => Effect.void,
           }),
         )
         .pipe(
