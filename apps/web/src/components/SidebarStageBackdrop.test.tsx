@@ -9,17 +9,17 @@ describe("fork artwork resolution", () => {
     "uses %s on every stage independently of environment identification",
     (artwork) => {
       for (const stage of ["Latest", "Nightly", "Dev"]) {
-        for (const enabled of [true, false]) {
-          expect(resolveSidebarArtworkVariant(stage, enabled, artwork)).toBe(artwork);
+        for (const mode of ["artwork", "none", "pill"] as const) {
+          expect(resolveSidebarArtworkVariant(stage, mode, artwork)).toBe(artwork);
         }
       }
     },
   );
 
   it.each(["Latest", "Nightly", "Dev", "Alpha"])("Off preserves the original %s path", (stage) => {
-    for (const enabled of [true, false]) {
-      expect(resolveSidebarArtworkVariant(stage, enabled, "off")).toBe(
-        resolveSidebarStageBackdropVariant(stage, enabled),
+    for (const mode of ["artwork", "nightly-artwork", "dev-artwork", "none", "pill"] as const) {
+      expect(resolveSidebarArtworkVariant(stage, mode, "off")).toBe(
+        resolveSidebarStageBackdropVariant(stage, mode),
       );
     }
   });

@@ -24,8 +24,8 @@ vi.mock("../SidebarStageBackdrop", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../SidebarStageBackdrop")>();
   return {
     ...actual,
-    useSidebarStageBackdropVariant: (enabled = true) =>
-      actual.resolveSidebarArtworkVariant(artworkState.stage, enabled, artworkState.forkArtwork),
+    useSidebarStageBackdropVariant: (mode: "artwork" | "none" = "artwork") =>
+      actual.resolveSidebarArtworkVariant(artworkState.stage, mode, artworkState.forkArtwork),
   };
 });
 
@@ -36,7 +36,7 @@ import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
 function renderActions(overrides: Partial<ComponentProps<typeof ComposerPrimaryActions>> = {}) {
   const backdrop = resolveSidebarArtworkVariant(
     artworkState.stage,
-    artworkState.mode === "artwork",
+    artworkState.mode,
     artworkState.forkArtwork,
   );
   return render(
@@ -53,7 +53,6 @@ function renderActions(overrides: Partial<ComponentProps<typeof ComposerPrimaryA
         promptHasText
         isSendBusy={false}
         sendDisabledReason={null}
-        isConnecting={false}
         isEnvironmentUnavailable={false}
         isPreparingWorktree={false}
         hasSendableContent
@@ -126,7 +125,6 @@ describe("fork composer artwork", () => {
     async (artwork) => {
       setup(artwork);
       for (const state of [
-        { isConnecting: true },
         { isSendBusy: true },
         { canResume: true, hasSendableContent: false },
         { isRunning: true, canInterrupt: true, hasSendableContent: false },

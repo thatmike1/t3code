@@ -50,7 +50,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
   const stageLabel = useEnvironmentStageLabel();
   const environmentIdentificationMode = useEnvironmentIdentificationMode();
   const backdropVariant = useSidebarStageBackdropVariant(environmentIdentificationMode);
-  );
   const stageArtwork = backdropVariant === "nightly" || backdropVariant === "dev";
   const pillLabel =
     environmentIdentificationMode === "pill"

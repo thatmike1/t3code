@@ -340,7 +340,9 @@ function requireFutureOnce(
   now: DateTime.DateTime,
   taskId: ScheduledTaskId,
 ) {
-  return task.enabled && task.schedule.type === "once" && nextRunAt({ ...task, lastRunAt: null }, now) === null
+  return task.enabled &&
+    task.schedule.type === "once" &&
+    nextRunAt({ ...task, lastRunAt: null }, now) === null
     ? taskError("The run time has passed. Pick a time in the future.", { taskId })
     : Effect.void;
 }

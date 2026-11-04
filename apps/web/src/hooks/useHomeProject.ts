@@ -83,8 +83,7 @@ export function startHomeThreadNow(handleNewThread: NewThreadHandler): Promise<v
       ),
     }),
     environmentLabel: (environmentId) =>
-      identities.find((environment) => environment.environmentId === environmentId)?.label ??
-      null,
+      identities.find((environment) => environment.environmentId === environmentId)?.label ?? null,
     handleNewThread,
   });
 }
