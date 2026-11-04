@@ -127,7 +127,6 @@ import {
   buildHomeProjectMenuItems,
   CLEAR_HOME_PROJECT_ITEM_ID,
   homeProjectMenuItemId,
-  type SidebarProjectScopeItem,
 } from "../sidebarProjectPreferences";
 import {
   getThreadKeysToDeselectAfterDelete,
@@ -191,6 +190,7 @@ import {
 } from "./threadActionMenu.logic";
 import {
   applySidebarThreadDrop,
+  filterSidebarProjectScopeItems,
   filterSidebarV2VisibleThreads,
   groupSidebarThreadsByProject,
   sidebarFolderExpansionKeys,
@@ -609,6 +609,7 @@ function useSidebarThreads(input: {
   return {
     ...partition,
     threads,
+    workingShelfEnabled,
     searchableThreads: [
       ...pinnedThreads,
       ...activeThreads,
@@ -898,6 +899,7 @@ function useSidebarLookups() {
     projectByKey,
     projectDisplayNameByKey,
     projectGroupByScopeKey,
+    projectScopeItems,
   };
 }
 
@@ -986,22 +988,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const workingShelfThreadOverrides = useClientSettings(
     (s) => s.sidebarWorkingShelfThreadOverrides,
   );
-  const workingShelfPolicy = useMemo<SidebarWorkingShelfPolicy>(
-    () => ({
-      enabled: workingShelfSetting,
-      returnPlacement: workingShelfReturn,
-      scope: workingShelfScope,
-      environmentIds: workingShelfEnvironmentIds,
-      threadOverrides: workingShelfThreadOverrides,
-    }),
-    [
-      workingShelfSetting,
-      workingShelfReturn,
-      workingShelfScope,
-      workingShelfEnvironmentIds,
-      workingShelfThreadOverrides,
-    ],
-  );
+  const workingShelfPolicy: SidebarWorkingShelfPolicy = {
+    enabled: workingShelfSetting,
+    returnPlacement: workingShelfReturn,
+    scope: workingShelfScope,
+    environmentIds: workingShelfEnvironmentIds,
+    threadOverrides: workingShelfThreadOverrides,
+  };
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
     settleThread,
@@ -3265,7 +3258,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 <SidebarMachineFilter selected={machineFilter} onChange={setMachineFilter} />
               }
               projectScope={
-                <Combobox<SidebarProjectScopeItem>
+                <Combobox
                   items={projectScopeItems}
                   filteredItems={filteredProjectScopeItems}
                   autoHighlight

@@ -1,7 +1,7 @@
 import { EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { getProjectOrderKey } from "./logicalProject";
+import { getProjectOrderKey } from "@t3tools/client-runtime/state/project-grouping";
 import { buildSidebarProjectSnapshots } from "./sidebarProjectGrouping";
 import type { Project } from "./types";
 

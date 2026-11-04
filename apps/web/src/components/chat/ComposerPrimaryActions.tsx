@@ -441,7 +441,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   // non-send states keep the plain control so every status icon retains its contrast.
   const buttonArtworkVariant =
     (isForkArtworkDirection(stageBackdropVariant) || stageBackdropVariant === "scribble") &&
-    (isConnecting || isBusyOrHeld || showResume || isEditingQueuedMessage || isRunning)
+    (isBusyOrHeld || showResume || isEditingQueuedMessage || isRunning)
       ? null
       : stageBackdropVariant;
 
