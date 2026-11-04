@@ -153,6 +153,7 @@ const runStubbedDesktop = (stub: StubbedDesktop) =>
         } as unknown as DesktopUpdates.DesktopUpdates["Service"]),
         Effect.provideService(DesktopLinuxUrlHandler.DesktopLinuxUrlHandler, {
           register: stub.registerLinuxUrlHandler,
+          syncIcon: () => Effect.void,
         }),
       )
       .pipe(
