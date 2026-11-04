@@ -605,6 +605,13 @@ export const make = Effect.gen(function* () {
     }
     const requestedPath = isNetworkPath(expandedPath) ? path.resolve(expandedPath) : expandedPath;
     if (path.isAbsolute(requestedPath)) {
+      // fork: host writes refuse the server's own state, as reads do.
+      if (yield* isServerInternalPath(requestedPath)) {
+        return yield* new WorkspacePaths.WorkspacePathOutsideRootError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+        });
+      }
       if (
         yield* Effect.tryPromise({
           try: () => isInGitFolder(requestedPath),
@@ -641,6 +648,16 @@ export const make = Effect.gen(function* () {
               cause,
             }),
         });
+        // a symlinked parent can still lead into the state folder.
+        const realParent = yield* Effect.promise(() =>
+          NodeFSP.realpath(parent).catch(() => parent),
+        );
+        if (yield* isServerInternalPath(path.join(realParent, path.basename(requestedPath)))) {
+          return yield* new WorkspacePaths.WorkspacePathOutsideRootError({
+            workspaceRoot: input.cwd,
+            relativePath: input.relativePath,
+          });
+        }
         yield* Effect.tryPromise({
           try: async () => {
             const handle = await NodeFSP.open(requestedPath, "wx", 0o600);
@@ -674,6 +691,12 @@ export const make = Effect.gen(function* () {
             cause,
           }),
       });
+      if (yield* isServerInternalPath(realTargetPath)) {
+        return yield* new WorkspacePaths.WorkspacePathOutsideRootError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+        });
+      }
       if (
         yield* Effect.tryPromise({
           try: () => isInGitFolder(realTargetPath),
