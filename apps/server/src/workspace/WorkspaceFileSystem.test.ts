@@ -493,6 +493,57 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
   });
 
   describe("writeFile", () => {
+    it.effect("does not write or create server state files", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const config = yield* ServerConfig.ServerConfig;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(config.secretsDir, "example.bin", "example\n");
+        yield* writeTextFile(config.stateDir, "statev2.sqlite", "example\n");
+        // a symlinked parent must not lead a create into the secrets folder.
+        const linkDir = yield* makeTempDir;
+        const link = path.join(linkDir, "secrets-link");
+        yield* fileSystem.symlink(config.secretsDir, link);
+
+        for (const input of [
+          {
+            cwd,
+            relativePath: path.join(config.secretsDir, "example.bin"),
+            expectedContents: "example\n",
+            contents: "edited\n",
+          },
+          {
+            cwd,
+            relativePath: path.join(config.stateDir, "statev2.sqlite"),
+            expectedContents: "example\n",
+            contents: "edited\n",
+          },
+          {
+            cwd,
+            relativePath: path.join(config.secretsDir, "new.bin"),
+            contents: "new\n",
+            createIfMissing: true as const,
+          },
+          {
+            cwd,
+            relativePath: path.join(link, "via-link.bin"),
+            contents: "new\n",
+            createIfMissing: true as const,
+          },
+        ]) {
+          const error = yield* workspaceFileSystem.writeFile(input).pipe(Effect.flip);
+          expect(error).toBeInstanceOf(WorkspacePaths.WorkspacePathOutsideRootError);
+        }
+        expect(yield* fileSystem.readFileString(path.join(config.secretsDir, "example.bin"))).toBe(
+          "example\n",
+        );
+        expect(yield* fileSystem.exists(path.join(config.secretsDir, "new.bin"))).toBe(false);
+        expect(yield* fileSystem.exists(path.join(config.secretsDir, "via-link.bin"))).toBe(false);
+      }),
+    );
+
     it.effect("creates a requested host file and missing parent directory", () =>
       Effect.gen(function* () {
         const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
