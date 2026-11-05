@@ -42,22 +42,24 @@ export function ChatBannerLane(props: {
   } = props;
   return (
     <div className="chat-banner-lane pointer-events-none absolute top-0 z-30 flex flex-col">
-      <ProviderStatusBanner
-        environmentId={props.environmentId}
-        status={providerStatus}
-        onDismiss={() => setDismissedProviderStatusBannerKey(providerStatusBannerKey)}
-        onOpenProviderSetup={onOpenProviderSetup}
-      />
-      <ThreadErrorBanner
-        error={threadError}
-        errorClass={threadErrorClass}
-        errorCode={threadErrorCode}
-        onDismiss={() => {
-          setThreadError(threadId, null);
-          dismissThreadErrorBannerForSession(threadErrorBannerKey);
-          setThreadErrorBannerDismissTick((tick) => tick + 1);
-        }}
-      />
+      <div className="chat-overlay-content flex w-full flex-col">
+        <ProviderStatusBanner
+          environmentId={props.environmentId}
+          status={providerStatus}
+          onDismiss={() => setDismissedProviderStatusBannerKey(providerStatusBannerKey)}
+          onOpenProviderSetup={onOpenProviderSetup}
+        />
+        <ThreadErrorBanner
+          error={threadError}
+          errorClass={threadErrorClass}
+          errorCode={threadErrorCode}
+          onDismiss={() => {
+            setThreadError(threadId, null);
+            dismissThreadErrorBannerForSession(threadErrorBannerKey);
+            setThreadErrorBannerDismissTick((tick) => tick + 1);
+          }}
+        />
+      </div>
     </div>
   );
 }

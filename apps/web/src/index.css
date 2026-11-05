@@ -1076,12 +1076,16 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 }
 
-/* left chat alignment. Timeline rows and the composer stack already share one
-   content box (the timeline scroller subtracts its scrollbar gutter), so both
-   sit at its start edge. The optional gutter is consumed before the reading
+/* left chat alignment. Timeline rows, footer rows and composer overlays share
+   one content box (the timeline scroller subtracts its scrollbar gutter). The optional gutter is consumed before the reading
    column narrows, so it shrinks first in narrow panes. */
 :root[data-chat-alignment="left"] .chat-content-lane,
-:root[data-chat-alignment="left"] [data-chat-composer-stack] {
+:root[data-chat-alignment="left"] [data-chat-composer-stack],
+:root[data-chat-alignment="left"] [data-thread-queue],
+:root[data-chat-alignment="left"] [data-thread-now-line],
+:root[data-chat-alignment="left"] [data-composer-sync-status],
+:root[data-chat-alignment="left"] [data-chat-thread-status-line],
+:root[data-chat-alignment="left"] .chat-overlay-content {
   --chat-effective-left-gutter: min(
     var(--chat-left-gutter, 0px),
     max(0px, calc(100% - var(--chat-content-max-width)))
@@ -1090,6 +1094,19 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   max-width: none;
   margin-inline-start: var(--chat-effective-left-gutter);
   margin-inline-end: auto;
+}
+
+/* overlay insets already exclude side panels; match the remaining composer padding. */
+:root[data-chat-alignment="left"] :is(.chat-scroll-to-bottom, .chat-banner-lane) {
+  padding-inline-start: calc(env(safe-area-inset-left) + 0.75rem);
+  padding-inline-end: calc(env(safe-area-inset-right) + 0.75rem);
+}
+
+@media (min-width: 640px) {
+  :root[data-chat-alignment="left"] :is(.chat-scroll-to-bottom, .chat-banner-lane) {
+    padding-inline-start: calc(env(safe-area-inset-left) + 3rem);
+    padding-inline-end: calc(env(safe-area-inset-right) + 3rem);
+  }
 }
 
 /* Safe-area inset utilities for surfaces that opt into edge-to-edge rendering.
