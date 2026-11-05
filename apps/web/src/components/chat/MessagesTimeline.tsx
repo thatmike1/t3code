@@ -1577,7 +1577,7 @@ function ContextCompactionTimelineRow({
       role="separator"
       aria-label={row.failure ? `${label}: ${row.failure}` : label}
       className={cn(
-        "mx-auto flex w-full max-w-(--chat-content-max-width) items-center gap-3 py-1 text-xs",
+        "chat-content-lane flex items-center gap-3 py-1 text-xs",
         row.failed ? "text-destructive" : "text-muted-foreground",
       )}
     >
