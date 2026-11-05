@@ -44,9 +44,12 @@ function createShortcutModifierStore(ignoreEditable: boolean) {
         : shortcutModifierStateAfterKeyboardEvent(state, event),
     );
   };
-  // Dictation tools can omit Meta keyup after synthetic paste, leaving jump hints stuck.
+  // Dictation tools or a native shortcut can omit Meta keyup, leaving jump hints stuck.
   const onResetEvent = () => {
     updateState(EMPTY_SHORTCUT_MODIFIER_STATE);
+  };
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "hidden") onResetEvent();
   };
   const onFocus = (event: FocusEvent) => {
     if (ignoreEditable && isEditableFocused(event.target)) onResetEvent();
@@ -57,12 +60,14 @@ function createShortcutModifierStore(ignoreEditable: boolean) {
     window.addEventListener("keyup", onKeyboardEvent, true);
     window.addEventListener("paste", onResetEvent, true);
     window.addEventListener("blur", onResetEvent);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("focusin", onFocus);
       window.removeEventListener("keydown", onKeyboardEvent, true);
       window.removeEventListener("keyup", onKeyboardEvent, true);
       window.removeEventListener("paste", onResetEvent, true);
       window.removeEventListener("blur", onResetEvent);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       state = EMPTY_SHORTCUT_MODIFIER_STATE;
     };
   };
@@ -97,6 +102,7 @@ function normalizeModifierKey(key: string): keyof ShortcutModifierState | null {
     case "OS":
     case "Command":
       return "metaKey";
+    case "Ctrl":
     case "Control":
       return "ctrlKey";
     case "Alt":
@@ -114,20 +120,16 @@ export function shortcutModifierStateAfterKeyboardEvent(
   event: KeyboardEvent,
 ): ShortcutModifierState {
   const normalizedModifierKey = normalizeModifierKey(event.key);
-  let nextState: ShortcutModifierState;
+  // flags may clear a missed release on any key, but cannot invent a held
+  // modifier: dictation paste can poison later events with metaKey=true.
+  const nextState: ShortcutModifierState = {
+    metaKey: currentState.metaKey && event.metaKey,
+    ctrlKey: currentState.ctrlKey && event.ctrlKey,
+    altKey: currentState.altKey && event.altKey,
+    shiftKey: currentState.shiftKey && event.shiftKey,
+  };
   if (normalizedModifierKey) {
-    nextState = {
-      ...currentState,
-      [normalizedModifierKey]: event.type === "keydown",
-    };
-  } else {
-    // Dictation paste can poison real events with metaKey=true until a physical Meta press.
-    nextState = {
-      metaKey: currentState.metaKey && event.metaKey,
-      ctrlKey: currentState.ctrlKey && event.ctrlKey,
-      altKey: currentState.altKey && event.altKey,
-      shiftKey: currentState.shiftKey && event.shiftKey,
-    };
+    nextState[normalizedModifierKey] = event.type === "keydown";
   }
 
   return areShortcutModifierStatesEqual(currentState, nextState) ? currentState : nextState;
