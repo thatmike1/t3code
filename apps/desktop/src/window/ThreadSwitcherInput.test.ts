@@ -33,7 +33,7 @@ describe("desktop thread switcher input", () => {
       { type: "step", reverse: true },
       { type: "commit" },
     ]);
-    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(preventDefault).not.toHaveBeenCalled();
   });
 
   it("cancels on Escape and blur without later committing", () => {

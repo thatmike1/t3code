@@ -42,7 +42,7 @@ export function makeThreadSwitcherInputHandler(notify: (event: ThreadSwitcherInp
         return;
       }
       if (input.type === "keyUp" && (key === "control" || key === "ctrl") && active) {
-        event.preventDefault();
+        // let the renderer observe Ctrl release too, so held shortcut hints clear.
         active = false;
         notify({ type: "commit" });
       }
