@@ -206,6 +206,7 @@ function makeRegistry(
       getProviders: Ref.get(providersRef),
       refresh: () => Ref.get(providersRef),
       refreshInstance: () => Ref.get(providersRef),
+      refreshInstanceUsage: () => Ref.get(providersRef),
       reloadSecretsAndRefresh: () => Ref.get(providersRef),
       applySecretAndRefresh: () => Ref.get(providersRef),
       refreshAfterUpdate: () => {
