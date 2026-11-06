@@ -116,7 +116,7 @@ function UsageMeterRowView({
   );
 }
 
-/** Claude's five-hour use in the footer utility row; click for Codex and Claude weekly too. */
+/** claude's five-hour use in the footer utility row; click for Codex and Claude weekly too. */
 export const SidebarUsageMeter = memo(function SidebarUsageMeter() {
   const environments = useMeterEnvironments();
   const primaryEnvironmentId = useAtomValue(primaryEnvironmentIdAtom);
@@ -151,7 +151,10 @@ export const SidebarUsageMeter = memo(function SidebarUsageMeter() {
     await Promise.all(
       DRIVERS.map(async (driver) => {
         const source = sources[driver];
-        if (source === null) return;
+        if (source === null) {
+          outcomes[driver] = { status: "unavailable", message: "No source configured." };
+          return;
+        }
         if (!source.connected) {
           outcomes[driver] = {
             status: "unavailable",
@@ -166,14 +169,18 @@ export const SidebarUsageMeter = memo(function SidebarUsageMeter() {
           };
           return;
         }
-        const result = await refreshProviders({
-          environmentId: source.environmentId,
-          input: { instanceId: source.provider.instanceId, refreshUsage: true },
-        });
-        outcomes[driver] =
-          result._tag === "Success"
-            ? usageRefreshOutcome(source, result.value.providers)
-            : { status: "failed", message: "Refresh failed." };
+        try {
+          const result = await refreshProviders({
+            environmentId: source.environmentId,
+            input: { instanceId: source.provider.instanceId, refreshUsage: true },
+          });
+          outcomes[driver] =
+            result._tag === "Success"
+              ? usageRefreshOutcome(source, result.value.providers)
+              : { status: "failed", message: "Refresh failed." };
+        } catch {
+          outcomes[driver] = { status: "failed", message: "Refresh failed." };
+        }
       }),
     );
     refreshingRef.current = false;
