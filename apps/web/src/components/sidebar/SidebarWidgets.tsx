@@ -1,11 +1,11 @@
 import type { Widget } from "@t3tools/contracts";
-import { memo, useMemo } from "react";
+import { memo } from "react";
 
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { cn } from "../../lib/utils";
 import { useWidgets } from "../../lib/widgetsState";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
+import { SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { WidgetIcon } from "./WidgetIcon";
 import {
@@ -112,7 +112,7 @@ function SidebarWidgetItem({
   );
 }
 
-/** The tray strip in the sidebar footer: one icon per widget the server is watching. */
+/** renders widget items inside the footer utility menu. */
 export const SidebarWidgets = memo(function SidebarWidgets() {
   const snapshot = useWidgets();
   const nowMinute = useNowMinute();
@@ -123,10 +123,10 @@ export const SidebarWidgets = memo(function SidebarWidgets() {
 
   const nowSeconds = widgetNowSeconds(nowMinute);
   return (
-    <SidebarMenu className="flex-row items-center">
+    <>
       {sorted.map((widget) => (
         <SidebarWidgetItem key={widget.id} nowSeconds={nowSeconds} widget={widget} />
       ))}
-    </SidebarMenu>
+    </>
   );
 });
