@@ -2806,6 +2806,97 @@ it.layer(
       }),
     );
 
+    it.effect("refreshes an instance's usage through its cache-bypassing usage read", () =>
+      Effect.gen(function* () {
+        const claudeDriver = ProviderDriverKind.make("claudeAgent");
+        const claudeInstanceId = ProviderInstanceId.make("claudeAgent");
+        const cachedProvider = {
+          instanceId: claudeInstanceId,
+          driver: claudeDriver,
+          status: "ready",
+          enabled: true,
+          installed: true,
+          auth: { status: "authenticated" },
+          checkedAt: "2026-04-29T10:00:00.000Z",
+          version: "1.0.0",
+          models: [],
+          slashCommands: [],
+          skills: [],
+          usageLimits: { checkedAt: "2026-04-29T10:00:00.000Z", windows: [] },
+        } as const satisfies ServerProvider;
+        const freshUsage = {
+          checkedAt: "2026-04-29T10:07:00.000Z",
+          windows: [{ id: "five_hour", kind: "session", label: "5h", usedPercent: 42 }],
+        } as const;
+        const snapshotRef = yield* Ref.make<ServerProvider>(cachedProvider);
+        const instance = {
+          instanceId: claudeInstanceId,
+          driverKind: claudeDriver,
+          continuationIdentity: {
+            driverKind: claudeDriver,
+            continuationKey: "claudeAgent:instance:claudeAgent",
+          },
+          displayName: undefined,
+          enabled: true,
+          snapshot: {
+            resolveMaintenance: () =>
+              Effect.succeed(
+                makeManualOnlyProviderMaintenanceCapabilities({
+                  provider: claudeDriver,
+                  packageName: null,
+                }),
+              ),
+            getSnapshot: Ref.get(snapshotRef),
+            // The generic refresh may answer from the usage cache, so a usage refresh must not use it.
+            refresh: Effect.die(new Error("usage refresh used the cached provider refresh")),
+            refreshUsage: Ref.update(snapshotRef, (provider) => ({
+              ...provider,
+              usageLimits: freshUsage,
+            })),
+            streamChanges: Stream.empty,
+            applyUsageLimits: () => Effect.void,
+          },
+          orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
+          textGeneration: {} as ProviderInstance["textGeneration"],
+        } satisfies ProviderInstance;
+        const layerInstanceRegistry = Layer.succeed(
+          ProviderInstanceRegistry.ProviderInstanceRegistry,
+          {
+            getInstance: (instanceId) =>
+              Effect.succeed(instanceId === claudeInstanceId ? instance : undefined),
+            listInstances: Effect.succeed([instance]),
+            listUnavailable: Effect.succeed([]),
+            streamChanges: Stream.empty,
+            subscribeChanges: Effect.flatMap(PubSub.unbounded<void>(), (pubsub) =>
+              PubSub.subscribe(pubsub),
+            ),
+          },
+        );
+        const scope = yield* Scope.make();
+        yield* Effect.addFinalizer(() => Scope.close(scope, Exit.void));
+        const runtimeServices = yield* Layer.build(
+          ProviderRegistry.layer.pipe(
+            Layer.provide(layerUnusedMutator),
+            Layer.provideMerge(layerInstanceRegistry),
+            Layer.provideMerge(
+              ServerConfig.layerTest(process.cwd(), {
+                prefix: "t3-provider-registry-usage-refresh-",
+              }),
+            ),
+            Layer.provideMerge(layerBackgroundPolicyAlwaysRun),
+            Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+          ),
+        ).pipe(Scope.provide(scope));
+
+        yield* Effect.gen(function* () {
+          const registry = yield* ProviderRegistry.ProviderRegistry;
+          const refreshed = yield* registry.refreshInstanceUsage(claudeInstanceId);
+          assert.deepStrictEqual(refreshed[0]?.usageLimits, freshUsage);
+          assert.deepStrictEqual((yield* registry.getProviders)[0]?.usageLimits, freshUsage);
+        }).pipe(Effect.provide(runtimeServices));
+      }),
+    );
+
     it.effect("re-probes when settings change the codex binaryPath", () =>
       Effect.gen(function* () {
         const firstMissing = `t3code_codex_first_`;

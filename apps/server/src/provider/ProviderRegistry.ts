@@ -64,6 +64,11 @@ export class ProviderRegistry extends Context.Service<
       instanceId: ProviderInstanceId,
     ) => Effect.Effect<ReadonlyArray<ServerProvider>>;
 
+    /** Re-reads account usage limits past the instance's usage cache; other probes keep their timers. */
+    readonly refreshInstanceUsage: (
+      instanceId: ProviderInstanceId,
+    ) => Effect.Effect<ReadonlyArray<ServerProvider>>;
+
     /** Re-reads secret-backed environments first, so a fixed secret applies without a restart. */
     readonly reloadSecretsAndRefresh: (
       instanceId?: ProviderInstanceId,
@@ -610,10 +615,17 @@ export const layer = Layer.effect(
         .getInstance(instance.instanceId)
         .pipe(Effect.map((current) => current === instance));
 
-    const refreshOneSource = Effect.fn("refreshOneSource")(function* (instance: ProviderInstance) {
+    const refreshOneSource = Effect.fn("refreshOneSource")(function* (
+      instance: ProviderInstance,
+      options?: { readonly usage?: boolean },
+    ) {
       const providerSource = buildSnapshotSource(instance);
+      const refreshUsage =
+        options?.usage === true
+          ? instance.snapshot.refreshUsage?.pipe(Effect.tapError(Effect.logError), Effect.orDie)
+          : undefined;
       // Enrichment can publish a newer snapshot before refresh returns its pre-enrichment probe.
-      const probe = yield* providerSource.refresh.pipe(
+      const probe = yield* (refreshUsage ?? providerSource.refresh).pipe(
         Effect.andThen(providerSource.getSnapshot),
         Effect.exit,
       );
@@ -699,6 +711,17 @@ export const layer = Layer.effect(
         return yield* Ref.get(providersRef);
       }
       return yield* refreshOneSource(instance);
+    });
+
+    const refreshInstanceUsage = Effect.fn("refreshInstanceUsage")(function* (
+      instanceId: ProviderInstanceId,
+    ) {
+      yield* syncLiveSourcesAndContinue;
+      const instance = (yield* Ref.get(liveSubsRef)).get(instanceId);
+      if (!instance) {
+        return yield* Ref.get(providersRef);
+      }
+      return yield* refreshOneSource(instance, { usage: true });
     });
 
     const reloadSecretsAndRefresh = Effect.fn("reloadSecretsAndRefresh")(function* (
@@ -1103,6 +1126,8 @@ export const layer = Layer.effect(
         refresh(provider).pipe(Effect.catchCause(recoverRefreshFailure)),
       refreshInstance: (instanceId: ProviderInstanceId) =>
         refreshInstance(instanceId).pipe(Effect.catchCause(recoverRefreshFailure)),
+      refreshInstanceUsage: (instanceId: ProviderInstanceId) =>
+        refreshInstanceUsage(instanceId).pipe(Effect.catchCause(recoverRefreshFailure)),
       reloadSecretsAndRefresh: (instanceId?: ProviderInstanceId) =>
         reloadSecretsAndRefresh(instanceId).pipe(Effect.catchCause(recoverRefreshFailure)),
       refreshWorkspaceSnapshot: (input) =>
