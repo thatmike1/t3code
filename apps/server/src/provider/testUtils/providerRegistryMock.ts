@@ -11,6 +11,7 @@ const makeProviderRegistryMock = (
   getProviders: Effect.succeed(providers),
   refresh: () => Effect.succeed(providers),
   refreshInstance: () => Effect.succeed(providers),
+  refreshInstanceUsage: () => Effect.succeed(providers),
   reloadSecretsAndRefresh: () => Effect.succeed(providers),
   applySecretAndRefresh: () => Effect.succeed(providers),
   refreshAfterUpdate: () => Effect.succeed(providers),
