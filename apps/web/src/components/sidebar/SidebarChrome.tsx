@@ -291,6 +291,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
           />
         </>
       )}
+      <SidebarWidgets />
       <SidebarThreadUndoNotice />
       <SidebarUpdatePill />
     </SidebarMenu>
@@ -302,7 +303,6 @@ export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
     <SidebarFooter>
       <SidebarProviderUpdatePill />
       <SidebarUpdateArchitectureWarning />
-      <SidebarWidgets />
       <SidebarUtilityMenu />
     </SidebarFooter>
   );
