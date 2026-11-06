@@ -40,6 +40,7 @@ import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { observeResize } from "~/lib/observeResize";
+import { SidebarUsageMeter } from "./SidebarUsageMeter";
 import { SidebarWidgets } from "./SidebarWidgets";
 
 export const SidebarChromeHeader = memo(function SidebarChromeHeader({
@@ -291,6 +292,7 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
           />
         </>
       )}
+      <SidebarUsageMeter />
       <SidebarWidgets />
       <SidebarThreadUndoNotice />
       <SidebarUpdatePill />
