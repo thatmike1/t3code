@@ -666,7 +666,7 @@ export const WsServerRefreshProvidersRpc = Rpc.make(WS_METHODS.serverRefreshProv
      * only when it changed. The other fields are ignored and the config stream carries the result.
      */
     modelCatalogOnly: Schema.optional(Schema.Boolean),
-    /** With `instanceId`: re-read account usage limits past the provider's usage cache. Explicit user refreshes only. */
+    /** with `instanceId`: re-read account usage limits past the provider's usage cache. Explicit user refreshes only. */
     refreshUsage: Schema.optional(Schema.Boolean),
     /** Read secret references again; unlocking a vault can prompt on the host, so only explicit user refreshes ask. */
     reloadSecrets: Schema.optional(Schema.Boolean),

@@ -64,7 +64,7 @@ export class ProviderRegistry extends Context.Service<
       instanceId: ProviderInstanceId,
     ) => Effect.Effect<ReadonlyArray<ServerProvider>>;
 
-    /** Re-reads account usage limits past the instance's usage cache; other probes keep their timers. */
+    /** re-reads account usage limits past the instance's usage cache; other probes keep their timers. */
     readonly refreshInstanceUsage: (
       instanceId: ProviderInstanceId,
     ) => Effect.Effect<ReadonlyArray<ServerProvider>>;

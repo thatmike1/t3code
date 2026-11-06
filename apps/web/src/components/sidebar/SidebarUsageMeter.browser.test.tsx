@@ -1,3 +1,5 @@
+import "../../index.css";
+
 import {
   EnvironmentId,
   ProviderDriverKind,
@@ -137,4 +139,17 @@ describe("SidebarUsageMeter", () => {
       expect.stringContaining("61%"),
     ]);
   });
+});
+
+it("does not report up to date when neither provider has a source", async () => {
+  setup(async () => ({ _tag: "Failure" }));
+  state.providers = [];
+  await using screen = await render(meter);
+  await userEvent.click(screen.getByRole("button", { name: "Claude 5-hour: no reading" }));
+  await userEvent.click(page.getByRole("button", { name: "Refresh", exact: true }));
+  await expect
+    .element(page.getByRole("status"))
+    .toHaveTextContent("Codex: No source configured. Claude: No source configured.");
+  await expect.element(page.getByRole("status")).not.toHaveTextContent("Up to date.");
+  expect(state.refreshCalls).toHaveLength(0);
 });
