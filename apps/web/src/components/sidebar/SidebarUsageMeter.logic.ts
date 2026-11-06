@@ -5,9 +5,9 @@ import type {
   ServerProviderUsageWindow,
 } from "@t3tools/contracts";
 
-/** A reading older than this, or from a disconnected environment, is shown as stale. */
+/** a reading older than this, or from a disconnected environment, is shown as stale. */
 const USAGE_METER_STALE_AFTER_MS = 15 * 60_000;
-/** Opening the popup re-reads when a reading is older than the Claude usage cache. */
+/** opening the popup re-reads when a reading is older than the Claude usage cache. */
 const USAGE_METER_REFRESH_ON_OPEN_AFTER_MS = 5 * 60_000;
 
 export interface UsageMeterEnvironment {
@@ -103,7 +103,7 @@ export function selectUsageMeterSource(
 }
 
 export type UsageMeterReading =
-  /** The provider's own last reading, with its original check time. */
+  /** the provider's own last reading, with its original check time. */
   | {
       readonly state: "measured";
       readonly usedPercent: number;
@@ -111,7 +111,7 @@ export type UsageMeterReading =
       readonly resetsAt: string | null;
       readonly stale: boolean;
     }
-  /** The window reset after the last reading; zero is assumed, never measured. */
+  /** the window reset after the last reading; zero is assumed, never measured. */
   | {
       readonly state: "resetSinceReading";
       readonly usedPercent: 0;
@@ -126,7 +126,7 @@ export interface UsageMeterRow {
   readonly label: string;
   readonly source: UsageMeterSource | null;
   readonly reading: UsageMeterReading;
-  /** The provider's own note when its last read failed. */
+  /** the provider's own note when its last read failed. */
   readonly notice: string | null;
 }
 
@@ -160,7 +160,7 @@ function readWindow(
   };
 }
 
-/** Popup order: Codex weekly, Claude 5-hour, Claude weekly. */
+/** popup order: Codex weekly, Claude 5-hour, Claude weekly. */
 export function usageMeterRows(
   sources: Readonly<Record<UsageMeterDriver, UsageMeterSource | null>>,
   now: number,
@@ -183,7 +183,7 @@ export function usageMeterRows(
   });
 }
 
-/** Whether opening the popup should ask for a new reading. */
+/** whether opening the popup should ask for a new reading. */
 export function shouldRefreshOnOpen(rows: readonly UsageMeterRow[], now: number): boolean {
   return rows.some((row) => {
     if (row.source === null || !row.source.connected) return false;
@@ -194,28 +194,32 @@ export function shouldRefreshOnOpen(rows: readonly UsageMeterRow[], now: number)
 
 export type UsageMeterRefreshOutcome =
   | { readonly status: "updated" }
-  /** The provider answered, but its reading time did not move: the read failed or was skipped. */
+  /** the provider answered, but its reading time did not move: the read failed or was skipped. */
   | { readonly status: "unchanged"; readonly message: string | null }
   | { readonly status: "failed"; readonly message: string }
   | { readonly status: "unavailable"; readonly message: string };
 
-/** Classifies a usage refresh by the reply's reading time against the one shown before it. */
+/** classifies a usage refresh by the reply's reading time against the one shown before it. */
 export function usageRefreshOutcome(
   source: UsageMeterSource,
   reply: readonly ServerProvider[],
 ): UsageMeterRefreshOutcome {
   const refreshed = reply.find((provider) => provider.instanceId === source.provider.instanceId);
+  const unavailable = refreshed?.usageLimits?.unavailable;
+  if (unavailable?.reason === "probeFailed") {
+    return {
+      status: "unchanged",
+      message: unavailable.message ?? "Could not read limits.",
+    };
+  }
   const before = source.provider.usageLimits?.checkedAt;
   const after = refreshed?.usageLimits?.checkedAt;
-  if (after !== undefined && (before === undefined || Date.parse(after) > Date.parse(before))) {
+  if (
+    refreshed?.usageLimits?.windows.length &&
+    after !== undefined &&
+    (before === undefined || Date.parse(after) > Date.parse(before))
+  ) {
     return { status: "updated" };
   }
-  const unavailable = refreshed?.usageLimits?.unavailable;
-  return {
-    status: "unchanged",
-    message:
-      unavailable?.reason === "probeFailed"
-        ? (unavailable.message ?? "Could not read limits.")
-        : null,
-  };
+  return { status: "unchanged", message: null };
 }

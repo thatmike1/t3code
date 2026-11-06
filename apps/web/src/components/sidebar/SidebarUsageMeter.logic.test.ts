@@ -281,3 +281,21 @@ describe("usageRefreshOutcome", () => {
     ).toEqual({ status: "unchanged", message: "Could not read limits." });
   });
 });
+
+it("does not call a failed probe fresh just because its check timestamp advanced", () => {
+  const source = {
+    environmentId: desk,
+    environmentLabel: "desk",
+    connected: true,
+    provider: provider("claudeAgent", claudeLimits("2026-11-06T11:40:00.000Z")),
+  };
+  expect(
+    usageRefreshOutcome(source, [
+      provider("claudeAgent", {
+        checkedAt: "2026-11-06T12:00:00.000Z",
+        windows: [],
+        unavailable: { reason: "probeFailed", message: "Could not contact Claude." },
+      }),
+    ]),
+  ).toEqual({ status: "unchanged", message: "Could not contact Claude." });
+});
