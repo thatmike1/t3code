@@ -108,8 +108,6 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
     command: "composer.sendAndNewThread",
     when: "composerFocus && !draftThreadRoute",
   },
-  { key: "alt+2", command: "composer.effort.decrease", when: "!terminalFocus" },
-  { key: "alt+5", command: "composer.effort.increase", when: "!terminalFocus" },
   { key: "alt+1", command: "composer.model.opus", when: "!terminalFocus && !modelPickerOpen" },
   { key: "alt+3", command: "composer.model.sol", when: "!terminalFocus && !modelPickerOpen" },
   { key: "alt+4", command: "composer.model.fable", when: "!terminalFocus && !modelPickerOpen" },

@@ -86,20 +86,15 @@ describe("quick model defaults", () => {
         }),
       );
     }
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "2", altKey: true }), DEFAULT_RESOLVED_KEYBINDINGS, {
-        platform: "Linux",
-        context: { terminalFocus: false, modelPickerOpen: false },
-      }),
-      "composer.effort.decrease",
-    );
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "5", altKey: true }), DEFAULT_RESOLVED_KEYBINDINGS, {
-        platform: "Linux",
-        context: { terminalFocus: false, modelPickerOpen: false },
-      }),
-      "composer.effort.increase",
-    );
+    // alt+2 and alt+5 stay free for user bindings of upstream's effort step
+    for (const key of ["2", "5"]) {
+      assert.isNull(
+        resolveShortcutCommand(event({ key, altKey: true }), DEFAULT_RESOLVED_KEYBINDINGS, {
+          platform: "Linux",
+          context: { terminalFocus: false, modelPickerOpen: false },
+        }),
+      );
+    }
   });
 });
 

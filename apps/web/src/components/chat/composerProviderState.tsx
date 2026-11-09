@@ -19,7 +19,6 @@ import type { DraftId } from "../../composerDraftStore";
 import { getProviderModelCapabilities } from "../../providerModels";
 import {
   getReasoningTraitStep,
-  stepProviderEffort,
   type PromptUltrathink,
   type TraitsSelectionInput,
 } from "./TraitsPicker";
@@ -93,27 +92,6 @@ function resolveComposerOptionSelections(
 } {
   const caps = getProviderModelCapabilities(models, model, provider, includePlanAgent);
   return { caps, selections: withImplicitFastModeDefault(caps, modelOptions) };
-}
-
-/**
- * The composer's model options after one effort step, resolved the way the
- * traits picker resolves them. Null when the step changes nothing.
- */
-export function stepComposerEffort(
-  input: Pick<
-    ComposerProviderStateInput,
-    "provider" | "model" | "models" | "modelOptions" | "planModeEnabled"
-  > & { prompt: string },
-  direction: -1 | 1,
-): ReadonlyArray<ProviderOptionSelection> | null {
-  const { selections } = resolveComposerOptionSelections(
-    input.models,
-    input.model,
-    input.provider,
-    input.modelOptions,
-    input.planModeEnabled,
-  );
-  return stepProviderEffort({ ...input, modelOptions: selections }, direction);
 }
 
 export function getComposerProviderState(input: ComposerProviderStateInput): ComposerProviderState {
