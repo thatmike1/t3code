@@ -1,5 +1,6 @@
 import { useAtomMount } from "@effect/atom-react";
 import { asLaunchingThread } from "@t3tools/client-runtime/state/thread-inbox";
+import { SidebarForkOrigin } from "./SidebarForkOrigin";
 import { SidebarTabTintMarker } from "./SidebarTabTintMarker";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { ThreadTerminalStatusButton } from "../ThreadStatusIndicators";
@@ -90,6 +91,7 @@ import { textDirection } from "~/textDirection";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import {
   animateSidebarLayoutChanges,
+  getSidebarForkParentThreadId,
   hasUnseenCompletion,
   resolveSidebarRowAccessibility,
   type SidebarDropVerb,
@@ -1115,6 +1117,16 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       ) : null}
     </span>
   );
+  // only user forks get the marker; subagent children never reach the list.
+  const forkParentThreadId = getSidebarForkParentThreadId(thread);
+  const forkOrigin =
+    forkParentThreadId !== null && !isRenaming ? (
+      <SidebarForkOrigin
+        environmentId={thread.environmentId}
+        parentThreadId={forkParentThreadId}
+        onOpenParent={onThreadActivate}
+      />
+    ) : null;
 
   const prBadgeShape = supportsMultiplePullRequests
     ? resolveThreadPullRequestBadge(thread.pullRequests)
@@ -1390,6 +1402,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 </span>
               )}
               {draftIndicator}
+              {forkOrigin}
               {title}
               {multiline ? titleLineIcons : null}
               {pinIndicator}
@@ -1742,6 +1755,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               {props.sweepAction !== null ? dragDestination : null}
             </div>
             <div className="mt-1 flex min-w-0 items-center gap-1.5">
+              {forkOrigin}
               {title}
               {isRegeneratingTitle ? (
                 <span role="status" className="sr-only">
