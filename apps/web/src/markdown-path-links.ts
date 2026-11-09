@@ -11,29 +11,46 @@ import {
  */
 
 const SEGMENT = String.raw`[\p{L}\p{M}\p{N}._~+@$=()[\]-]+`;
+/** a path starts a word: `and/or`, `km/h`, `x.com/a/b` and `https://x/y` are not paths. */
+const NOT_A_PATH_START = String.raw`[\p{L}\p{M}\p{N}_.\-/\\:~@]`;
+const NOT_A_PATH_START_PATTERN = new RegExp(NOT_A_PATH_START, "u");
+/**
+ * the start boundary sits in the pattern itself, so the engine rejects every position inside a
+ * long slash-separated token in constant time instead of rescanning the rest of it from each one.
+ */
 const PROSE_PATH_PATTERN = new RegExp(
-  String.raw`(?:~(?:/${SEGMENT})+|(?:/${SEGMENT}){2,})(?::\d+(?::\d+)?)?`,
+  String.raw`(?<!${NOT_A_PATH_START})(?:~(?:/${SEGMENT})+|(?:/${SEGMENT}){2,})(?::\d+(?::\d+)?)?`,
   "gu",
 );
-/** a path starts a word: `and/or`, `km/h`, `x.com/a/b` and `https://x/y` are not paths. */
-const NOT_A_PATH_START_PATTERN = /[\p{L}\p{M}\p{N}_.\-/\\:~@]/u;
 const PATH_AUTOLINK_IGNORED_TYPES = new Set(["link", "linkReference"]);
 
-function count(value: string, character: string): number {
-  return value.split(character).length - 1;
-}
-
-/** sentence punctuation after a path, and a closing bracket that has no opening one inside it. */
+/**
+ * sentence punctuation after a path, and a closing bracket that has no opening one inside it.
+ * bracket balances are counted once and updated as characters come off, so a long run of
+ * closing brackets trims in one pass.
+ */
 function trimTrailingPunctuation(token: string): string {
-  let path = token;
-  while (path.length > 0) {
-    const last = path.at(-1);
-    if (last === ".") path = path.slice(0, -1);
-    else if (last === ")" && count(path, ")") > count(path, "(")) path = path.slice(0, -1);
-    else if (last === "]" && count(path, "]") > count(path, "[")) path = path.slice(0, -1);
-    else break;
+  let parens = 0;
+  let squares = 0;
+  for (const character of token) {
+    if (character === "(") parens -= 1;
+    else if (character === ")") parens += 1;
+    else if (character === "[") squares -= 1;
+    else if (character === "]") squares += 1;
   }
-  return path;
+  let end = token.length;
+  while (end > 0) {
+    const last = token[end - 1];
+    if (last === ".") end -= 1;
+    else if (last === ")" && parens > 0) {
+      parens -= 1;
+      end -= 1;
+    } else if (last === "]" && squares > 0) {
+      squares -= 1;
+      end -= 1;
+    } else break;
+  }
+  return token.slice(0, end);
 }
 
 /** the path a prose token links to, or null when it is not one. */
