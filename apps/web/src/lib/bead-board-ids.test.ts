@@ -2,7 +2,7 @@
 import * as NodeHttp from "node:http";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { createBeadBoardIdsStore, fetchBeadBoardIds } from "./beadBoardIds";
-import { beadBoardHref, shortBeadIdCandidate } from "../markdown-bead-links";
+import { beadBoardHref, knownFullBeadId, shortBeadIdCandidate } from "../markdown-bead-links";
 
 const servers: NodeHttp.Server[] = [];
 async function board(prefix: string, body: unknown, status = 200) {
@@ -53,14 +53,33 @@ describe("configured bead boards", () => {
       const general = await board("ccChat-general", { ids: ["ccChat-general-abc"] });
       const nexi = await board("nexiflow", { ids: [42] }, status);
       const ids = await fetchBeadBoardIds([general, nexi]);
-      expect(ids).toEqual(new Set(["ccChat-general-abc"]));
+      expect(ids).toEqual(new Set(["ccChat-general-", "ccChat-general-abc"]));
       expect(shortBeadIdCandidate("abc", ids)).toBe("ccChat-general-abc");
     },
   );
   it("does not mistake another repository's board for an empty board", async () => {
     const general = await board("ccChat-general", { ids: ["ccChat-general-zl51"] });
     const wrong = await board("nexiflow", { ids: ["ccChat-general-abc"] });
-    expect(await fetchBeadBoardIds([general, wrong])).toEqual(new Set(["ccChat-general-zl51"]));
+    expect(await fetchBeadBoardIds([general, wrong])).toEqual(
+      new Set(["ccChat-general-", "ccChat-general-zl51"]),
+    );
+  });
+  it("treats a board that answered with no ids as vouching for its prefix", async () => {
+    const general = await board("ccChat-general", { ids: ["ccChat-general-zl51"] });
+    const nexi = await board("nexiflow", { ids: [] });
+    const boards = [general, nexi];
+    const ids = await fetchBeadBoardIds(boards);
+    expect(knownFullBeadId("nexiflow-audit", boards, ids)).toBeNull();
+    expect(knownFullBeadId("ccChat-general-zl51", boards, ids)).toBe("ccChat-general-zl51");
+    // a board that never answered keeps prefix-only links
+    expect(knownFullBeadId("nexiflow-audit", boards, new Set())).toBe("nexiflow-audit");
+  });
+  it("checks full ids against the answered board, the same way inline code does", () => {
+    const boards = [{ prefix: "nexiflow", origin: "http://localhost:1" }];
+    const known = new Set(["nexiflow-ab12"]);
+    expect(knownFullBeadId("nexiflow-audit", boards, known)).toBeNull();
+    expect(knownFullBeadId("nexiflow-ab12", boards, known)).toBe("nexiflow-ab12");
+    expect(knownFullBeadId("other-ab12", boards, known)).toBeNull();
   });
   it("does not choose between conflicting origins for a prefix", () => {
     expect(
