@@ -199,6 +199,7 @@ import {
   filterSidebarProjectScopeItems,
   formatWorkingDurationLabel,
   firstValidTimestampMs,
+  getSidebarForkParentThreadId,
   hasUnseenCompletion,
   isSidebarInboxTimeOrdered,
   isSidebarNestedLinkClick,
@@ -286,6 +287,7 @@ import {
 import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { SidebarHeaderIconButton, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
+import { SidebarForkOrigin } from "./sidebar/SidebarForkOrigin";
 import { SidebarTabTintMarker } from "./sidebar/SidebarTabTintMarker";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuShortcut, MenuTrigger } from "./ui/menu";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
@@ -1718,6 +1720,16 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
       </span>
     );
   const accessibleTitle = isRenaming ? null : <span className="sr-only">{thread.title}</span>;
+  // Only user forks get the marker; subagent children never reach the list.
+  const forkParentThreadId = getSidebarForkParentThreadId(thread);
+  const forkOrigin =
+    forkParentThreadId !== null && !isRenaming ? (
+      <SidebarForkOrigin
+        environmentId={thread.environmentId}
+        parentThreadId={forkParentThreadId}
+        onOpenParent={onThreadActivate}
+      />
+    ) : null;
 
   // Stacks show their layer count; multiple unrelated links show their total count.
   // Either opens the thread's pull requests tab; a single PR link opens that PR and still
@@ -1854,6 +1866,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
               {props.project ? <ProjectFavicon project={props.project} className="size-4" /> : null}
             </span>
             {draftIndicator}
+            {forkOrigin}
             {title}
             {pinIndicator}
             {terminalStatusIcon}
@@ -2183,7 +2196,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                   release click still fires and is consumed. */}
               {props.sweepAction !== null ? dragDestination : null}
             </div>
-            <div className="mt-1 flex min-w-0">
+            <div className="mt-1 flex min-w-0 items-center gap-1">
+              {forkOrigin}
               {title}
               {isRegeneratingTitle ? (
                 <span role="status" className="sr-only">
