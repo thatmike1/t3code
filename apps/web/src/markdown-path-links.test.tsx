@@ -54,4 +54,11 @@ describe("remarkPathAutolinks", () => {
       linkedPaths("`/home/me/a.md`\n\n```\n/home/me/b.md\n```\n\n[/home/me/c.md](https://x.dev)"),
     ).toEqual([]);
   });
+
+  it("handles long slash runs and long runs of closing brackets", () => {
+    // both took about a second when every rejected position rescanned the rest of the token;
+    // the start boundary now sits in the pattern and brackets are counted once
+    expect(linkedPaths(`a${"/aa".repeat(16000)}`)).toEqual([]);
+    expect(linkedPaths(`/home/me/a${")".repeat(16000)}`)).toEqual(["/home/me/a"]);
+  });
 });
