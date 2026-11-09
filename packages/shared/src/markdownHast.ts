@@ -148,8 +148,14 @@ export const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
     // Spaces typed at the start of a user's line (keepLeadingWhitespace).
     span: [...(defaultSchema.attributes?.span ?? []), "dataLeadingWhitespace"],
     div: [...(defaultSchema.attributes?.div ?? []), ...CODEX_ARTIFACT_TEMPLATE_HAST_PROPERTIES],
-    // dataBeadId: the web client's bead autolinks mark beads issue ids for its chip renderer
-    a: [...(defaultSchema.attributes?.a ?? []), "dataPullRequestAutolink", "dataBeadId"],
+    // fork: the web client's bead and path autolinks mark their links for its chip renderers
+    a: [
+      ...(defaultSchema.attributes?.a ?? []),
+      "dataPullRequestAutolink",
+      "dataBeadId",
+      "dataBeadLabel",
+      "dataPathLink",
+    ],
     img: [
       ...(defaultSchema.attributes?.img ?? []),
       "dataDarkSrc",

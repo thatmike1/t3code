@@ -6,16 +6,10 @@ import {
 } from "~/vendor/mdast-find-and-replace";
 
 /**
- * beads issue ids in chat text become links into configured beadside boards.
- *
- * in prose only the full `<prefix>-<suffix>` form is recognised. The bare
- * suffix (`oup`) is three to eight lowercase alphanumerics, which is also `the`, `out`
- * and `app`; nothing in the text separates one from the other. The prefix
- * configuration is there for the same reason: an unconstrained `<word>-<3 chars>`
- * pattern also matches `front-end`, `one-off` and `sign-off`.
- *
- * inline code is the exception: agents write `oup` in backticks, so a code
- * span that is exactly a short id links when beadside knows that id.
+ * a full id links through its configured prefix (a bare `<word>-<3 chars>` is also `sign-off`)
+ * and, once that board answered, only if it knows the id (`nexiflow-audit` is a folder name).
+ * A bare suffix links when it names exactly one known id; word or number suffixes link only
+ * in inline code, where agents write them on purpose.
  */
 
 type BeadBoards = ClientSettings["beadBoards"];
@@ -28,11 +22,31 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }
 
+const EMPTY_IDS: ReadonlySet<string> = new Set();
 const suffixIndexes = new WeakMap<ReadonlySet<string>, Map<string, string | null>>();
 const SHORT_BEAD_ID_PATTERN = /^[0-9a-z]{3,8}(?:\.[0-9]+)?$/u;
-/** a hyphen counts, so a longer id is never clipped down to a valid one. */
-const BEAD_ID_BOUNDARY_PATTERN = /[A-Za-z0-9_-]/u;
+const SHORT_BEAD_ID_SOURCE = "[0-9a-z]{3,8}(?:\\.[0-9]+)?";
+/** a hyphen counts, so a longer id is never clipped down to a valid one; a slash marks a path. */
+const BEAD_ID_BOUNDARY_PATTERN = /[A-Za-z0-9_\-/\\]/u;
+const WORD_CHARACTER_PATTERN = /[A-Za-z0-9_]/u;
 const BEAD_AUTOLINK_IGNORED_TYPES = new Set(["link", "linkReference"]);
+
+/**
+ * bare suffixes that read as words in prose: the first six collide with live ids (checked
+ * against /usr/share/dict/words, Nov 2026), the rest are common short words. Backticked, they
+ * still link.
+ */
+const PROSE_SHORT_ID_DENYLIST: ReadonlySet<string> = new Set(
+  `afc ava cpi fit oat tent
+  the and for are but not you all any can had her was one our out day get has him his how man
+  new now old see two way who boy did its let put say she too use yes yet via per off own few
+  why try ask big end top run set add fix bug log app api cli css url npm git sql env ssh dns
+  tmp src lib bin dev doc pdf png svg jpg mp3 mp4 wip todo also back been both came come done
+  each even from good have here into just keep know last like long look made make many more
+  most much must next only open over same some such sure take test than that them then they
+  this time very want well went were what when will with work your file code line page step
+  note plan ale jak tak pro jen aby kde tam nic asi`.split(/\s+/u),
+);
 
 /** resolves full ids only through their explicitly configured project prefix. */
 export function beadBoardHref(id: string, boards: BeadBoards = DEFAULT_BEAD_BOARDS): string | null {
@@ -76,28 +90,67 @@ export function shortBeadIdCandidate(
   return index.get(trimmed) ?? null;
 }
 
-/** bead ids written in prose, never inside code or an authored link. */
-export function remarkBeadAutolinks(boards: BeadBoards = DEFAULT_BEAD_BOARDS) {
-  const pattern = new RegExp(beadIdSource(boards), "gu");
+/** a bare suffix in prose, which also has to read as something other than a word or a number. */
+function proseShortBeadId(token: string, knownIds: ReadonlySet<string>): string | null {
+  const base = token.split(".", 1)[0] ?? token;
+  if (/^[0-9]+$/u.test(base) || PROSE_SHORT_ID_DENYLIST.has(base)) return null;
+  return shortBeadIdCandidate(token, knownIds);
+}
+
+function isStandaloneToken(matched: string, match: TextMatch): boolean {
+  const before = match.input[match.index - 1];
+  const afterIndex = match.index + matched.length;
+  const after = match.input[afterIndex];
+  if (before !== undefined && (BEAD_ID_BOUNDARY_PATTERN.test(before) || before === ".")) {
+    return false;
+  }
+  if (after === undefined) return true;
+  if (BEAD_ID_BOUNDARY_PATTERN.test(after)) return false;
+  // `qju.md` is a file name, `qju.` ends a sentence
+  const next = match.input[afterIndex + 1];
+  return !(after === "." && next !== undefined && WORD_CHARACTER_PATTERN.test(next));
+}
+
+/**
+ * bead ids written in prose, never inside code or an authored link. `knownIds` is the set
+ * beadside reported; it has to keep its identity while unchanged, since the plugin list and
+ * every parse cached under it are keyed on it.
+ */
+export function remarkBeadAutolinks(
+  boards: BeadBoards = DEFAULT_BEAD_BOARDS,
+  knownIds: ReadonlySet<string> = EMPTY_IDS,
+) {
+  const pattern = new RegExp(
+    `(?:${beadIdSource(boards)})${knownIds.size > 0 ? `|${SHORT_BEAD_ID_SOURCE}` : ""}`,
+    "gu",
+  );
+  const fullIdPattern = new RegExp(`^${beadIdSource(boards)}$`, "u");
+  // a board that answered vouches for its prefix; one that did not keeps prefix-only links
+  const answeredPrefixes = new Set(
+    boards
+      .map((board) => `${board.prefix}-`)
+      .filter((prefix) => [...knownIds].some((id) => id.startsWith(prefix))),
+  );
+  const fullBeadId = (matched: string): string | null => {
+    if (!fullIdPattern.test(matched)) return null;
+    const prefix = [...answeredPrefixes].find((candidate) => matched.startsWith(candidate));
+    return prefix === undefined || knownIds.has(matched) ? matched : null;
+  };
   return (tree: MarkdownNode) => {
     findAndReplaceText(
       tree,
       pattern,
       (matched: string, match: TextMatch) => {
-        const before = match.input[match.index - 1];
-        const after = match.input[match.index + matched.length];
-        if (
-          (before !== undefined && BEAD_ID_BOUNDARY_PATTERN.test(before)) ||
-          (after !== undefined && BEAD_ID_BOUNDARY_PATTERN.test(after))
-        ) {
-          return false;
-        }
-        const url = beadBoardHref(matched, boards);
-        if (!url) return false;
+        if (!isStandaloneToken(matched, match)) return false;
+        const id = fullIdPattern.test(matched)
+          ? fullBeadId(matched)
+          : proseShortBeadId(matched, knownIds);
+        const url = id ? beadBoardHref(id, boards) : null;
+        if (!id || !url) return false;
         return {
           type: "link",
           url,
-          data: { hProperties: { dataBeadId: matched } },
+          data: { hProperties: { dataBeadId: id, dataBeadLabel: matched } },
           children: [{ type: "text", value: matched }],
         };
       },

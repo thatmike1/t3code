@@ -99,6 +99,7 @@ import {
   remarkBeadAutolinks,
   shortBeadIdCandidate,
 } from "../markdown-bead-links";
+import { remarkPathAutolinks } from "../markdown-path-links";
 import { useBeadBoardIds } from "../lib/beadBoardIds";
 import { BeadChip } from "./chat/BeadChip";
 import {
@@ -1359,14 +1360,25 @@ const CHAT_MARKDOWN_COMPONENTS = {
         <span>{label}</span>
       );
     }
+    const pathLink = String((props as Record<string, unknown>)["data-path-link"] ?? "");
+    if (pathLink.length > 0) {
+      const pathLinkMeta = resolveInlineCodeFileLinkMeta(pathLink, cwd, imageBaseDir ?? cwd);
+      return pathLinkMeta ? (
+        fileLinkChip(pathLinkMeta, pathLink, inlineCodeFilePathCandidate(pathLink) ?? pathLink)
+      ) : (
+        <>{children}</>
+      );
+    }
     const beadId = String((props as Record<string, unknown>)["data-bead-id"] ?? "");
     if (beadId.length > 0) {
       const boardHref = beadBoardHref(beadId, beadBoards);
+      const beadLabel = String((props as Record<string, unknown>)["data-bead-label"] ?? beadId);
       return boardHref ? (
         <BeadChip
           id={beadId}
           href={boardHref}
-          copyText={beadId}
+          copyText={beadLabel}
+          label={beadLabel}
           openInPreview={
             canOperatePreview && threadRef && isPreviewAvailableFor(threadRef.environmentId)
               ? openBeadBoardInPreview
