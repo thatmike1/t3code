@@ -41,7 +41,10 @@ export type TextMatch = {
 export function findAndReplaceText(
   tree: MarkdownNode,
   find: RegExp,
-  replace: (matched: string, match: TextMatch) => MarkdownNode | false,
+  replace: (
+    matched: string,
+    match: TextMatch,
+  ) => MarkdownNode | ReadonlyArray<MarkdownNode> | false,
   ignoredTypes: ReadonlySet<string>,
 ): void {
   visit(tree);
@@ -70,7 +73,9 @@ export function findAndReplaceText(
           if (start < position) {
             replacements.push({ type: "text", value: child.value.slice(start, position) });
           }
-          replacements.push(replacement);
+          // fork: an array replaces the match with several nodes, e.g. a link and trimmed text
+          if (Array.isArray(replacement)) replacements.push(...replacement);
+          else replacements.push(replacement as MarkdownNode);
           start = position + match[0].length;
           changed = true;
         }
