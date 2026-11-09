@@ -632,6 +632,64 @@ export function filterSidebarV2VisibleThreads<
   );
 }
 
+export function getSidebarForkParentThreadId(
+  thread: Pick<SidebarThreadSummary, "forkedFrom" | "lineage">,
+) {
+  if (thread.lineage.relationshipToParent !== "fork") {
+    return null;
+  }
+  return thread.forkedFrom?.type === "run"
+    ? thread.forkedFrom.threadId
+    : thread.lineage.parentThreadId;
+}
+
+/**
+ * What a fork row knows about its parent. Archived parents resolve only from
+ * the archived snapshot and the thread route cannot open them, so they are
+ * named but not linked; a parent found in neither place has been deleted.
+ */
+export type SidebarForkParent =
+  | { readonly kind: "open"; readonly title: string }
+  | { readonly kind: "archived"; readonly title: string }
+  | { readonly kind: "unresolved" }
+  | { readonly kind: "deleted" };
+
+export function resolveSidebarForkParent(input: {
+  readonly liveParent: {
+    readonly title: string;
+    readonly archivedAt: unknown;
+    readonly deletedAt: unknown;
+  } | null;
+  /** null while the archived snapshot is not loaded (or not requested yet) */
+  readonly archivedParents: ReadonlyArray<{
+    readonly id: string;
+    readonly title: string;
+    readonly deletedAt: unknown;
+  }> | null;
+  readonly parentThreadId: string;
+}): SidebarForkParent {
+  const { liveParent } = input;
+  if (liveParent !== null && liveParent.deletedAt == null) {
+    // A thread archived during this session keeps its live shell until reload.
+    return liveParent.archivedAt == null
+      ? { kind: "open", title: liveParent.title }
+      : { kind: "archived", title: liveParent.title };
+  }
+  if (liveParent !== null) return { kind: "deleted" };
+  if (input.archivedParents === null) return { kind: "unresolved" };
+  const archived = input.archivedParents.find((thread) => thread.id === input.parentThreadId);
+  return archived !== undefined && archived.deletedAt == null
+    ? { kind: "archived", title: archived.title }
+    : { kind: "deleted" };
+}
+
+export function sidebarForkOriginLabel(parent: SidebarForkParent): string {
+  if (parent.kind === "deleted") return "Forked from deleted thread";
+  if (parent.kind === "unresolved") return "Forked from another thread";
+  const title = parent.title.trim() || "untitled thread";
+  return parent.kind === "archived" ? `Forked from ${title} (archived)` : `Forked from ${title}`;
+}
+
 export function buildBulkTitleRegenerationContextMenuItem(input: {
   supportedCount: number;
   actionableCount: number;

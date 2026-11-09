@@ -17,6 +17,8 @@ import {
   pinOrderKeyBetween,
   resolveSidebarSweepKeys,
   resolveSidebarThreadStatus,
+  resolveSidebarForkParent,
+  sidebarForkOriginLabel,
   resolveThreadStatusPill,
   resolveWorkingStartedAt,
   searchSidebarThreads,
@@ -180,6 +182,74 @@ describe("sidebar thread lineage helpers", () => {
     const loopA = subagentOf("thread-loop-a", ThreadId.make("thread-loop-b"));
     const loopB = subagentOf("thread-loop-b", loopA.id);
     expect(resolveSidebarRowThreadId(loopA.id, environmentId, [loopA, loopB])).toBe(loopA.id);
+  });
+});
+
+describe("resolveSidebarForkParent", () => {
+  const parentThreadId = "thread-parent";
+
+  it("links a live parent, settled or not", () => {
+    const parent = resolveSidebarForkParent({
+      liveParent: { title: "Clustering defects", archivedAt: null, deletedAt: null },
+      archivedParents: null,
+      parentThreadId,
+    });
+    expect(parent).toEqual({ kind: "open", title: "Clustering defects" });
+    expect(sidebarForkOriginLabel(parent)).toBe("Forked from Clustering defects");
+  });
+
+  it("waits for the archived snapshot before calling a missing parent deleted", () => {
+    const parent = resolveSidebarForkParent({
+      liveParent: null,
+      archivedParents: null,
+      parentThreadId,
+    });
+    expect(parent).toEqual({ kind: "unresolved" });
+    expect(sidebarForkOriginLabel(parent)).toBe("Forked from another thread");
+  });
+
+  it("names an archived parent from the snapshot or a stale live shell", () => {
+    const fromSnapshot = resolveSidebarForkParent({
+      liveParent: null,
+      archivedParents: [{ id: parentThreadId, title: "Old plan", deletedAt: null }],
+      parentThreadId,
+    });
+    expect(fromSnapshot).toEqual({ kind: "archived", title: "Old plan" });
+    expect(sidebarForkOriginLabel(fromSnapshot)).toBe("Forked from Old plan (archived)");
+    expect(
+      resolveSidebarForkParent({
+        liveParent: {
+          title: "Old plan",
+          archivedAt: "2026-11-01T00:00:00.000Z",
+          deletedAt: null,
+        },
+        archivedParents: null,
+        parentThreadId,
+      }),
+    ).toEqual({ kind: "archived", title: "Old plan" });
+  });
+
+  it("reads as deleted, never as an id, once the parent is found nowhere", () => {
+    const parent = resolveSidebarForkParent({
+      liveParent: null,
+      archivedParents: [{ id: "thread-other", title: "Other", deletedAt: null }],
+      parentThreadId,
+    });
+    expect(parent).toEqual({ kind: "deleted" });
+    expect(sidebarForkOriginLabel(parent)).toBe("Forked from deleted thread");
+    expect(
+      resolveSidebarForkParent({
+        liveParent: { title: "Gone", archivedAt: null, deletedAt: "2026-11-01T00:00:00.000Z" },
+        archivedParents: null,
+        parentThreadId,
+      }),
+    ).toEqual({ kind: "deleted" });
+  });
+
+  it("labels a blank parent title as untitled", () => {
+    expect(sidebarForkOriginLabel({ kind: "open", title: "  " })).toBe(
+      "Forked from untitled thread",
+    );
   });
 });
 
