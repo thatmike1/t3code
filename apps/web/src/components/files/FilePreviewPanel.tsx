@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
   AuthPreviewOperateScope,
+  AuthOrchestrationOperateScope,
   type EditorId,
   type EnvironmentId,
   type ResolvedKeybindingsConfig,
@@ -63,7 +64,8 @@ import { useTheme } from "~/hooks/useTheme";
 import { getLocalStorageItem, setLocalStorageItem, useLocalStorage } from "~/hooks/useLocalStorage";
 import { resolveDiffThemeName } from "~/lib/diffRendering";
 import { PREFERRED_HIGHLIGHTER } from "~/lib/syntaxHighlighting";
-import { cn } from "~/lib/utils";
+import { cn, getLocalFileManagerName } from "~/lib/utils";
+import { shellEnvironment } from "~/state/shell";
 import type { ChatFileAttachment } from "~/types";
 import { isHostPath } from "@t3tools/shared/path";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
@@ -1030,6 +1032,8 @@ export default function FilePreviewPanel({
   const createHostFile = useAtomCommand(projectEnvironment.writeFile, {
     reportFailure: false,
   });
+  const openInFileManager = useAtomCommand(shellEnvironment.openInEditor, "open folder");
+  const canOperateHost = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const [creatingHostFile, setCreatingHostFile] = useState(false);
   const isVideo = relativePath !== null && isWorkspaceVideoPreviewPath(relativePath);
   const isAudio = relativePath !== null && !isVideo && isWorkspaceAudioPreviewPath(relativePath);
@@ -1067,6 +1071,13 @@ export default function FilePreviewPanel({
     attachment === undefined &&
     (file.isNotFile || (folderTrail !== undefined && file.data === null && file.error === null));
   const hostFolderPath = isFolder && isHostFile ? relativePath : null;
+  // fork: a folder outside the project opens in the file manager of the server's machine, only
+  // when that machine is this one and has a usable file manager
+  const canOpenHostFolder =
+    hostFolderPath !== null &&
+    remoteOpenState.mode === "local-exec" &&
+    canOperateHost &&
+    serverConfig?.availableEditors.includes("file-manager") === true;
   // A chat-linked folder reads as a file until its read settles, and revealing a
   // folder selects it in its parent instead of opening it, so reveal waits.
   const revealsInFileManager =
@@ -1331,6 +1342,22 @@ export default function FilePreviewPanel({
               />
             </div>
           </ScrollArea>
+          {canOpenHostFolder && absolutePath ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => {
+                void openInFileManager({
+                  environmentId,
+                  input: { cwd: absolutePath, editor: "file-manager" },
+                });
+              }}
+            >
+              Open in {getLocalFileManagerName(navigator.platform)}
+            </Button>
+          ) : null}
           {absolutePath &&
           (environmentId === primaryEnvironmentId || remoteOpenState.mode !== "local-exec") ? (
             <OpenInPicker
