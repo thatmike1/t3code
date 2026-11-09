@@ -253,3 +253,20 @@ export function getRecentThreads(): ReadonlyArray<ScopedThreadRef> {
     entry.target.kind === "thread" ? [entry.target.ref] : [],
   );
 }
+
+/**
+ * where a plain click on the open sidebar row goes: the newest other entry
+ * `resolve` can open (a sent draft resolves to its thread, a gone one to null).
+ */
+export function previousTargetForActiveRowClick(
+  history: ReadonlyArray<RecentEntry>,
+  currentKey: string,
+  resolve: (target: SwitchTarget) => SwitchTarget | null,
+): SwitchTarget | null {
+  for (const entry of history) {
+    if (switchTargetKey(entry.target) === currentKey) continue;
+    const target = resolve(entry.target);
+    if (target !== null && switchTargetKey(target) !== currentKey) return target;
+  }
+  return null;
+}
