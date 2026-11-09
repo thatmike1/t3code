@@ -9,6 +9,7 @@ import { Input } from "~/components/ui/input";
 import {
   type AssetResource,
   AuthPreviewOperateScope,
+  AuthOrchestrationOperateScope,
   type EditorId,
   type EnvironmentId,
   type ProjectId,
@@ -76,8 +77,9 @@ import { useStableCallback } from "~/hooks/useStableCallback";
 import { getLocalStorageItem, setLocalStorageItem, useLocalStorage } from "~/hooks/useLocalStorage";
 import { resolveDiffThemeName } from "~/lib/diffRendering";
 import { PREFERRED_HIGHLIGHTER } from "~/lib/syntaxHighlighting";
-import { cn, isMacPlatform } from "~/lib/utils";
+import { cn, getLocalFileManagerName, isMacPlatform } from "~/lib/utils";
 import { requestWorkspaceFocus } from "~/lib/workspaceFocus";
+import { shellEnvironment } from "~/state/shell";
 import type { ChatFileAttachment } from "~/types";
 import { isHostPath } from "@t3tools/shared/path";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
@@ -1281,6 +1283,8 @@ export default function FilePreviewPanel({
   const createHostFile = useAtomCommand(projectEnvironment.writeFile, {
     reportFailure: false,
   });
+  const openInFileManager = useAtomCommand(shellEnvironment.openInEditor, "open folder");
+  const canOperateHost = useEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
   const [creatingHostFile, setCreatingHostFile] = useState(false);
   const isVideo = relativePath !== null && isWorkspaceVideoPreviewPath(relativePath);
   const isAudio = relativePath !== null && !isVideo && isWorkspaceAudioPreviewPath(relativePath);
@@ -1325,6 +1329,13 @@ export default function FilePreviewPanel({
     isSettled: file.data !== null || file.error !== null,
     canReveal: serverConfig?.shellRevealInFileManager === true,
   });
+  // fork: a folder outside the project opens in the file manager of the server's machine, only
+  // when that machine is this one and has a usable file manager
+  const canOpenHostFolder =
+    hostFolderPath !== null &&
+    remoteOpenState.mode === "local-exec" &&
+    canOperateHost &&
+    serverConfig?.availableEditors.includes("file-manager") === true;
   // Everything preview-related keys off previewPath; a folder has no preview.
   const previewPath = isFolder ? null : relativePath;
   const [explorerOpen, setExplorerOpen] = useState(initialExplorerOpen);
@@ -1664,6 +1675,22 @@ export default function FilePreviewPanel({
               />
             </div>
           </ScrollArea>
+          {canOpenHostFolder && absolutePath ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => {
+                void openInFileManager({
+                  environmentId,
+                  input: { cwd: absolutePath, editor: "file-manager" },
+                });
+              }}
+            >
+              Open in {getLocalFileManagerName(navigator.platform)}
+            </Button>
+          ) : null}
           {absolutePath &&
           (environmentId === primaryEnvironmentId ||
             environmentId === hostEnvironmentId ||
