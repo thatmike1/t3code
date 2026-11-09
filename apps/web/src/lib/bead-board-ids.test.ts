@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - disposable HTTP fixtures exercise the browser fetch boundary.
 import * as NodeHttp from "node:http";
-import { afterEach, describe, expect, it } from "vite-plus/test";
-import { fetchBeadBoardIds } from "./beadBoardIds";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { createBeadBoardIdsStore, fetchBeadBoardIds } from "./beadBoardIds";
 import { beadBoardHref, shortBeadIdCandidate } from "../markdown-bead-links";
 
 const servers: NodeHttp.Server[] = [];
@@ -48,16 +48,19 @@ describe("configured bead boards", () => {
     expect(beadBoardHref("unknown-123", boards)).toBeNull();
   });
   it.each([503, 200])(
-    "disables short links when a board fails or returns malformed data (%s)",
+    "keeps the boards that answered when another fails or returns malformed data (%s)",
     async (status) => {
       const general = await board("ccChat-general", { ids: ["ccChat-general-abc"] });
       const nexi = await board("nexiflow", { ids: [42] }, status);
-      expect(await fetchBeadBoardIds([general, nexi])).toEqual(new Set());
+      const ids = await fetchBeadBoardIds([general, nexi]);
+      expect(ids).toEqual(new Set(["ccChat-general-abc"]));
+      expect(shortBeadIdCandidate("abc", ids)).toBe("ccChat-general-abc");
     },
   );
   it("does not mistake another repository's board for an empty board", async () => {
+    const general = await board("ccChat-general", { ids: ["ccChat-general-zl51"] });
     const wrong = await board("nexiflow", { ids: ["ccChat-general-abc"] });
-    expect(await fetchBeadBoardIds([wrong])).toEqual(new Set());
+    expect(await fetchBeadBoardIds([general, wrong])).toEqual(new Set(["ccChat-general-zl51"]));
   });
   it("does not choose between conflicting origins for a prefix", () => {
     expect(
@@ -66,5 +69,20 @@ describe("configured bead boards", () => {
         { prefix: "nexiflow", origin: "http://localhost:2" },
       ]),
     ).toBeNull();
+  });
+  it("keeps the same Set while a refresh returns the same ids", async () => {
+    const boards = [{ prefix: "ccChat-general", origin: "http://127.0.0.1:1" }];
+    const responses = [["ccChat-general-abc"], ["ccChat-general-abc"], ["ccChat-general-xyz"]];
+    const store = createBeadBoardIdsStore(boards, async () => new Set(responses.shift()));
+    using now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    await store.refresh();
+    const first = store.getSnapshot();
+    expect(first).toEqual(new Set(["ccChat-general-abc"]));
+    now.mockReturnValue(2_000_000);
+    await store.refresh();
+    expect(store.getSnapshot()).toBe(first);
+    now.mockReturnValue(3_000_000);
+    await store.refresh();
+    expect(store.getSnapshot()).toEqual(new Set(["ccChat-general-xyz"]));
   });
 });
