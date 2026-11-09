@@ -38,10 +38,6 @@ type QuickModelInstance = Pick<
 >;
 type QuickModelOption = Pick<AppModelOption, "slug" | "isUnavailable">;
 
-export function isQuickModelShortcutCommand(command: KeybindingCommand | null): boolean {
-  return QUICK_MODELS.some((candidate) => candidate.command === command);
-}
-
 /** resolves a named model command to an available instance in the current environment. */
 export function quickModelSelectionForCommand(
   command: KeybindingCommand | null,

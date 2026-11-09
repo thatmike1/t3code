@@ -1,7 +1,7 @@
 import type { Widget } from "@t3tools/contracts";
 
 /** How long a widget stays fresh when its file does not say. */
-export const DEFAULT_WIDGET_STALE_AFTER_SECONDS = 120;
+const DEFAULT_WIDGET_STALE_AFTER_SECONDS = 120;
 
 /**
  * Unix seconds for the minute-quantized clock string `useNowMinute` emits
