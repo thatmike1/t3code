@@ -101,8 +101,11 @@ vi.mock(import("../hooks/useSettings"), async (original) => {
   return { ...actual, useClientSettings };
 });
 
+const knownBeadIds = vi.hoisted(
+  () => new Set(["ccChat-general-4y6", "ccChat-general-rnqu", "ccChat-general-odlk"]),
+);
 vi.mock(import("../lib/beadBoardIds"), () => ({
-  useBeadBoardIds: () => new Set<string>(),
+  useBeadBoardIds: () => knownBeadIds,
 }));
 
 import ChatMarkdown from "./ChatMarkdown";
@@ -467,17 +470,31 @@ describe("fork bead links and voice comments", () => {
   it("links full and adaptive ids in prose and code, leaving unknown short ids alone", async () => {
     setup();
     await using screen = await renderText(
-      "filed ccChat-general-4y6 and `ccChat-general-rnqu`, see `qju`",
+      "filed ccChat-general-4y6 and `ccChat-general-rnqu` (odlk), see `qju`",
     );
     const links = [...screen.container.querySelectorAll<HTMLAnchorElement>("a")];
     expect(links.map((link) => link.href)).toContain("http://127.0.0.1:1338/#ccChat-general-4y6");
     expect(links.map((link) => link.href)).toContain("http://127.0.0.1:1338/#ccChat-general-rnqu");
+    expect(screen.container.querySelector('[data-markdown-copy="odlk"]')?.textContent).toBe("odlk");
     expect(
       screen.container.querySelector('[data-markdown-copy="`ccChat-general-rnqu`"]'),
     ).not.toBeNull();
     expect(
       [...screen.container.querySelectorAll("code")].some((code) => code.textContent === "qju"),
     ).toBe(true);
+  });
+
+  it("renders a path written in prose as the same file link a code span gets", async () => {
+    setup();
+    await using screen = await renderText(
+      "Here: /home/me/visual/round2.html. And `/home/me/visual/round2.html`, and/or km/h.",
+    );
+    const chips = [...screen.container.querySelectorAll(".chat-markdown-file-link")];
+    expect(chips.map((chip) => chip.getAttribute("data-markdown-copy"))).toEqual([
+      "/home/me/visual/round2.html",
+      "`/home/me/visual/round2.html`",
+    ]);
+    expect(chips[0]?.textContent).toBe(chips[1]?.textContent);
   });
 
   it.each([

@@ -103,6 +103,7 @@ import {
   remarkBeadAutolinks,
   shortBeadIdCandidate,
 } from "../markdown-bead-links";
+import { remarkPathAutolinks } from "../markdown-path-links";
 import { useBeadBoardIds } from "../lib/beadBoardIds";
 import { BeadChip } from "./chat/BeadChip";
 import {
@@ -1137,14 +1138,25 @@ const CHAT_MARKDOWN_COMPONENTS = {
         <span>{label}</span>
       );
     }
+    const pathLink = String((props as Record<string, unknown>)["data-path-link"] ?? "");
+    if (pathLink.length > 0) {
+      const pathLinkMeta = resolveInlineCodeFileLinkMeta(pathLink, cwd, imageBaseDir ?? cwd);
+      return pathLinkMeta ? (
+        fileLinkChip(pathLinkMeta, pathLink, inlineCodeFilePathCandidate(pathLink) ?? pathLink)
+      ) : (
+        <>{children}</>
+      );
+    }
     const beadId = String((props as Record<string, unknown>)["data-bead-id"] ?? "");
     if (beadId.length > 0) {
       const boardHref = beadBoardHref(beadId, beadBoards);
+      const beadLabel = String((props as Record<string, unknown>)["data-bead-label"] ?? beadId);
       return boardHref ? (
         <BeadChip
           id={beadId}
           href={boardHref}
-          copyText={beadId}
+          copyText={beadLabel}
+          label={beadLabel}
           openInPreview={
             canOperatePreview && threadRef && isPreviewAvailableFor(threadRef.environmentId)
               ? openBeadBoardInPreview
@@ -1738,13 +1750,23 @@ const CHAT_MARKDOWN_REMARK_PLUGIN_SETS = {
   mathBreaks: [REMARK_MATH, ...CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS],
 } satisfies Record<string, PluggableList>;
 
-// fork: the bead-id autolinks run right after the shared plugins. one list per boards setting,
-// so messages keep sharing a renderer and its parse cache while the setting stays the same
-const beadAutolinkPlugins = new WeakMap<object, PluggableList>();
-function beadAutolinkPluginList(boards: Parameters<typeof remarkBeadAutolinks>[0]): PluggableList {
-  if (boards === undefined) return [remarkBeadAutolinks];
-  let list = beadAutolinkPlugins.get(boards);
-  if (!list) beadAutolinkPlugins.set(boards, (list = [[remarkBeadAutolinks, boards]]));
+// fork: path then bead-id autolinks run right after the shared plugins; paths go first so a bead
+// id never links inside one. One list per (boards, known ids), so messages keep sharing a renderer
+// and its parse cache until either changes; the id store keeps its Set while the ids are unchanged
+const NO_KNOWN_BEAD_IDS: ReadonlySet<string> = new Set();
+const forkAutolinkPlugins = new WeakMap<object, WeakMap<ReadonlySet<string>, PluggableList>>();
+function forkAutolinkPluginList(
+  boards: Parameters<typeof remarkBeadAutolinks>[0],
+  knownBeadIds: ReadonlySet<string>,
+): PluggableList {
+  if (boards === undefined) return [remarkPathAutolinks, remarkBeadAutolinks];
+  const known = knownBeadIds.size === 0 ? NO_KNOWN_BEAD_IDS : knownBeadIds;
+  let byKnown = forkAutolinkPlugins.get(boards);
+  if (!byKnown) forkAutolinkPlugins.set(boards, (byKnown = new WeakMap()));
+  let list = byKnown.get(known);
+  if (!list) {
+    byKnown.set(known, (list = [remarkPathAutolinks, [remarkBeadAutolinks, boards, known]]));
+  }
   return list;
 }
 
@@ -1835,6 +1857,7 @@ function ChatMarkdown({
     extraRemarkPlugins.length === 0 &&
     /(?:^|\n) {0,3}(?:`{3}|~{3})/.test(text);
   const beadBoards = useClientSettings((settings) => settings.beadBoards);
+  const knownBeadIds = useBeadBoardIds(beadBoards);
   const Root = inline ? "span" : "div";
   const bindMarkdownRef = (node: HTMLElement | null) => {
     markdownRef.current = node;
@@ -1851,7 +1874,7 @@ function ChatMarkdown({
     ];
   // The incremental parser keeps per-instance state, so its output is not shared.
   const uncachedPlugins = incrementalParsing;
-  const beadRemarkPlugins = beadAutolinkPluginList(beadBoards);
+  const beadRemarkPlugins = forkAutolinkPluginList(beadBoards, knownBeadIds);
   const remarkPlugins = incrementalParsing
     ? [
         ...sharedRemarkPlugins,
