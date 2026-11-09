@@ -96,6 +96,7 @@ import { artifactTemplateFromHastProperties } from "@t3tools/shared/codexArtifac
 import {
   beadBoardHref,
   beadIdCandidate,
+  knownFullBeadId,
   remarkBeadAutolinks,
   shortBeadIdCandidate,
 } from "../markdown-bead-links";
@@ -1685,8 +1686,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
     const knownBeadIds = useBeadBoardIds(beadBoards);
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
-      const beadId =
-        beadIdCandidate(codeText, beadBoards) ?? shortBeadIdCandidate(codeText, knownBeadIds);
+      const fullBeadId = beadIdCandidate(codeText, beadBoards);
+      const beadId = fullBeadId
+        ? knownFullBeadId(fullBeadId, beadBoards, knownBeadIds)
+        : shortBeadIdCandidate(codeText, knownBeadIds);
       const boardHref = beadId ? beadBoardHref(beadId, beadBoards) : null;
       if (beadId && boardHref) {
         return (

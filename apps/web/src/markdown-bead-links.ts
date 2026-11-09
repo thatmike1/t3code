@@ -48,6 +48,42 @@ const PROSE_SHORT_ID_DENYLIST: ReadonlySet<string> = new Set(
   note plan ale jak tak pro jen aby kde tam nic asi`.split(/\s+/u),
 );
 
+/**
+ * an entry the id store adds for every board that answered, ids or not: `<prefix>-` can never be
+ * a real id (a suffix has 3+ characters), so a board that answered with no ids still vouches
+ * for its prefix, and a change in which boards answered changes the set.
+ */
+export function boardAnsweredMarker(prefix: string): string {
+  return `${prefix}-`;
+}
+
+const answeredPrefixCache = new WeakMap<ReadonlySet<string>, ReadonlySet<string>>();
+
+/** prefixes (with their hyphen) of the boards that answered: their markers, or any id they gave. */
+function answeredPrefixes(knownIds: ReadonlySet<string>): ReadonlySet<string> {
+  let prefixes = answeredPrefixCache.get(knownIds);
+  if (!prefixes) {
+    prefixes = new Set([...knownIds].map((id) => id.slice(0, id.lastIndexOf("-") + 1)));
+    answeredPrefixCache.set(knownIds, prefixes);
+  }
+  return prefixes;
+}
+
+/**
+ * a full id passes when its board did not answer (prefix-only, as before the id store) or
+ * answered and knows it. Prose and inline code both go through here.
+ */
+export function knownFullBeadId(
+  id: string,
+  boards: BeadBoards,
+  knownIds: ReadonlySet<string>,
+): string | null {
+  const board = boards.find((candidate) => id.startsWith(`${candidate.prefix}-`));
+  if (!board) return null;
+  const answered = answeredPrefixes(knownIds).has(boardAnsweredMarker(board.prefix));
+  return !answered || knownIds.has(id) ? id : null;
+}
+
 /** resolves full ids only through their explicitly configured project prefix. */
 export function beadBoardHref(id: string, boards: BeadBoards = DEFAULT_BEAD_BOARDS): string | null {
   const matches = boards.filter((board) => new RegExp(`^${beadIdSource([board])}$`, "u").test(id));
@@ -125,17 +161,6 @@ export function remarkBeadAutolinks(
     "gu",
   );
   const fullIdPattern = new RegExp(`^${beadIdSource(boards)}$`, "u");
-  // a board that answered vouches for its prefix; one that did not keeps prefix-only links
-  const answeredPrefixes = new Set(
-    boards
-      .map((board) => `${board.prefix}-`)
-      .filter((prefix) => [...knownIds].some((id) => id.startsWith(prefix))),
-  );
-  const fullBeadId = (matched: string): string | null => {
-    if (!fullIdPattern.test(matched)) return null;
-    const prefix = [...answeredPrefixes].find((candidate) => matched.startsWith(candidate));
-    return prefix === undefined || knownIds.has(matched) ? matched : null;
-  };
   return (tree: MarkdownNode) => {
     findAndReplaceText(
       tree,
@@ -143,7 +168,7 @@ export function remarkBeadAutolinks(
       (matched: string, match: TextMatch) => {
         if (!isStandaloneToken(matched, match)) return false;
         const id = fullIdPattern.test(matched)
-          ? fullBeadId(matched)
+          ? knownFullBeadId(matched, boards, knownIds)
           : proseShortBeadId(matched, knownIds);
         const url = id ? beadBoardHref(id, boards) : null;
         if (!id || !url) return false;

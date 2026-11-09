@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { ClientSettings } from "@t3tools/contracts/settings";
+import { boardAnsweredMarker } from "../markdown-bead-links";
 
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 const STALE_AFTER_MS = 60_000;
@@ -23,7 +24,8 @@ async function fetchBoardIds(board: ClientSettings["beadBoards"][number]): Promi
   if (body.ids.length > 0 && ids.length === 0) {
     throw new Error("board belongs to another repository");
   }
-  return ids;
+  // the marker records that this board answered even when it has no ids
+  return [boardAnsweredMarker(board.prefix), ...ids];
 }
 
 /**
