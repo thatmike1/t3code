@@ -584,6 +584,8 @@ type SidebarThreadRowProps = {
   timestampFormat: TimestampFormat;
   onThreadClick: (event: ReactMouseEvent, threadRef: ScopedThreadRef) => void;
   onThreadActivate: (threadRef: ScopedThreadRef) => void;
+  /** Enter or Space on the row itself; same as a plain click, so it may toggle back */
+  onThreadRowActivate?: (threadRef: ScopedThreadRef) => void;
   onStartRename: (threadRef: ScopedThreadRef, title: string) => void;
   onRenameTitleChange: (title: string) => void;
   onCommitRename: (threadRef: ScopedThreadRef, title: string) => void;
@@ -664,6 +666,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     onSnooze,
     onStartRename,
     onThreadActivate,
+    onThreadRowActivate,
     onThreadClick,
     onUnsettle,
     onUnsnooze,
@@ -883,7 +886,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     }
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
-    onThreadActivate(threadRef);
+    (onThreadRowActivate ?? onThreadActivate)(threadRef);
   };
   const handleDoubleClick = (event: ReactMouseEvent) => {
     if (
