@@ -167,7 +167,7 @@ const DEFAULT_APPEARANCE_CONTRAST: AppearanceContrast = 100;
 
 export const ChatAlignment = Schema.Literals(["centered", "left"]);
 export type ChatAlignment = typeof ChatAlignment.Type;
-export const DEFAULT_CHAT_ALIGNMENT: ChatAlignment = "centered";
+const DEFAULT_CHAT_ALIGNMENT: ChatAlignment = "centered";
 export const MIN_CHAT_LEFT_GUTTER = 0;
 export const MAX_CHAT_LEFT_GUTTER = 500;
 export const CHAT_LEFT_GUTTER_STEP = 4;
@@ -180,7 +180,7 @@ export const ChatLeftGutter = Schema.Int.check(
   ),
 );
 export type ChatLeftGutter = typeof ChatLeftGutter.Type;
-export const DEFAULT_CHAT_LEFT_GUTTER: ChatLeftGutter = 64;
+const DEFAULT_CHAT_LEFT_GUTTER: ChatLeftGutter = 64;
 export const MIN_PANEL_ANIMATION_DURATION_MS = 0;
 export const MAX_PANEL_ANIMATION_DURATION_MS = 400;
 export const PanelAnimationDurationMs = Schema.Int.check(

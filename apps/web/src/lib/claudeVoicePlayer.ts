@@ -9,7 +9,7 @@ import { create } from "zustand";
 import { toastManager } from "~/components/ui/toast";
 import { chunkForSpeech } from "./claudeVoice";
 
-export const VOICE_SERVICE_URL = "http://127.0.0.1:1357";
+const VOICE_SERVICE_URL = "http://127.0.0.1:1357";
 
 export type VoiceStatus = "idle" | "loading" | "playing";
 

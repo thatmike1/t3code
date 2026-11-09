@@ -35,7 +35,7 @@ interface ShellWord {
  * comments and heredoc bodies are skipped. It is not a full shell parser; it
  * only has to find the commands that open things and the `cd`s before them.
  */
-export function lexShell(command: string): Array<Array<ShellWord>> {
+function lexShell(command: string): Array<Array<ShellWord>> {
   const commands: Array<Array<ShellWord>> = [];
   let words: Array<ShellWord> = [];
   let text = "";
@@ -191,11 +191,7 @@ function expandHome(target: string, home: string): string {
  * URL. Anything else (another scheme, a relative path with no known
  * directory, an unparseable URL) is null.
  */
-export function normalizeOpenTarget(
-  target: string,
-  cwd: string | null,
-  home: string,
-): string | null {
+function normalizeOpenTarget(target: string, cwd: string | null, home: string): string | null {
   if (/^[a-z][a-z0-9+.-]*:/iu.test(target)) {
     try {
       const url = new URL(target);

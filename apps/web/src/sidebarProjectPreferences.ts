@@ -6,10 +6,6 @@ interface FavouriteCandidate {
   readonly memberProjects: ReadonlyArray<{ readonly physicalProjectKey: string }>;
 }
 
-export function projectGroupFavouriteKeys(group: FavouriteCandidate): string[] {
-  return group.memberProjects.map((member) => member.physicalProjectKey);
-}
-
 // a grouped repo is one favourite row when any of its checkouts is a favourite.
 export function isFavouriteProjectGroup(
   group: FavouriteCandidate,
