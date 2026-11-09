@@ -11,7 +11,7 @@
  * @module tabFocus
  */
 
-export const TAB_FOCUS_MARKER = "t3-focus";
+const TAB_FOCUS_MARKER = "t3-focus";
 
 /**
  * The URL with the focus marker on its end: `#t3-focus` when it has no

@@ -75,7 +75,7 @@ export function SidebarStageBackdrop({ variant }: { variant: SidebarStageBackdro
   );
 }
 
-export function StageBackdropArt({ variant }: { variant: SidebarStageBackdropVariant }) {
+function StageBackdropArt({ variant }: { variant: SidebarStageBackdropVariant }) {
   if (variant === "scribble") return null;
   if (variant === "nightly") return <NightlySkyArt />;
   if (variant === "dev") return <DevBlueprintArt />;
