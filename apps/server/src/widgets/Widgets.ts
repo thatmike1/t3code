@@ -64,7 +64,7 @@ export class Widgets extends Context.Service<
  * A file that is unreadable, malformed, or misnamed is skipped on its own; the
  * rest of the set is unaffected.
  */
-export const readWidgets = Effect.fn("widgets.readWidgets")(function* (widgetsDir: string) {
+const readWidgets = Effect.fn("widgets.readWidgets")(function* (widgetsDir: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const entries = yield* fs

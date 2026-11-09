@@ -128,7 +128,7 @@ const resolveIconPath = Effect.fn("desktop.assets.resolveIconPath")(function* (
   return yield* resolveResourcePath(`icon.${ext}`);
 });
 
-export function resolveArtworkIconFileName(artwork: ForkArtwork): string {
+function resolveArtworkIconFileName(artwork: ForkArtwork): string {
   const fileNames = {
     paint: "paint-icon-1024.png",
     bonsai: "bonsai-icon-1024.png",
