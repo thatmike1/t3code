@@ -17,9 +17,9 @@ const OPEN_SAY_COMMENT_PATTERN = /<!--\s*say:[\s\S]*$/i;
 export const LIVE_VOICE_FULL_TEXT_LIMIT = 600;
 
 /** Upper bound for one request to the speech service; a short clip renders in about half a second. */
-export const SPEECH_CHUNK_MAX_CHARS = 350;
+const SPEECH_CHUNK_MAX_CHARS = 350;
 /** The first chunk is kept shorter so audio starts quickly. */
-export const SPEECH_FIRST_CHUNK_MAX_CHARS = 200;
+const SPEECH_FIRST_CHUNK_MAX_CHARS = 200;
 
 /** Returns the content of the last `<!-- say: ... -->` comment, or null when there is none. */
 export function extractSay(text: string): string | null {
@@ -178,7 +178,7 @@ export interface LiveVoiceInput {
  * Allowed clock difference between the server's message timestamps and this
  * client when deciding whether a message that arrives already finished is new.
  */
-export const LIVE_VOICE_CLOCK_SLACK_MS = 10_000;
+const LIVE_VOICE_CLOCK_SLACK_MS = 10_000;
 
 function baseline(input: LiveVoiceInput): LiveVoiceTracker {
   return {

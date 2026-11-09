@@ -101,7 +101,7 @@ export function threadSwitcherAgentLabel(
 }
 
 /** first line of a draft's prompt, or its attachment count, as the sidebar's draft rows show it */
-export function draftPreviewLabel(composer: ComposerThreadDraftState): string {
+function draftPreviewLabel(composer: ComposerThreadDraftState): string {
   const promptPreview =
     replaceComposerContextReferences(composer.prompt, (occurrence) => occurrence.label)
       .trim()
