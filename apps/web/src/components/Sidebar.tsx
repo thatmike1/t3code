@@ -271,6 +271,13 @@ import { TooltipProvider } from "./ui/tooltip";
 import { composerDraftHasUserContent, DraftId, useComposerDraftStore } from "../composerDraftStore";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
 import {
+  getRecentEntries,
+  previousTargetForActiveRowClick,
+  type SwitchTarget,
+  switchTargetKey,
+  threadTarget,
+} from "../thread-switcher.logic";
+import {
   SidebarSearchResultRow,
   SortableThreadRow,
   type SidebarProviderEntry,
@@ -1735,7 +1742,46 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     if (isTrailingDoubleClick(event.detail)) {
       return;
     }
-    navigateToThread(threadRef);
+    activateThreadRow(threadRef);
+  };
+
+  // a plain click (or Enter) on the open thread's row goes back to the view
+  // before it, like clicking the active tab in Sidebery; clicking again returns.
+  const activateThreadRow = (threadRef: ScopedThreadRef) => {
+    const threadKey = scopedThreadKey(threadRef);
+    if (readRouteThreadKey(router) !== threadKey) {
+      navigateToThread(threadRef);
+      return;
+    }
+    const liveThreadKeys = new Set(
+      threads
+        .filter((thread) => thread.archivedAt === null && thread.deletedAt === null)
+        .map((thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))),
+    );
+    const resolveOpenable = (target: SwitchTarget): SwitchTarget | null => {
+      if (target.kind === "thread") {
+        return liveThreadKeys.has(scopedThreadKey(target.ref)) ? target : null;
+      }
+      const session = useComposerDraftStore.getState().getDraftSession(target.draftId);
+      if (session === null) return null;
+      if (session.promotedTo) {
+        return liveThreadKeys.has(scopedThreadKey(session.promotedTo))
+          ? threadTarget(session.promotedTo)
+          : null;
+      }
+      return target;
+    };
+    const previous = previousTargetForActiveRowClick(
+      getRecentEntries(),
+      switchTargetKey(threadTarget(threadRef)),
+      resolveOpenable,
+    );
+    if (previous === null) return;
+    if (previous.kind === "thread") {
+      void navigateToThread(previous.ref);
+    } else {
+      navigateToDraft(previous.draftId);
+    }
   };
 
   // Snapshot navigation before partition mutation; background parks use a null plan.
@@ -3585,6 +3631,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             timestampFormat={timestampFormat}
                             onThreadClick={handleThreadClick}
                             onThreadActivate={navigateToThread}
+                            onThreadRowActivate={activateThreadRow}
                             onStartRename={startThreadRename}
                             onRenameTitleChange={setRenamingTitle}
                             onCommitRename={commitThreadRename}

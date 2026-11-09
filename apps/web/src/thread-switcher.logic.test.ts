@@ -8,6 +8,7 @@ import {
   draftTarget,
   isThreadSwitchEligible,
   parseRecentEntries,
+  previousTargetForActiveRowClick,
   pruneRecentEntries,
   RECENTLY_SETTLED_WINDOW_MS,
   type RecentEntry,
@@ -220,5 +221,60 @@ describe("threadAfterClose", () => {
 
   it("returns null when nothing else is open", () => {
     expect(threadAfterClose([REF_A], REF_A, () => true)).toBeNull();
+  });
+});
+
+describe("active row click", () => {
+  const keep = (target: SwitchTarget) => target;
+
+  it("goes to the previously viewed target, so a second click comes back", () => {
+    const history = entries(THREAD_A, THREAD_B, THREAD_C);
+    expect(previousTargetForActiveRowClick(history, switchTargetKey(THREAD_A), keep)).toEqual(
+      THREAD_B,
+    );
+    const after = visitTarget(history, THREAD_B, 1);
+    expect(previousTargetForActiveRowClick(after, switchTargetKey(THREAD_B), keep)).toEqual(
+      THREAD_A,
+    );
+  });
+
+  it("does nothing without a previous target", () => {
+    expect(previousTargetForActiveRowClick([], switchTargetKey(THREAD_A), keep)).toBeNull();
+    expect(
+      previousTargetForActiveRowClick(entries(THREAD_A), switchTargetKey(THREAD_A), keep),
+    ).toBeNull();
+  });
+
+  it("skips entries that can no longer be opened", () => {
+    const history = entries(THREAD_A, THREAD_B, THREAD_C);
+    const gone = switchTargetKey(THREAD_B);
+    expect(
+      previousTargetForActiveRowClick(history, switchTargetKey(THREAD_A), (target) =>
+        switchTargetKey(target) === gone ? null : target,
+      ),
+    ).toEqual(THREAD_C);
+    expect(
+      previousTargetForActiveRowClick(history, switchTargetKey(THREAD_A), () => null),
+    ).toBeNull();
+  });
+
+  it("opens a draft, and skips a sent draft that became the open thread", () => {
+    expect(
+      previousTargetForActiveRowClick(entries(THREAD_A, DRAFT), switchTargetKey(THREAD_A), keep),
+    ).toEqual(DRAFT);
+    const promoted = (target: SwitchTarget) => (target.kind === "draft" ? THREAD_A : target);
+    expect(
+      previousTargetForActiveRowClick(
+        entries(THREAD_A, DRAFT, THREAD_C),
+        switchTargetKey(THREAD_A),
+        promoted,
+      ),
+    ).toEqual(THREAD_C);
+  });
+
+  it("uses the history even when it was not yet stamped with the open thread", () => {
+    expect(
+      previousTargetForActiveRowClick(entries(THREAD_B, THREAD_C), switchTargetKey(THREAD_A), keep),
+    ).toEqual(THREAD_B);
   });
 });
