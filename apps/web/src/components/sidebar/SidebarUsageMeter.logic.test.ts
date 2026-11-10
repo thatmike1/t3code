@@ -8,6 +8,7 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  formatSessionReset,
   selectUsageMeterSource,
   shouldRefreshOnOpen,
   type UsageMeterEnvironment,
@@ -298,4 +299,21 @@ it("does not call a failed probe fresh just because its check timestamp advanced
       }),
     ]),
   ).toEqual({ status: "unchanged", message: "Could not contact Claude." });
+});
+
+describe("formatSessionReset", () => {
+  const at = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString();
+
+  it("counts down in hours and minutes, keeping the clock time", () => {
+    expect(formatSessionReset(at(108), "13:29", NOW)).toBe("resets in 1h 48m (13:29)");
+    expect(formatSessionReset(at(120), "13:29", NOW)).toBe("resets in 2h 0m (13:29)");
+    expect(formatSessionReset(at(42.5), "13:29", NOW)).toBe("resets in 42m (13:29)");
+    expect(formatSessionReset(at(0.5), "13:29", NOW)).toBe("resets in under 1m (13:29)");
+  });
+
+  it("never shows a negative countdown once the reset time has passed", () => {
+    expect(formatSessionReset(at(0), "13:29", NOW)).toBe("reset due (13:29), refresh");
+    expect(formatSessionReset(at(-5), "13:29", NOW)).toBe("reset due (13:29), refresh");
+    expect(formatSessionReset("not a date", "13:29", NOW)).toBe("resets 13:29");
+  });
 });
