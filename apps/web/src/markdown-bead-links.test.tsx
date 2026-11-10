@@ -195,6 +195,12 @@ describe("remarkBeadAutolinks with known ids", () => {
     expect(html).not.toContain("data-bead-id");
   });
 
+  it("leaves contractions alone, straight or curly apostrophe", () => {
+    const html = renderWithKnownIds("it odlk't matter, fuww’s fine, d'odlk; but 'odlk' links");
+
+    expect(linkedIds(html)).toEqual(["ccChat-general-odlk"]);
+  });
+
   it("leaves short ids in code, links and paths to their own renderers", () => {
     const html = renderWithKnownIds("`odlk` [odlk](https://example.com) see /home/me/odlk/a.md");
 

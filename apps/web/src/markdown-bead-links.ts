@@ -29,6 +29,8 @@ const SHORT_BEAD_ID_SOURCE = "[0-9a-z]{3,8}(?:\\.[0-9]+)?";
 /** a hyphen counts, so a longer id is never clipped down to a valid one; a slash marks a path. */
 const BEAD_ID_BOUNDARY_PATTERN = /[A-Za-z0-9_\-/\\]/u;
 const WORD_CHARACTER_PATTERN = /[A-Za-z0-9_]/u;
+const APOSTROPHE_PATTERN = /['’]/u;
+const LETTER_PATTERN = /\p{L}/u;
 const BEAD_AUTOLINK_IGNORED_TYPES = new Set(["link", "linkReference"]);
 
 /**
@@ -140,8 +142,17 @@ function isStandaloneToken(matched: string, match: TextMatch): boolean {
   if (before !== undefined && (BEAD_ID_BOUNDARY_PATTERN.test(before) || before === ".")) {
     return false;
   }
+  // an apostrophe between letters keeps the word going: `isn't`, `d'abc`
+  const beforeApostrophe = match.input[match.index - 2];
+  if (before !== undefined && APOSTROPHE_PATTERN.test(before) && beforeApostrophe !== undefined) {
+    if (LETTER_PATTERN.test(beforeApostrophe)) return false;
+  }
   if (after === undefined) return true;
   if (BEAD_ID_BOUNDARY_PATTERN.test(after)) return false;
+  const afterApostrophe = match.input[afterIndex + 1];
+  if (APOSTROPHE_PATTERN.test(after) && afterApostrophe !== undefined) {
+    if (LETTER_PATTERN.test(afterApostrophe)) return false;
+  }
   // `qju.md` is a file name, `qju.` ends a sentence
   const next = match.input[afterIndex + 1];
   return !(after === "." && next !== undefined && WORD_CHARACTER_PATTERN.test(next));
