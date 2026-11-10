@@ -21,6 +21,7 @@ import { SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { widgetNowSeconds } from "./SidebarWidgets.logic";
 import {
+  formatSessionReset,
   selectUsageMeterSource,
   shouldRefreshOnOpen,
   type UsageMeterDriver,
@@ -89,9 +90,15 @@ function UsageMeterRowView({
   } else if (reading.state === "resetSinceReading") {
     detail = `Reset ${formatShortTimestamp(reading.resetsAt, timestampFormat)}, not measured since (was ${reading.measuredPercent}% ${formatRelativeTimeLabel(reading.checkedAt, now)})`;
   } else {
-    const resets = reading.resetsAt
-      ? `, resets ${formatUpcomingTimestamp(reading.resetsAt, timestampFormat, now)}`
-      : "";
+    const clock = reading.resetsAt
+      ? formatUpcomingTimestamp(reading.resetsAt, timestampFormat, now)
+      : null;
+    const resets =
+      reading.resetsAt === null || clock === null
+        ? ""
+        : row.id === "claudeSession"
+          ? `, ${formatSessionReset(reading.resetsAt, clock, now)}`
+          : `, resets ${clock}`;
     detail = `Checked ${formatRelativeTimeLabel(reading.checkedAt, now)}${resets}`;
   }
   const where =
