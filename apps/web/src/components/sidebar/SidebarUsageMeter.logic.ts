@@ -223,3 +223,16 @@ export function usageRefreshOutcome(
   }
   return { status: "unchanged", message: null };
 }
+
+/** the 5-hour row's reset text: time left, then the clock time it lands on. */
+export function formatSessionReset(resetsAt: string, clock: string, now: number): string {
+  const resetMs = Date.parse(resetsAt);
+  if (!Number.isFinite(resetMs)) return `resets ${clock}`;
+  const minutesLeft = Math.floor((resetMs - now) / 60_000);
+  if (resetMs <= now) return `reset due (${clock}), refresh`;
+  if (minutesLeft < 1) return `resets in under 1m (${clock})`;
+  const hours = Math.floor(minutesLeft / 60);
+  const minutes = minutesLeft % 60;
+  const left = hours === 0 ? `${minutes}m` : `${hours}h ${minutes}m`;
+  return `resets in ${left} (${clock})`;
+}
