@@ -710,9 +710,10 @@ export const make = Effect.gen(function* () {
     });
     window.on("blur", threadSwitcherInputHandler.cancel);
 
-    window.on("page-title-updated", (event) => {
+    // the web app leads with the open thread so window watchers can tell threads apart
+    window.on("page-title-updated", (event, title) => {
       event.preventDefault();
-      window.setTitle(environment.displayName);
+      window.setTitle(title.trim() || environment.displayName);
     });
     window.on("resize", scheduleBoundsPersist);
     window.on("move", scheduleBoundsPersist);

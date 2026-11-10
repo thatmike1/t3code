@@ -58,6 +58,7 @@ import { isLocalEnvironmentDisabled } from "../localEnvironment";
 import { useAtomValue } from "@effect/atom-react";
 import { primaryServerConfigAtom, primaryServerWelcomeAtom } from "../state/server";
 import { readProject } from "../state/entities";
+import { DocumentThreadTitle } from "../components/DocumentThreadTitle";
 
 import { getDesktopSnapShotBridge } from "../lib/desktopSnapShot";
 import { shouldResumeSnapShotSetupOnStartup } from "../lib/snapShotSetupResume";
@@ -136,6 +137,7 @@ function RootRouteView() {
   return (
     <ToastProvider>
       <AnchoredToastProvider>
+        <DocumentThreadTitle />
         <RootRouteBranch />
       </AnchoredToastProvider>
     </ToastProvider>
