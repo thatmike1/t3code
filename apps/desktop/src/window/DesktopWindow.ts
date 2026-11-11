@@ -1152,9 +1152,14 @@ export const make = Effect.gen(function* () {
       const icon = yield* assets.resolveArtworkIconPath(artwork);
       if (Option.isNone(icon)) return;
       yield* electronWindow.syncAllAppearance((window) =>
-        Effect.try(() => window.setIcon(icon.value)).pipe(
-          Effect.catch((error) => logWindowWarning("window icon update failed", { cause: error })),
-        ),
+        Effect.suspend(() => {
+          try {
+            window.setIcon(icon.value);
+            return Effect.void;
+          } catch (cause) {
+            return logWindowWarning("window icon update failed", { cause });
+          }
+        }),
       );
     }),
     syncAppearance: Effect.gen(function* () {

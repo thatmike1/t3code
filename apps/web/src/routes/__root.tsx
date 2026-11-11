@@ -197,6 +197,7 @@ function RootRouteBranch() {
       <ProjectCloneToastCoordinator />
       <AddProjectToMachineDialogHost />
       <UseInAnotherAppDialogHost />
+      <ThreadSwitcher />
       {import.meta.env.DEV && primaryEnvironmentAuthenticated ? <DevReplayHost /> : null}
     </>
   );

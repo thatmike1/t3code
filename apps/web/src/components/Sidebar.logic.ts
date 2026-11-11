@@ -1132,6 +1132,7 @@ export type SidebarV2TopStatusKind =
   | "failed"
   | "limited"
   | "input"
+  | "preparing"
   | "request"
   | "waiting"
   | "woke"

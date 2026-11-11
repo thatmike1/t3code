@@ -9,6 +9,7 @@
 const MAGIC = [0x6d, 0x6f, 0x7a, 0x4c, 0x7a, 0x34, 0x30, 0x00]; // "mozLz40\0"
 const HEADER_LENGTH = MAGIC.length + 4;
 
+// @effect-diagnostics-next-line extendsNativeError:off - a pure decoder with no Effect runtime; callers wrap its throws.
 export class MozLz4Error extends Error {
   override readonly name = "MozLz4Error";
 }
