@@ -57,6 +57,7 @@ export function useLiveVoice(input: {
   const messages = liveVoiceMessagesFromTimeline(timelineEntries);
   const trackerRef = useRef<LiveVoiceTracker | null>(null);
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- queues new agent messages on the speech player, which lives outside React
   useEffect(() => {
     const { tracker, toSpeak } = advanceLiveVoice(trackerRef.current, {
       threadKey,
