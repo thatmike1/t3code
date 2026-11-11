@@ -79,6 +79,7 @@ import {
 } from "./KeybindingsSettings.logic";
 import { SettingsGroup } from "./SettingsGroup";
 import { ForkModelSlotPicker } from "./fork-model-slots";
+import { withUnboundModelSlotRows } from "./fork-model-slot-rows";
 import { isModelShortcutSlotCommand } from "../../quick-model-shortcuts";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { keybindingSearchAnchorId, useSearchableSetting } from "./settingsSearch";
@@ -1436,7 +1437,7 @@ function useKeybindingCatalog() {
   const m = useMessages();
   return {
     commandOptions: buildKeybindingCommandOptions(merged, m),
-    allRows: buildKeybindingRows(merged, navigator.platform, m),
+    allRows: withUnboundModelSlotRows(buildKeybindingRows(merged, navigator.platform, m)),
   };
 }
 
@@ -1519,7 +1520,8 @@ export function KeybindingsSettingsPanel() {
       command: input.command,
       key: input.key.trim(),
       ...(input.when?.trim() ? { when: input.when.trim() } : {}),
-      ...(input.replace ? { replace: input.replace } : {}),
+      // fork: an unassigned model slot row has no key to replace
+      ...(input.replace?.key ? { replace: input.replace } : {}),
     };
     void (async () => {
       const results = await Promise.all(

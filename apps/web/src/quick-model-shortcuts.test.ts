@@ -144,12 +144,31 @@ describe("model shortcut slot migration", () => {
     }
   });
 
-  it("leaves migrated settings and fresh installs alone", () => {
-    const chosen = decodeClientSettings({
+  it("fills slots missing from a partly migrated file and marks it migrated", () => {
+    // slot 1 already set, the astra shortcut still overridden only in the legacy targets
+    const partial = decodeClientSettings({
+      quickModelTargets: { "composer.model.sol": "gpt-6-astra" },
+      modelShortcutSlots: {
+        "composer.model.slot1": { driver: "claudeAgent", model: "claude-fable-5-2" },
+      },
+    });
+    const migrated = withModelShortcutSlots(partial);
+    assert.deepEqual(migrated.modelShortcutSlots, {
+      ...legacyEffectiveModels,
+      "composer.model.slot1": { driver: "claudeAgent", model: "claude-fable-5-2" },
+      "composer.model.slot3": { driver: "codex", model: "gpt-6-astra" },
+      "composer.model.slot4": { driver: "claudeAgent", model: "claude-fable-5-1" },
+    });
+    assert.isTrue(migrated.modelShortcutSlotsMigrated);
+  });
+
+  it("keeps a slot the user cleared after migration empty", () => {
+    const cleared = decodeClientSettings({
       quickModelTargets: { "composer.model.fable": "claude-fable-5-2" },
       modelShortcutSlots: {},
+      modelShortcutSlotsMigrated: true,
     });
-    assert.strictEqual(withModelShortcutSlots(chosen), chosen);
+    assert.strictEqual(withModelShortcutSlots(cleared), cleared);
     assert.deepEqual(DEFAULT_CLIENT_SETTINGS.modelShortcutSlots, {});
     assert.strictEqual(withModelShortcutSlots(DEFAULT_CLIENT_SETTINGS), DEFAULT_CLIENT_SETTINGS);
   });
