@@ -143,7 +143,11 @@ import { useEnvironmentSpeechInput } from "../../speech/useEnvironmentSpeechInpu
 import { ComposerSpeechButton, ComposerSpeechRecordingPill } from "./ComposerSpeechButton";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { shortcutLabelForCommand, type ShortcutMatchContext } from "../../keybindings";
-import { quickModelSelectionForCommand } from "../../quick-model-shortcuts";
+import {
+  modelShortcutSlotNumber,
+  modelShortcutSlotTarget,
+  quickModelSelectionForCommand,
+} from "../../quick-model-shortcuts";
 import {
   type TerminalContextDraft,
   type TerminalContextSelection,
@@ -311,7 +315,7 @@ export interface ChatComposerHandle {
   replyToResponse: (response: ResponseContextRecord) => boolean;
   openModelPicker: () => void;
   stepReasoningEffort: (direction: 1 | -1) => void;
-  /** fork: alt+1/3/4/6/9 pick a named model for a thread that has not started; false lets the key through */
+  /** fork: a model shortcut slot picks its model for a thread that has not started; false lets the key through */
   selectQuickModel: (command: KeybindingCommand) => boolean;
   toggleModelPicker: () => void;
   openControl: (command: KeybindingCommand) => void;
@@ -3101,11 +3105,19 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       },
       selectQuickModel: (command) => {
         if (isComposerModelPickerOpen || lockedProvider !== null || !activeThread) return false;
+        if (!modelShortcutSlotTarget(command, settings.modelShortcutSlots)) {
+          toastManager.add({
+            type: "info",
+            title: `Model shortcut ${modelShortcutSlotNumber(command)} has no model yet.`,
+            description: "Pick one next to its key in Settings, Keybindings.",
+          });
+          return true;
+        }
         const selection = quickModelSelectionForCommand(
           command,
           providerInstanceEntries,
           modelOptionsByInstance,
-          settings.quickModelTargets,
+          settings.modelShortcutSlots,
         );
         if (selection) onProviderModelSelect(selection.instanceId, selection.model);
         return true;

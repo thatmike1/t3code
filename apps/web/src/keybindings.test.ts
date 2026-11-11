@@ -62,13 +62,15 @@ describe("terminal word navigation", () => {
 });
 
 describe("quick model defaults", () => {
-  it("routes the five Alt shortcuts only while the picker is closed", () => {
+  it("routes the Alt digit slots only while the picker is closed", () => {
     const cases = [
-      ["1", "composer.model.opus"],
-      ["3", "composer.model.sol"],
-      ["4", "composer.model.fable"],
-      ["6", "composer.model.astra"],
-      ["9", "composer.model.luna"],
+      ["1", "composer.model.slot1"],
+      ["3", "composer.model.slot3"],
+      ["4", "composer.model.slot4"],
+      ["6", "composer.model.slot6"],
+      ["7", "composer.model.slot7"],
+      ["8", "composer.model.slot8"],
+      ["9", "composer.model.slot9"],
     ] satisfies ReadonlyArray<readonly [string, KeybindingCommand]>;
     for (const [key, command] of cases) {
       const shortcut = event({ key, altKey: true });

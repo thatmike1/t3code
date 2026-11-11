@@ -1,9 +1,22 @@
 import { assert, describe, it } from "vite-plus/test";
-import { type KeybindingCommand, ProviderDriverKind, ProviderInstanceId } from "@t3tools/contracts";
+import {
+  ClientSettingsSchema,
+  DEFAULT_CLIENT_SETTINGS,
+  type KeybindingCommand,
+  type ModelShortcutSlots,
+  ProviderDriverKind,
+  ProviderInstanceId,
+} from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 import type { AppModelOption } from "./modelSelection";
 import type { ProviderInstanceEntry } from "./providerInstances";
-import { quickModelSelectionForCommand } from "./quick-model-shortcuts";
+import {
+  modelShortcutSlotTarget,
+  quickModelSelectionForCommand,
+  withModelShortcutSlots,
+} from "./quick-model-shortcuts";
 
+const decodeClientSettings = Schema.decodeUnknownSync(ClientSettingsSchema);
 const codex = ProviderInstanceId.make("codex");
 const claude = ProviderInstanceId.make("claudeAgent");
 const customClaude = ProviderInstanceId.make("claude_personal");
@@ -47,60 +60,97 @@ const options: Map<
   [customClaude, [{ slug: "claude-opus-5-5" }]],
 ]);
 
+const slots: ModelShortcutSlots = {
+  "composer.model.slot1": { driver: "claudeAgent", model: "claude-opus-5-5" },
+  "composer.model.slot3": { driver: "codex", model: "gpt-6.1-sol" },
+  "composer.model.slot4": { driver: "claudeAgent", model: "claude-fable-5-1" },
+};
+
 describe("quick model shortcuts", () => {
-  it("selects each named model on the default instance", () => {
+  it("selects each slot's model on the default instance of its driver", () => {
     const cases = [
-      ["composer.model.opus", claude, "claude-opus-5-5"],
-      ["composer.model.sol", codex, "gpt-6.1-sol"],
-      ["composer.model.fable", claude, "claude-fable-5-1"],
-      ["composer.model.astra", codex, "gpt-6-astra"],
-      ["composer.model.luna", codex, "gpt-6-luna"],
+      ["composer.model.slot1", claude, "claude-opus-5-5"],
+      ["composer.model.slot3", codex, "gpt-6.1-sol"],
+      ["composer.model.slot4", claude, "claude-fable-5-1"],
     ] satisfies ReadonlyArray<readonly [KeybindingCommand, ProviderInstanceId, string]>;
 
     for (const [command, instanceId, model] of cases) {
-      assert.deepEqual(quickModelSelectionForCommand(command, instances, options), {
+      assert.deepEqual(quickModelSelectionForCommand(command, instances, options, slots), {
         instanceId,
         model,
       });
     }
   });
 
+  it("treats an unassigned slot and other commands as having no model", () => {
+    assert.isNull(modelShortcutSlotTarget("composer.model.slot2", slots));
+    assert.isNull(modelShortcutSlotTarget("composer.model.slot1", {}));
+    assert.isNull(modelShortcutSlotTarget("chat.new", slots));
+    assert.isNull(quickModelSelectionForCommand("composer.model.slot2", instances, options, slots));
+  });
+
   it("ignores unavailable models and can use a ready custom instance", () => {
     const unavailable = new Map(options);
     unavailable.set(claude, [{ slug: "claude-opus-5-5", isUnavailable: true }]);
-    assert.deepEqual(quickModelSelectionForCommand("composer.model.opus", instances, unavailable), {
-      instanceId: customClaude,
-      model: "claude-opus-5-5",
-    });
+    assert.deepEqual(
+      quickModelSelectionForCommand("composer.model.slot1", instances, unavailable, slots),
+      { instanceId: customClaude, model: "claude-opus-5-5" },
+    );
     assert.isNull(
       quickModelSelectionForCommand(
-        "composer.model.fable",
+        "composer.model.slot4",
         instances,
         new Map([[codex, [{ slug: "gpt-6.1-sol" }]]]),
+        slots,
       ),
+    );
+    assert.isNull(
+      quickModelSelectionForCommand("composer.model.slot3", instances, options, {
+        "composer.model.slot3": { driver: "codex", model: "missing-model" },
+      }),
     );
   });
 });
 
-it("uses a configured catalog model and refuses unavailable targets", () => {
-  assert.deepEqual(
-    quickModelSelectionForCommand("composer.model.sol", instances, options, {
-      "composer.model.sol": "gpt-6-astra",
-    }),
-    { instanceId: codex, model: "gpt-6-astra" },
-  );
-  assert.equal(
-    quickModelSelectionForCommand("composer.model.sol", instances, options, {
-      "composer.model.sol": "missing-model",
-    }),
-    null,
-  );
-  assert.equal(
-    quickModelSelectionForCommand(
-      "composer.model.sol",
-      instances,
-      new Map([[codex, [{ slug: "gpt-6.1-sol", isUnavailable: true }]]]),
-    ),
-    null,
-  );
+describe("model shortcut slot migration", () => {
+  const legacyEffectiveModels = {
+    "composer.model.slot1": { driver: "claudeAgent", model: "claude-opus-5-5" },
+    "composer.model.slot3": { driver: "codex", model: "gpt-6.1-sol" },
+    "composer.model.slot4": { driver: "claudeAgent", model: "claude-fable-5-2" },
+    "composer.model.slot6": { driver: "codex", model: "gpt-6-astra" },
+    "composer.model.slot9": { driver: "codex", model: "gpt-6-luna" },
+  };
+
+  it("moves each named shortcut's effective model into the slot of its old digit", () => {
+    // a file from before the slots, with the fable shortcut overridden as on Mike's machine
+    const legacy = decodeClientSettings({
+      quickModelTargets: { "composer.model.fable": " claude-fable-5-2 " },
+    });
+    const migrated = withModelShortcutSlots(legacy);
+    assert.deepEqual(migrated.modelShortcutSlots, legacyEffectiveModels);
+
+    // the old ids on their old keys and the new slots on the same keys pick the same models
+    for (const [slot, target] of Object.entries(legacyEffectiveModels)) {
+      const selection = quickModelSelectionForCommand(
+        slot as KeybindingCommand,
+        instances,
+        new Map([
+          [codex, [{ slug: "gpt-6-astra" }, { slug: "gpt-6.1-sol" }, { slug: "gpt-6-luna" }]],
+          [claude, [{ slug: "claude-opus-5-5" }, { slug: "claude-fable-5-2" }]],
+        ]),
+        migrated.modelShortcutSlots,
+      );
+      assert.strictEqual(selection?.model, target.model);
+    }
+  });
+
+  it("leaves migrated settings and fresh installs alone", () => {
+    const chosen = decodeClientSettings({
+      quickModelTargets: { "composer.model.fable": "claude-fable-5-2" },
+      modelShortcutSlots: {},
+    });
+    assert.strictEqual(withModelShortcutSlots(chosen), chosen);
+    assert.deepEqual(DEFAULT_CLIENT_SETTINGS.modelShortcutSlots, {});
+    assert.strictEqual(withModelShortcutSlots(DEFAULT_CLIENT_SETTINGS), DEFAULT_CLIENT_SETTINGS);
+  });
 });
