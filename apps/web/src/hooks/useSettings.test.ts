@@ -166,6 +166,41 @@ describe("client settings hydration", () => {
   });
 });
 
+describe("model shortcut slot migration on hydration", () => {
+  it("writes legacy settings back once with their slots migrated", async () => {
+    const {
+      modelShortcutSlots: _slots,
+      modelShortcutSlotsMigrated: _marker,
+      ...legacy
+    } = {
+      ...DEFAULT_CLIENT_SETTINGS,
+      quickModelTargets: { "composer.model.sol": "gpt-6-astra" },
+    };
+    persistenceMocks.getClientSettings.mockResolvedValueOnce(legacy);
+
+    await ensureClientSettingsHydrated();
+
+    await vi.waitFor(() => expect(persistenceMocks.setClientSettings).toHaveBeenCalledOnce());
+    const written = persistenceMocks.setClientSettings.mock.calls[0]?.[0];
+    expect(written?.modelShortcutSlotsMigrated).toBe(true);
+    expect(written?.modelShortcutSlots?.["composer.model.slot3"]).toEqual({
+      driver: "codex",
+      model: "gpt-6-astra",
+    });
+    expect(getClientSettings()).toEqual(written);
+  });
+
+  it("does not write settings that are already migrated", async () => {
+    persistenceMocks.getClientSettings.mockResolvedValueOnce(DEFAULT_CLIENT_SETTINGS);
+    await ensureClientSettingsHydrated();
+    await persistClientSettingsUpdate(
+      (current) => current,
+      async () => undefined,
+    );
+    expect(persistenceMocks.setClientSettings).not.toHaveBeenCalled();
+  });
+});
+
 describe("persistClientSettingsPatch", () => {
   it("waits for settings writes in request order", async () => {
     __setClientSettingsForTests(DEFAULT_CLIENT_SETTINGS);

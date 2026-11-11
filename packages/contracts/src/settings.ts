@@ -423,7 +423,7 @@ export const VoiceTranscriptionDestination = Schema.Union([
 export type VoiceTranscriptionDestination = typeof VoiceTranscriptionDestination.Type;
 /** fork: per-project beadside boards, and the pre-slot shortcut targets read once by the slot migration. */
 export const QuickModelTargets = Schema.Record(Schema.String, Schema.String);
-/** fork: the model each numbered shortcut slot picks, keyed by slot command; absent until migrated. */
+/** fork: the model each numbered shortcut slot picks, keyed by slot command. */
 export const ModelShortcutSlots = Schema.Record(
   Schema.String,
   Schema.Struct({ driver: Schema.String, model: Schema.String }),
@@ -440,6 +440,8 @@ export const DEFAULT_BEAD_BOARDS = [{ prefix: "ccChat-general", origin: "http://
 export const ClientSettingsSchema = Schema.Struct({
   quickModelTargets: QuickModelTargets.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   modelShortcutSlots: Schema.optionalKey(ModelShortcutSlots),
+  // fork: set once the pre-slot shortcuts moved into slots, so a slot cleared later stays empty
+  modelShortcutSlotsMigrated: Schema.optionalKey(Schema.Boolean),
   beadBoards: BeadBoards.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_BEAD_BOARDS))),
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
@@ -655,6 +657,7 @@ export type ClientSettings = typeof ClientSettingsSchema.Type;
 export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   ...Schema.decodeSync(ClientSettingsSchema)({}),
   modelShortcutSlots: {},
+  modelShortcutSlotsMigrated: true,
 };
 
 const UsageModelTokenPrice = Schema.Number.check(
@@ -2056,6 +2059,7 @@ export function requiredScopesForProjectMutation(
 export const ClientSettingsPatch = Schema.Struct({
   quickModelTargets: Schema.optionalKey(QuickModelTargets),
   modelShortcutSlots: Schema.optionalKey(ModelShortcutSlots),
+  modelShortcutSlotsMigrated: Schema.optionalKey(Schema.Boolean),
   beadBoards: Schema.optionalKey(BeadBoards),
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),

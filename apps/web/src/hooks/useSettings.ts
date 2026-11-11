@@ -151,10 +151,10 @@ async function hydrateClientSettings(): Promise<void> {
         return;
       }
       if (persistedSettings) {
-        replaceClientSettingsSnapshot({
-          ...DEFAULT_CLIENT_SETTINGS,
-          ...withModelShortcutSlots(persistedSettings),
-        });
+        const settings = withModelShortcutSlots(persistedSettings);
+        replaceClientSettingsSnapshot({ ...DEFAULT_CLIENT_SETTINGS, ...settings });
+        // fork: write a model slot migration back once, through the serialized write queue
+        if (settings !== persistedSettings) void persistClientSettingsPatch({});
       }
       setClientSettingsHydrationStatus("ready");
     } catch (error) {
