@@ -3751,19 +3751,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   yield* Effect.log("[desktop-artifact] Staging release app...");
   yield* fs.copy(distDirs.desktopDist, path.join(stageAppDir, "apps/desktop/dist-electron"));
   yield* fs.copy(distDirs.desktopResources, stageResourcesDir);
-  // fork: sizes/ feeds Linux hicolor icons only; elsewhere it would push Windows past its payload file limit.
-  if (options.platform === "linux") {
-    yield* fs.copy(path.join(repoRoot, "assets/fork"), path.join(stageResourcesDir, "fork"));
-  } else {
-    yield* fs.makeDirectory(path.join(stageResourcesDir, "fork"), { recursive: true });
-    for (const entry of yield* fs.readDirectory(path.join(repoRoot, "assets/fork"))) {
-      if (!/\.(png|ico)$/.test(entry)) continue;
-      yield* fs.copyFile(
-        path.join(repoRoot, "assets/fork", entry),
-        path.join(stageResourcesDir, "fork", entry),
-      );
-    }
-  }
+  yield* fs.copy(path.join(repoRoot, "assets/fork"), path.join(stageResourcesDir, "fork"));
   if (options.platform === "linux") {
     const extensionDir = path.join(stageAppDir, "apps/desktop/gnome-extension");
     yield* fs.makeDirectory(extensionDir, { recursive: true });
