@@ -1,8 +1,5 @@
 import { copySnapshot } from "./copySnapshot";
 import { VoiceInputSetup } from "./VoiceInputSetup";
-import { isCommandPaletteOpen } from "../../commandPaletteBus";
-import { resolveShortcutCommand } from "../../keybindings";
-import { getTerminalFocusOwner } from "../../lib/terminalFocus";
 import { useComposerTypingGuard } from "./useComposerTypingGuard";
 import { insertAttachmentReferencesForDraft } from "./composerAttachmentReferences";
 import type { ComposerAttachmentInsertion } from "../composerAttachmentInsertion";

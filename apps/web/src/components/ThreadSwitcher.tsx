@@ -480,6 +480,7 @@ function ThreadSwitcherOverlay(props: {
 
   // follow the keyboard selection only when it moves, so wheel scrolling is
   // not yanked back by unrelated re-renders.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- scrolls the selected DOM row into view when the keyboard selection moves
   useEffect(() => {
     listRef.current
       ?.querySelector(`[data-index="${gesture.selectedIndex}"]`)
@@ -673,6 +674,7 @@ export function ThreadSwitcher() {
     return composer && composerDraftHasUserContent(composer) ? target : null;
   };
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- records the open thread in the recent-thread history store kept outside React
   useEffect(() => {
     const current = currentTarget();
     let history = getRecentEntries();
@@ -768,6 +770,7 @@ export function ThreadSwitcher() {
     return true;
   };
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window key listeners and the desktop bridge's native Ctrl+Tab input
   useEffect(() => {
     const nativeInput = window.desktopBridge?.onThreadSwitcherInput;
     const usesNativeInput = nativeInput !== undefined;
