@@ -156,10 +156,13 @@ export const make = Effect.fn("tabTint.make")(function* (options: TabTintOptions
 
     const bytes = yield* fs.readFile(sessionFile).pipe(Effect.orElseSucceed(() => null));
     if (bytes === null) return;
-    const decoded = yield* Effect.try(() => {
-      const json = decodeJsonExit(new TextDecoder().decode(decodeMozLz4(bytes)));
-      if (json._tag === "Failure") throw new Error("session file is not JSON");
-      return extractColoredTabs(json.value);
+    const decoded = yield* Effect.try({
+      try: () => {
+        const json = decodeJsonExit(new TextDecoder().decode(decodeMozLz4(bytes)));
+        if (json._tag === "Failure") throw new Error("session file is not JSON");
+        return extractColoredTabs(json.value);
+      },
+      catch: (cause) => String(cause),
     }).pipe(
       Effect.tapError((error) =>
         Effect.logDebug("tab tint: session file unreadable", { sessionFile, error }),
