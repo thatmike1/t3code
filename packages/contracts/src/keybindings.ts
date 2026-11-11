@@ -34,14 +34,29 @@ export const MODEL_PICKER_JUMP_KEYBINDING_COMMANDS = [
 export type ModelPickerJumpKeybindingCommand =
   (typeof MODEL_PICKER_JUMP_KEYBINDING_COMMANDS)[number];
 
+// fork: numbered model shortcut slots; each slot's model is a per-client setting
 export const QUICK_MODEL_KEYBINDING_COMMANDS = [
-  "composer.model.opus",
-  "composer.model.sol",
-  "composer.model.fable",
-  "composer.model.astra",
-  "composer.model.luna",
+  "composer.model.slot1",
+  "composer.model.slot2",
+  "composer.model.slot3",
+  "composer.model.slot4",
+  "composer.model.slot5",
+  "composer.model.slot6",
+  "composer.model.slot7",
+  "composer.model.slot8",
+  "composer.model.slot9",
 ] as const;
 export type QuickModelKeybindingCommand = (typeof QUICK_MODEL_KEYBINDING_COMMANDS)[number];
+// fork: named commands from before the slots, and the slot each one became
+export const LEGACY_QUICK_MODEL_COMMAND_SLOTS: Readonly<
+  Record<string, QuickModelKeybindingCommand>
+> = {
+  "composer.model.opus": "composer.model.slot1",
+  "composer.model.sol": "composer.model.slot3",
+  "composer.model.fable": "composer.model.slot4",
+  "composer.model.astra": "composer.model.slot6",
+  "composer.model.luna": "composer.model.slot9",
+};
 
 const THREAD_KEYBINDING_COMMANDS = [
   "thread.stop",
