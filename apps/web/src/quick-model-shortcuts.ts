@@ -36,20 +36,21 @@ const LEGACY_DEFAULT_TARGETS: Readonly<Record<string, ModelShortcutSlotTarget>> 
 
 /**
  * gives persisted settings from before the slots explicit slot targets: each old shortcut's
- * override, else its old default. Settings that already carry slots pass through unchanged.
+ * override, else its old default, in every slot not already set. Once marked migrated, settings
+ * pass through unchanged, so a slot the user cleared stays empty.
  */
 export function withModelShortcutSlots(settings: ClientSettings): ClientSettings {
-  if (settings.modelShortcutSlots !== undefined) return settings;
-  const slots: Record<string, ModelShortcutSlotTarget> = {};
+  if (settings.modelShortcutSlotsMigrated) return settings;
+  const slots: Record<string, ModelShortcutSlotTarget> = { ...settings.modelShortcutSlots };
   // persisted settings can be partial, so the legacy overrides may be missing
   const overrides: Readonly<Record<string, string>> | undefined = settings.quickModelTargets;
   for (const [legacyCommand, slot] of Object.entries(LEGACY_QUICK_MODEL_COMMAND_SLOTS)) {
     const fallback = LEGACY_DEFAULT_TARGETS[legacyCommand];
-    if (!fallback) continue;
+    if (!fallback || slots[slot]) continue;
     const override = overrides?.[legacyCommand]?.trim();
     slots[slot] = { driver: fallback.driver, model: override || fallback.model };
   }
-  return { ...settings, modelShortcutSlots: slots };
+  return { ...settings, modelShortcutSlots: slots, modelShortcutSlotsMigrated: true };
 }
 
 type QuickModelInstance = Pick<
