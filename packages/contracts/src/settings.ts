@@ -421,8 +421,14 @@ export const VoiceTranscriptionDestination = Schema.Union([
   }),
 ]);
 export type VoiceTranscriptionDestination = typeof VoiceTranscriptionDestination.Type;
-/** fork: direct model shortcut targets and per-project beadside boards, kept per client. */
+/** fork: per-project beadside boards, and the pre-slot shortcut targets read once by the slot migration. */
 export const QuickModelTargets = Schema.Record(Schema.String, Schema.String);
+/** fork: the model each numbered shortcut slot picks, keyed by slot command; absent until migrated. */
+export const ModelShortcutSlots = Schema.Record(
+  Schema.String,
+  Schema.Struct({ driver: Schema.String, model: Schema.String }),
+);
+export type ModelShortcutSlots = typeof ModelShortcutSlots.Type;
 export const BeadBoards = Schema.Array(
   Schema.Struct({
     prefix: Schema.String.check(Schema.isPattern(/^[A-Za-z0-9_-]+$/)),
@@ -433,6 +439,7 @@ export const DEFAULT_BEAD_BOARDS = [{ prefix: "ccChat-general", origin: "http://
 
 export const ClientSettingsSchema = Schema.Struct({
   quickModelTargets: QuickModelTargets.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  modelShortcutSlots: Schema.optionalKey(ModelShortcutSlots),
   beadBoards: BeadBoards.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_BEAD_BOARDS))),
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
@@ -645,7 +652,10 @@ export const ClientSettingsSchema = Schema.Struct({
 });
 export type ClientSettings = typeof ClientSettingsSchema.Type;
 
-export const DEFAULT_CLIENT_SETTINGS: ClientSettings = Schema.decodeSync(ClientSettingsSchema)({});
+export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
+  ...Schema.decodeSync(ClientSettingsSchema)({}),
+  modelShortcutSlots: {},
+};
 
 const UsageModelTokenPrice = Schema.Number.check(
   Schema.isFinite(),
@@ -2045,6 +2055,7 @@ export function requiredScopesForProjectMutation(
 
 export const ClientSettingsPatch = Schema.Struct({
   quickModelTargets: Schema.optionalKey(QuickModelTargets),
+  modelShortcutSlots: Schema.optionalKey(ModelShortcutSlots),
   beadBoards: Schema.optionalKey(BeadBoards),
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),

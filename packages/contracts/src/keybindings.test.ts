@@ -54,8 +54,8 @@ it.effect("drops malformed resolved rule entries", () =>
 it.effect("preserves fork model shortcuts in resolved rules", () =>
   Effect.gen(function* () {
     const parsed = yield* decode(ResolvedKeybindingsConfig, [
-      { command: "composer.model.opus", shortcut },
+      { command: "composer.model.slot1", shortcut },
     ]);
-    assert.strictEqual(parsed[0]?.command, "composer.model.opus");
+    assert.strictEqual(parsed[0]?.command, "composer.model.slot1");
   }),
 );

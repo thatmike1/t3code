@@ -72,6 +72,8 @@ import {
   whenNodeRemoveLabel,
 } from "./KeybindingsSettings.logic";
 import { SettingsGroup } from "./SettingsGroup";
+import { ForkModelSlotPicker } from "./fork-model-slots";
+import { isModelShortcutSlotCommand } from "../../quick-model-shortcuts";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { keybindingSearchAnchorId, searchableSetting } from "./settingsSearch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -1019,6 +1021,9 @@ function KeybindingSettingsRow(props: KeybindingRowProps) {
       control={
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           <KeybindingConflictWarning labels={editor.conflictLabels} />
+          {isModelShortcutSlotCommand(row.command) ? (
+            <ForkModelSlotPicker command={row.command} />
+          ) : null}
           <KeybindingHoverRowMenu
             row={row}
             isSaving={isSaving}

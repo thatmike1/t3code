@@ -32,6 +32,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as Semaphore from "effect/Semaphore";
 import * as ServerConfig from "./config.ts";
+import { renameLegacyModelSlotCommands } from "./fork-model-slot-keybindings.ts";
 import { writeFileStringAtomically } from "@t3tools/shared/atomicWrite";
 import { fromJsonStringPretty, fromLenientJson } from "@t3tools/shared/schemaJson";
 import {
@@ -459,6 +460,13 @@ const make = Effect.gen(function* () {
         yield* Cache.invalidate(resolvedConfigCache, resolvedConfigCacheKey);
         return;
       }
+
+      // fork: named model shortcut commands from older builds become numbered slots
+      const renamedLegacyEntries = yield* loadWritableCustomKeybindingsConfig().pipe(
+        Effect.map((entries) => renameLegacyModelSlotCommands(entries.map((entry) => entry.value))),
+        Effect.orElseSucceed(() => null),
+      );
+      if (renamedLegacyEntries) yield* writeConfigAtomically(renamedLegacyEntries);
 
       const runtimeConfig = yield* loadRuntimeCustomKeybindingsConfig();
       if (runtimeConfig.issues.length > 0) {

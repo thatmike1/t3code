@@ -39,14 +39,16 @@ To change effort one step without opening the picker, bind
 **Composer: Increase Effort** and **Composer: Decrease Effort** in Keybindings.
 Both are unbound by default. Increase wraps from the highest level to the
 lowest, and decrease wraps from the lowest level to the highest.
-In a new thread, `alt+1` selects Opus 5.5, `alt+3` GPT-6.1 Sol, `alt+4` Fable 5.1,
-`alt+6` Astra, and `alt+9` Luna without opening the model picker. These model
-shortcuts leave started threads alone. Change their keys in **Settings →
-Keybindings** by searching for **Model: Select**. `alt+2` and `alt+5` continue
-to decrease and increase effort. In **Settings → General → Model shortcut targets**,
-each row shows its key and a model picker limited to that shortcut's provider family,
-listing the selected environment's catalog. The reset arrow beside a row restores the
-default. Targets are saved for this client, separately from the keys.
+Nine numbered model shortcuts, **Model shortcut 1** to **Model shortcut 9**, each
+pick one model for a new thread without opening the model picker. They leave
+started threads alone. In **Settings → Keybindings**, each one's row shows its key
+and, beside it, a picker for the model it selects; the clear arrow empties the slot.
+A new install starts with every slot empty, and an empty slot only shows a hint
+when pressed. Slots 1, 3, 4, 6, 7, 8 and 9 default to `alt+1` and so on; slots 2
+and 5 start unbound so `alt+2` and `alt+5` stay free for effort. Models are saved
+for this client, separately from the keys. Builds before the slots had named
+shortcuts on `alt+1/3/4/6/9`; updating moves each one into the slot of the same
+digit with the model it picked.
 
 In the model picker, press Left in an empty search field or Shift+Tab to reach
 the provider list. Use Up/Down to move and Enter to choose. Right returns to

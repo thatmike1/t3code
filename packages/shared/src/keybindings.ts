@@ -108,11 +108,12 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
     command: "composer.sendAndNewThread",
     when: "composerFocus && !draftThreadRoute",
   },
-  { key: "alt+1", command: "composer.model.opus", when: "!terminalFocus && !modelPickerOpen" },
-  { key: "alt+3", command: "composer.model.sol", when: "!terminalFocus && !modelPickerOpen" },
-  { key: "alt+4", command: "composer.model.fable", when: "!terminalFocus && !modelPickerOpen" },
-  { key: "alt+6", command: "composer.model.astra", when: "!terminalFocus && !modelPickerOpen" },
-  { key: "alt+9", command: "composer.model.luna", when: "!terminalFocus && !modelPickerOpen" },
+  // fork: alt+2 and alt+5 stay free for the effort keys, so slots 2 and 5 start unbound
+  ...([1, 3, 4, 6, 7, 8, 9] as const).map((slot) => ({
+    key: `alt+${slot}`,
+    command: `composer.model.slot${slot}` as const,
+    when: "!terminalFocus && !modelPickerOpen",
+  })),
   { key: "mod+n", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" },
   { key: "mod+shift+n", command: "chat.newLocal", when: "!terminalFocus" },

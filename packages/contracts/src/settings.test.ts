@@ -547,9 +547,12 @@ describe("fork client preferences", () => {
       { prefix: "ccChat-general", origin: "http://127.0.0.1:1338" },
     ]);
   });
-  it("round trips model targets and project boards independently of keys", () => {
+  it("leaves model shortcut slots absent in an older file so the slot migration can tell", () => {
+    expect(decodeClientSettings({}).modelShortcutSlots).toBeUndefined();
+  });
+  it("round trips model slots and project boards independently of keys", () => {
     const patch = {
-      quickModelTargets: { "composer.model.sol": "gpt-6-astra" },
+      modelShortcutSlots: { "composer.model.slot3": { driver: "codex", model: "gpt-6-astra" } },
       beadBoards: [{ prefix: "nexiflow", origin: "http://127.0.0.1:1339" }],
     };
     expect(decodeClientSettingsPatch(patch)).toEqual(patch);
