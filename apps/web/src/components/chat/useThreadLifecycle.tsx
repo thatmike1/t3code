@@ -663,6 +663,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   // the thread this view shows right now; cleared on unmount so a settle that
   // lands after the user moved on never navigates.
   const activeThreadKeyRef = useRef<string | null>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tracks the shown thread for a settle that resolves after unmount or navigation
   useEffect(() => {
     activeThreadKeyRef.current = activeThreadKey;
     return () => {
