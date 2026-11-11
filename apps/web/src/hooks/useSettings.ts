@@ -33,6 +33,7 @@ import {
 } from "@t3tools/client-runtime/state/shared-settings";
 import { ensureLocalApi } from "~/localApi";
 import { subscribeBrowserClientSettingsWrites } from "~/clientPersistenceStorage";
+import { withModelShortcutSlots } from "~/quick-model-shortcuts";
 import {
   getThemeDefinition,
   getThemePreviewSidebarArtwork,
@@ -155,7 +156,10 @@ async function hydrateClientSettings(): Promise<void> {
         return;
       }
       if (persistedSettings) {
-        replaceClientSettingsSnapshot({ ...DEFAULT_CLIENT_SETTINGS, ...persistedSettings });
+        replaceClientSettingsSnapshot({
+          ...DEFAULT_CLIENT_SETTINGS,
+          ...withModelShortcutSlots(persistedSettings),
+        });
       }
       unsubscribeOtherTabClientSettings ??= subscribeBrowserClientSettingsWrites(
         refreshClientSettingsFromOtherTab,

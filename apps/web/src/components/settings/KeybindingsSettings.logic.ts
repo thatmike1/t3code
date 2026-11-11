@@ -24,6 +24,7 @@ import {
 } from "../../keybindings";
 import { isMacPlatform } from "../../lib/utils";
 import { METRIC_OPTIONS, WINDOW_OPTIONS } from "../usage/usageShortcuts";
+import { modelShortcutSlotNumber } from "../../quick-model-shortcuts";
 
 // Rank every usage command; mixing rank and alphabetical comparisons makes order input-dependent.
 const usageCommandOrder = new Map<KeybindingCommand, number>(
@@ -533,11 +534,6 @@ const LATE_COMMAND_LABELS: Partial<Record<KeybindingCommand, string>> = {
   "view.reopenClosed": msg("Reopen Closed Tab"),
   "preview.focusUrl": msg("Preview: Focus URL"),
   "preview.find": msg("Preview: Find on Page"),
-  "composer.model.opus": msg("Model: Select Opus 5.5"),
-  "composer.model.sol": msg("Model: Select Sol (default GPT-6.1 Sol)"),
-  "composer.model.fable": msg("Model: Select Fable 5.1"),
-  "composer.model.astra": msg("Model: Select GPT-6 Astra"),
-  "composer.model.luna": msg("Model: Select GPT-6 Luna"),
 };
 
 export function commandLabel(command: KeybindingCommand, resolve: MessageResolver = m): string {
@@ -547,6 +543,8 @@ export function commandLabel(command: KeybindingCommand, resolve: MessageResolve
   if (usageLabel) return resolve(usageLabel);
   const lateLabel = LATE_COMMAND_LABELS[command];
   if (lateLabel) return resolve(lateLabel);
+  const modelSlot = modelShortcutSlotNumber(command);
+  if (modelSlot !== null) return resolve(msg("Model shortcut {n}", { n: modelSlot }));
   const raw = String(command);
   if (raw.startsWith("thread.jump.")) {
     return resolve(msg("Thread: Jump: {n}", { n: raw.slice("thread.jump.".length) }));
