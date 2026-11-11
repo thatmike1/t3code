@@ -49,8 +49,6 @@ function renderActions(overrides: Partial<ComponentProps<typeof ComposerPrimaryA
         pendingAction={null}
         isRunning={false}
         canInterrupt={false}
-        showPlanFollowUpPrompt={false}
-        promptHasText
         isSendBusy={false}
         sendDisabledReason={null}
         isEnvironmentUnavailable={false}
@@ -58,7 +56,6 @@ function renderActions(overrides: Partial<ComponentProps<typeof ComposerPrimaryA
         hasSendableContent
         onPreviousPendingQuestion={() => {}}
         onInterrupt={() => {}}
-        onImplementPlanInNewThread={() => {}}
         {...overrides}
       />
     </>,

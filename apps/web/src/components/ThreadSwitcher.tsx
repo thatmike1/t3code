@@ -146,6 +146,11 @@ const TOP_STATUS_PRESENTATION: Record<
     icon: <CircleDashedIcon aria-hidden className="size-3.5 shrink-0" />,
     className: "text-info-foreground",
   },
+  preparing: {
+    label: "Setting up",
+    icon: <CircleDashedIcon aria-hidden className="size-3.5 shrink-0" />,
+    className: "text-info-foreground",
+  },
   waiting: {
     label: "Waiting",
     icon: <CircleDotDashedIcon aria-hidden className="size-3.5 shrink-0" />,
