@@ -1287,7 +1287,10 @@ function TaskForm({
                   accessibilityLabel="Catch up today if missed"
                   value={draft.schedule.catchUpToday}
                   onValueChange={(catchUpToday) =>
-                    setDraft({ ...draft, schedule: { ...draft.schedule, catchUpToday } })
+                    setDraft((current) => ({
+                      ...current,
+                      schedule: { ...current.schedule, catchUpToday },
+                    }))
                   }
                 />
               </View>

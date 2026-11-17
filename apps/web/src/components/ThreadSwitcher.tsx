@@ -249,11 +249,17 @@ function ThreadSwitcherStatus(props: {
       <span>{label}</span>
       {status === "working" ? (
         <span aria-hidden className="font-normal">
-          <WorkingDuration startedAt={resolveWorkingStartedAt(thread)} />
+          <WorkingDuration
+            environmentId={thread.environmentId}
+            startedAt={resolveWorkingStartedAt(thread)}
+          />
         </span>
       ) : status === "waiting" ? (
         <span aria-hidden className="font-normal">
-          <WorkingDuration startedAt={thread.latestRun?.completedAt ?? null} />
+          <WorkingDuration
+            environmentId={thread.environmentId}
+            startedAt={thread.latestRun?.completedAt ?? null}
+          />
         </span>
       ) : null}
     </span>
