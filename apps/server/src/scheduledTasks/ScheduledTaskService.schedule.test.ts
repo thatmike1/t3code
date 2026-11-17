@@ -707,7 +707,11 @@ it.effect("skips a plain fixed-time slot missed by more than the grace", () =>
         yield* TestClock.adjust("6 seconds");
         const skipped = yield* firstTaskWhere(service, (task) => task.nextRunAt !== isoAt(1, 9));
         expect(skipped.nextRunAt).toBe(isoAt(2, 9));
-        expect(skipped.lastRunStatus).toBe("never");
+        // upstream marks a plain missed slot as failed on the task.
+        expect(skipped.lastRunStatus).toBe("failed");
+        expect(skipped.lastRunError).toBe(
+          "Missed a scheduled run because the server was not running at that time.",
+        );
       }),
     );
   }).pipe(Effect.provide(SqlitePersistence.layerMemory)),

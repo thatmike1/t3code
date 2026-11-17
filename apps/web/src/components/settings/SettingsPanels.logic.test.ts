@@ -171,6 +171,9 @@ describe("auto-settle days field", () => {
   it("keeps a draft in progress when the saved value changes underneath it", () => {
     const typing = type(autoSettleDaysField(14), "4");
     expect(syncAutoSettleDaysField(typing, 30)).toMatchObject({ saved: 30, draft: "4" });
+  });
+});
+
 describe("about version", () => {
   it("prefers the desktop build version over the web bundle version", () => {
     expect(resolveAboutVersion("0.1.0", "0.1.0-fork.20261020.1432")).toBe(
