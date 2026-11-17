@@ -59,8 +59,33 @@ function prosePathLinkCandidate(token: string): string | null {
   return candidate !== null && parseMarkdownFileLink(candidate) !== null ? candidate : null;
 }
 
+/**
+ * upstream links absolute prose paths itself (`remarkLinkAbsoluteFilePaths` in the shared
+ * pipeline, which runs before this plugin). Those links have no source position and their text is
+ * their url; marking them like ours keeps one renderer and the plain-path copy for every prose path.
+ */
+function markUpstreamProsePathLinks(node: MarkdownNode & { position?: unknown }): void {
+  if (node.type === "link") {
+    const [only, ...rest] = node.children ?? [];
+    if (
+      node.position === undefined &&
+      node.data === undefined &&
+      rest.length === 0 &&
+      only?.type === "text" &&
+      only.value === node.url &&
+      node.url !== undefined &&
+      prosePathLinkCandidate(node.url) !== null
+    ) {
+      node.data = { hProperties: { dataPathLink: node.url } };
+    }
+    return;
+  }
+  node.children?.forEach(markUpstreamProsePathLinks);
+}
+
 export function remarkPathAutolinks() {
   return (tree: MarkdownNode) => {
+    markUpstreamProsePathLinks(tree);
     findAndReplaceText(
       tree,
       PROSE_PATH_PATTERN,
