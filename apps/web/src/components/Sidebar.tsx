@@ -299,6 +299,13 @@ import {
   useSidebarDrafts,
 } from "./sidebar/SidebarDraftBlock";
 import { SidebarMachineFilter } from "./sidebar/SidebarMachineFilter";
+import { SidebarWorkspaceTabs } from "./sidebar/SidebarWorkspaceTabs";
+import {
+  handleWorkspaceMenuClick,
+  projectWorkspaceMenuItems,
+  threadWorkspaceMenuItems,
+} from "./sidebar/threadWorkspaceMenus";
+import { useWorkspaceThreads } from "../lib/threadWorkspacesState";
 import {
   SidebarProjectFolderHeader,
   sidebarFolderRowId,
@@ -1200,7 +1207,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             ),
           ),
         );
-  const threads = useQuietThreadShells();
+  const threads = useWorkspaceThreads(useQuietThreadShells(), routeThreadKey, threadShellKey);
   const promotingDraftThreadKeys = usePromotingDraftThreadKeys();
   const listedThreads =
     promotingDraftThreadKeys.length === 0
@@ -1382,6 +1389,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               icon: "settings" as const,
               separatorBefore: true,
             },
+            ...projectWorkspaceMenuItems(projectGroup.memberProjectRefs),
           ],
           { x: event.clientX, y: event.clientY },
         ),
@@ -1389,6 +1397,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       projectScopeContextMenuOpenRef.current = false;
       suppressNextScopeChangeRef.current = false;
       if (clicked._tag === "Failure" || clicked.value === null) return;
+      if (
+        handleWorkspaceMenuClick(clicked.value, {
+          projectIds: projectGroup.memberProjectRefs.map((ref) => ref.projectId),
+        })
+      )
+        return;
       if (clicked.value === CLEAR_HOME_PROJECT_ITEM_ID) {
         setHomeProject(null);
         return;
@@ -1452,12 +1466,20 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   ]
                 : []),
               { id: "project-settings", label: gt("Project settings"), icon: "settings" },
+              ...projectWorkspaceMenuItems(group.memberProjectRefs),
             ],
             position,
             source,
           ),
         );
         if (clicked._tag === "Failure") return;
+        if (
+          clicked.value !== null &&
+          handleWorkspaceMenuClick(clicked.value, {
+            projectIds: group.memberProjectRefs.map((ref) => ref.projectId),
+          })
+        )
+          return;
         switch (clicked.value) {
           case "new-thread":
             startThreadInProjectFolder(group);
@@ -2948,12 +2970,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               workingShelf: workingShelfEnabled
                 ? { override: workingShelfThreadOverrides[threadKey] ?? null }
                 : null,
-            }),
+            }).concat(threadWorkspaceMenuItems(thread)),
             position,
             source,
           ),
         );
         if (clicked._tag === "Failure" || clicked.value === null) return;
+        if (handleWorkspaceMenuClick(clicked.value, { threadIds: [thread.id] })) return;
         if (
           threadActionRequiresOperate(clicked.value) &&
           !checkThreadOperations([thread], isThreadTriageAction(clicked.value))
@@ -3568,6 +3591,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               activeSearchResultIndex={activeSearchResultIndex}
               onClearSearch={clearThreadSearch}
             />
+            <SidebarWorkspaceTabs className="mt-1" />
           </SidebarGroup>
         }
       >

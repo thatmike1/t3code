@@ -95,6 +95,11 @@ import {
 import { ClientActivityReportInput } from "./background.ts";
 import { WidgetsSnapshot } from "./widgets.ts";
 import {
+  THREAD_WORKSPACES_WS_METHODS,
+  WsSubscribeThreadWorkspacesRpc,
+  WsThreadWorkspacesCommandRpc,
+} from "./threadWorkspaces.ts";
+import {
   FilesystemGetMetadataInput,
   FilesystemGetMetadataResult,
   FilesystemBrowseInput,
@@ -746,6 +751,7 @@ export const WS_METHODS = {
   subscribeWidgets: "subscribeWidgets",
   subscribeResourceTelemetry: "subscribeResourceTelemetry",
   subscribeTabTints: "subscribeTabTints",
+  ...THREAD_WORKSPACES_WS_METHODS,
 } as const;
 
 const WsServerUpsertKeybindingRpc = Rpc.make(WS_METHODS.serverUpsertKeybinding, {
@@ -2739,6 +2745,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeWidgetsRpc,
   WsSubscribeResourceTelemetryRpc,
   WsSubscribeTabTintsRpc,
+  WsSubscribeThreadWorkspacesRpc,
+  WsThreadWorkspacesCommandRpc,
   WsOrchestrationV2DispatchCommandRpc,
   WsOrchestrationV2GetWorkflowScriptRpc,
   WsOrchestrationV2GetNativeChildWorkRpc,
