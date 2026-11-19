@@ -92,7 +92,7 @@ export function buildProjectWorkspaceMenuItem(
   };
 }
 
-/** the "Move to workspace" item to append to a thread menu (empty when there is none); its ids are typed as the menu's own, so route clicks through handleWorkspaceMenuClick first */
+/** "Move to workspace" for a thread menu; typed as the menu's own ids, so route clicks through handleWorkspaceMenuClick first */
 export function threadWorkspaceMenuItems<T extends string>(
   thread: WorkspaceThread & Pick<EnvironmentThreadShell, "environmentId">,
 ): Array<ContextMenuItem<T>> {
@@ -102,12 +102,12 @@ export function threadWorkspaceMenuItems<T extends string>(
   return item === null ? [] : [item as ContextMenuItem<T>];
 }
 
-/** the "Default workspace" item to append to a project menu, empty when there is none */
-export function projectWorkspaceMenuItems<T extends string>(
+/** "Default workspace" for a project menu */
+export function projectWorkspaceMenuItems(
   projectRefs: ReadonlyArray<{ readonly projectId: string }>,
-): Array<ContextMenuItem<T>> {
+): Array<ContextMenuItem> {
   const item = buildProjectWorkspaceMenuItem(projectRefs.map((ref) => ref.projectId));
-  return item === null ? [] : [item as ContextMenuItem<T>];
+  return item === null ? [] : [item];
 }
 
 function send(command: ThreadWorkspacesCommand) {
