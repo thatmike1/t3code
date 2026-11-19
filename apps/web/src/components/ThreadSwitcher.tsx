@@ -37,6 +37,7 @@ import {
   type DraftSessionState,
   useComposerDraftStore,
 } from "../composerDraftStore";
+import { isThreadInCurrentWorkspace } from "../lib/threadWorkspacesState";
 import { cn } from "../lib/utils";
 import {
   deriveProviderEntriesByEnvironment,
@@ -737,6 +738,7 @@ export function ThreadSwitcher() {
     if (entry.target.kind === "draft") return true;
     const thread = threadByKey.get(scopedThreadKey(entry.target.ref));
     if (!thread || thread.archivedAt !== null || thread.deletedAt !== null) return false;
+    if (!isThreadInCurrentWorkspace(thread)) return false;
     const capabilities = serverConfigs.get(thread.environmentId)?.environment.capabilities;
     const settledTimestamp = resolveSettledThreadTimestamp(thread);
     const settledAtMs = settledTimestamp === null ? null : Date.parse(settledTimestamp);

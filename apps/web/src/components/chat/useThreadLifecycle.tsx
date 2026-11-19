@@ -1,4 +1,5 @@
 import { getRecentThreads, threadAfterClose } from "../../thread-switcher.logic";
+import { isThreadInCurrentWorkspace } from "../../lib/threadWorkspacesState";
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type { Dispatch } from "react";
@@ -691,7 +692,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
           shell.archivedAt === null &&
           shell.deletedAt === null &&
           shell.settledOverride !== "settled" &&
-          !effectiveSnoozed(shell, { now })
+          !effectiveSnoozed(shell, { now }) &&
+          isThreadInCurrentWorkspace(shell)
         );
       });
       void navigate(

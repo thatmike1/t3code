@@ -175,6 +175,10 @@
       "types": "./src/tabFocus.ts",
       "import": "./src/tabFocus.ts"
     },
+    "./threadWorkspaces": {
+      "types": "./src/threadWorkspaces.ts",
+      "import": "./src/threadWorkspaces.ts"
+    },
     "./String": {
       "types": "./src/String.ts",
       "import": "./src/String.ts"
