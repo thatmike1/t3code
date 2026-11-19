@@ -1397,12 +1397,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       projectScopeContextMenuOpenRef.current = false;
       suppressNextScopeChangeRef.current = false;
       if (clicked._tag === "Failure" || clicked.value === null) return;
-      if (
-        handleWorkspaceMenuClick(clicked.value, {
-          projectIds: projectGroup.memberProjectRefs.map((ref) => ref.projectId),
-        })
-      )
-        return;
+      const projectIds = projectGroup.memberProjectRefs.map((ref) => ref.projectId);
+      if (handleWorkspaceMenuClick(clicked.value, { projectIds })) return;
       if (clicked.value === CLEAR_HOME_PROJECT_ITEM_ID) {
         setHomeProject(null);
         return;
@@ -1473,13 +1469,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ),
         );
         if (clicked._tag === "Failure") return;
-        if (
-          clicked.value !== null &&
-          handleWorkspaceMenuClick(clicked.value, {
-            projectIds: group.memberProjectRefs.map((ref) => ref.projectId),
-          })
-        )
-          return;
+        const projectIds = group.memberProjectRefs.map((ref) => ref.projectId);
+        if (clicked.value && handleWorkspaceMenuClick(clicked.value, { projectIds })) return;
         switch (clicked.value) {
           case "new-thread":
             startThreadInProjectFolder(group);
