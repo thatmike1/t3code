@@ -289,8 +289,8 @@ import { SidebarMachineFilter } from "./sidebar/SidebarMachineFilter";
 import { SidebarWorkspaceTabs } from "./sidebar/SidebarWorkspaceTabs";
 import {
   handleWorkspaceMenuClick,
-  withProjectWorkspaceItem,
-  withThreadWorkspaceItem,
+  projectWorkspaceMenuItems,
+  threadWorkspaceMenuItems,
 } from "./sidebar/threadWorkspaceMenus";
 import { useWorkspaceThreads } from "../lib/threadWorkspacesState";
 import {
@@ -1344,37 +1344,31 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       projectScopeContextMenuOpenRef.current = true;
       const clicked = await settlePromise(() =>
         api.contextMenu.show<string>(
-          withProjectWorkspaceItem(
-            [
-              ...(canPinProject(projectGroup)
-                ? [
-                    projectGroup.pinned
-                      ? { id: "unpin", label: "Unpin project", icon: "pin-off" as const }
-                      : { id: "pin", label: "Pin project", icon: "pin" as const },
-                  ]
-                : []),
-              ...homeItems,
-              {
-                id: "project-settings",
-                label: "Project settings",
-                icon: "settings" as const,
-                separatorBefore: true,
-              },
-            ],
-            projectGroup.memberProjectRefs,
-          ),
+          [
+            ...(canPinProject(projectGroup)
+              ? [
+                  projectGroup.pinned
+                    ? { id: "unpin", label: "Unpin project", icon: "pin-off" as const }
+                    : { id: "pin", label: "Pin project", icon: "pin" as const },
+                ]
+              : []),
+            ...homeItems,
+            {
+              id: "project-settings",
+              label: "Project settings",
+              icon: "settings" as const,
+              separatorBefore: true,
+            },
+            ...projectWorkspaceMenuItems(projectGroup.memberProjectRefs),
+          ],
           { x: event.clientX, y: event.clientY },
         ),
       );
       projectScopeContextMenuOpenRef.current = false;
       suppressNextScopeChangeRef.current = false;
       if (clicked._tag === "Failure" || clicked.value === null) return;
-      if (
-        handleWorkspaceMenuClick(clicked.value, {
-          projectIds: projectGroup.memberProjectRefs.map((ref) => ref.projectId),
-        })
-      )
-        return;
+      const projectIds = projectGroup.memberProjectRefs.map((ref) => ref.projectId);
+      if (handleWorkspaceMenuClick(clicked.value, { projectIds })) return;
       if (clicked.value === CLEAR_HOME_PROJECT_ITEM_ID) {
         setHomeProject(null);
         return;
@@ -1419,33 +1413,26 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       void (async () => {
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
-            withProjectWorkspaceItem(
-              [
-                { id: "new-thread", label: "New thread" },
-                { id: "copy-path", label: "Copy path" },
-                ...(canPinProject(group)
-                  ? [
-                      group.pinned
-                        ? { id: "unpin", label: "Unpin project", icon: "pin-off" }
-                        : { id: "pin", label: "Pin project", icon: "pin" },
-                    ]
-                  : []),
-                { id: "project-settings", label: "Project settings", icon: "settings" },
-              ],
-              group.memberProjectRefs,
-            ),
+            [
+              { id: "new-thread", label: "New thread" },
+              { id: "copy-path", label: "Copy path" },
+              ...(canPinProject(group)
+                ? [
+                    group.pinned
+                      ? { id: "unpin", label: "Unpin project", icon: "pin-off" }
+                      : { id: "pin", label: "Pin project", icon: "pin" },
+                  ]
+                : []),
+              { id: "project-settings", label: "Project settings", icon: "settings" },
+              ...projectWorkspaceMenuItems(group.memberProjectRefs),
+            ],
             position,
             source,
           ),
         );
         if (clicked._tag === "Failure") return;
-        if (
-          clicked.value !== null &&
-          handleWorkspaceMenuClick(clicked.value, {
-            projectIds: group.memberProjectRefs.map((ref) => ref.projectId),
-          })
-        )
-          return;
+        const projectIds = group.memberProjectRefs.map((ref) => ref.projectId);
+        if (clicked.value && handleWorkspaceMenuClick(clicked.value, { projectIds })) return;
         switch (clicked.value) {
           case "new-thread":
             startThreadInProjectFolder(group);
@@ -2846,46 +2833,43 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ) ?? null;
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
-            withThreadWorkspaceItem(
-              buildThreadActionMenuItems({
-                canOperate: readEnvironmentScope(
-                  threadRef.environmentId,
-                  AuthOrchestrationOperateScope,
-                ),
-                branch: thread.branch ?? null,
-                // An archived project is not a filter choice.
-                projectFilter:
-                  threadProjectGroup && !threadProjectGroup.archived
-                    ? {
-                        label: threadProjectGroup.displayName,
-                        isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
-                      }
-                    : null,
-                isPinned,
-                isSettled,
-                autoSettleEnabled: thread.autoSettleDisabledAt == null,
-                isSnoozed,
-                canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
-                isRegeneratingTitle,
-                isRunning: !threadRuntimeCanArchive(thread.runtime),
-                canShareWithGuest: appAtomRegistry.get(
-                  canShareWithGuestAtom(threadRef.environmentId),
-                ),
-                canTurnIntoProject: canTurnThreadIntoProject(threadRef),
-                supports: {
-                  settlement: configLoaded,
-                  autoSettleOptOut: supportsAutoSettleOptOut,
-                  snooze: configLoaded,
-                  pinning: configLoaded,
-                  titleRegeneration: configLoaded,
-                },
-                snoozePresets,
-                workingShelf: workingShelfEnabled
-                  ? { override: workingShelfThreadOverrides[threadKey] ?? null }
+            buildThreadActionMenuItems({
+              canOperate: readEnvironmentScope(
+                threadRef.environmentId,
+                AuthOrchestrationOperateScope,
+              ),
+              branch: thread.branch ?? null,
+              // An archived project is not a filter choice.
+              projectFilter:
+                threadProjectGroup && !threadProjectGroup.archived
+                  ? {
+                      label: threadProjectGroup.displayName,
+                      isActive: projectScopeKeys.includes(threadProjectGroup.projectKey),
+                    }
                   : null,
-              }),
-              thread,
-            ),
+              isPinned,
+              isSettled,
+              autoSettleEnabled: thread.autoSettleDisabledAt == null,
+              isSnoozed,
+              canSnoozeNow: canSnooze(thread, { now: new Date().toISOString() }),
+              isRegeneratingTitle,
+              isRunning: !threadRuntimeCanArchive(thread.runtime),
+              canShareWithGuest: appAtomRegistry.get(
+                canShareWithGuestAtom(threadRef.environmentId),
+              ),
+              canTurnIntoProject: canTurnThreadIntoProject(threadRef),
+              supports: {
+                settlement: configLoaded,
+                autoSettleOptOut: supportsAutoSettleOptOut,
+                snooze: configLoaded,
+                pinning: configLoaded,
+                titleRegeneration: configLoaded,
+              },
+              snoozePresets,
+              workingShelf: workingShelfEnabled
+                ? { override: workingShelfThreadOverrides[threadKey] ?? null }
+                : null,
+            }).concat(threadWorkspaceMenuItems(thread)),
             position,
             source,
           ),
