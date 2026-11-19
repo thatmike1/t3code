@@ -4,6 +4,7 @@ import { useClientSettings, updateClientSettings } from "../../hooks/useSettings
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { SettingsRow, SettingsSection } from "./settingsLayout";
+import { ThreadWorkspacesSettings } from "./ThreadWorkspacesSettings";
 
 const SECTION_NOTE_CLASSNAME = "px-3 py-3 text-xs leading-normal text-muted-foreground sm:px-4";
 
@@ -55,6 +56,7 @@ export function ForkPreferences() {
 
   return (
     <>
+      <ThreadWorkspacesSettings />
       <SettingsSection title="Beadside boards">
         <p className={SECTION_NOTE_CLASSNAME}>
           Map each repository's full issue prefix to its running board, at a URL reachable from this

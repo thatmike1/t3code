@@ -79,6 +79,7 @@ export type EnvironmentSubscriptionRpcTag =
   | typeof WS_METHODS.subscribeResourceTelemetry
   | typeof WS_METHODS.subscribeWidgets
   | typeof WS_METHODS.subscribeTabTints
+  | typeof WS_METHODS.subscribeThreadWorkspaces
   | typeof WS_METHODS.pullRequestsSubscribeRefreshes
   | typeof WS_METHODS.pullRequestsSubscribeLinkedThreadRefreshes
   | typeof WS_METHODS.subscribeVcsStatus

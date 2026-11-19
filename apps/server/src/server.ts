@@ -210,6 +210,7 @@ import * as ResourceMonitorBinary from "./resourceTelemetry/ResourceMonitorBinar
 import * as ProcessGroupMetrics from "./resourceTelemetry/ProcessGroupMetrics.ts";
 import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as TabTint from "./tabTint/TabTint.ts";
+import * as ThreadWorkspaces from "./threadWorkspaces/ThreadWorkspaces.ts";
 import * as AntigravityUsage from "./provider/Drivers/AntigravityUsage.ts";
 import { MuseUsageHome } from "@t3tools/provider-muse/server";
 import * as CursorAccountReader from "@t3tools/provider-cursor/server/CursorAccountReader";
@@ -412,6 +413,7 @@ const layerPlatformServices = DocumentText.layer.pipe(
 const layerPersistence = Layer.empty.pipe(Layer.provideMerge(SqlitePersistence.layerConfig));
 
 const layerTabTint = TabTint.layer.pipe(Layer.provide(layerPersistence));
+const layerThreadWorkspaces = ThreadWorkspaces.layer.pipe(Layer.provide(layerPersistence));
 
 const layerVcsDriverRegistry = VcsDriverRegistry.layer.pipe(Layer.provide(VcsProjectConfig.layer));
 
@@ -826,6 +828,7 @@ const layerRuntimeDependencies = layerRuntimeCoreDependencies.pipe(
   Layer.provideMerge(layerWidgets),
   Layer.provideMerge(layerResourceDiagnostics),
   Layer.provideMerge(layerTabTint),
+  Layer.provideMerge(layerThreadWorkspaces),
   Layer.provideMerge(TraceDiagnostics.layer),
   Layer.provideMerge(TriageService.layer.pipe(Layer.provide(GitVcsDriver.layer))),
   // Layers memoize by reference, so this is the same policy the settings layer reads.
