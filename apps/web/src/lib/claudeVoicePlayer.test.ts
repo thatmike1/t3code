@@ -1,10 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { createVoicePlayer, type VoicePlayerState } from "./claudeVoicePlayer";
+import {
+  createVoicePlayer,
+  type ClipHooks,
+  type VoicePlayerState,
+  type VoiceProgress,
+} from "./claudeVoicePlayer";
 
 interface PendingPlay {
   readonly text: string;
   readonly end: () => void;
+  readonly hooks: ClipHooks;
+  readonly calls: string[];
 }
 
 /** Fakes the service and the audio element: clips resolve at once, playback ends when the test says. */
@@ -12,26 +19,35 @@ function harness(options: { failText?: string } = {}) {
   const fetched: string[] = [];
   const plays: PendingPlay[] = [];
   const states: VoicePlayerState[] = [];
+  const progress: VoiceProgress[] = [];
   const errors: unknown[] = [];
   const player = createVoicePlayer({
     fetchClip: async (text, signal) => {
       fetched.push(text);
       if (signal.aborted) throw new DOMException("aborted", "AbortError");
       if (text === options.failText) throw new Error("Speech service answered 500");
-      return new Blob([text]);
+      return { audio: new Blob([text]), timings: null };
     },
-    playClip: (clip, signal) =>
-      new Promise<void>((resolve) => {
-        void clip.text().then((text) => {
-          plays.push({ text, end: resolve });
+    playClip: (clip, signal, hooks) => {
+      const calls: string[] = [];
+      const ended = new Promise<void>((resolve) => {
+        void clip.audio.text().then((text) => {
+          plays.push({ text, end: resolve, hooks, calls });
         });
         signal.addEventListener("abort", () => resolve(), { once: true });
-      }),
+      });
+      return {
+        ended,
+        pause: () => calls.push("pause"),
+        resume: () => calls.push("resume"),
+      };
+    },
     setState: (state) => states.push(state),
+    setProgress: (next) => progress.push(next),
     onError: (error) => errors.push(error),
   });
   const flush = () => vi.advanceTimersByTimeAsync(0);
-  return { player, fetched, plays, states, errors, flush };
+  return { player, fetched, plays, states, progress, errors, flush };
 }
 
 const LONG = Array.from(
@@ -109,6 +125,46 @@ describe("createVoicePlayer", () => {
     plays[0]!.end();
     await flush();
     expect(states.at(-1)).toEqual({ status: "idle", messageId: null });
+  });
+
+  it("pauses the clip in place and resumes it, reporting paused meanwhile", async () => {
+    const { player, plays, states, flush } = harness();
+    player.speak("One short sentence.", { mode: "interrupt", messageId: "m1" });
+    await flush();
+    player.pause();
+    expect(plays[0]!.calls).toEqual(["pause"]);
+    expect(states.at(-1)).toEqual({ status: "paused", messageId: "m1" });
+    player.resume();
+    expect(plays[0]!.calls).toEqual(["pause", "resume"]);
+    expect(states.at(-1)).toEqual({ status: "playing", messageId: "m1" });
+  });
+
+  it("starts the next chunk held when paused while it was loading", async () => {
+    const { player, plays, states, flush } = harness();
+    player.speak(LONG, { mode: "interrupt", messageId: "m1" });
+    await flush();
+    player.pause();
+    plays[0]!.end();
+    await flush();
+    expect(plays).toHaveLength(2);
+    expect(plays[1]!.calls).toEqual(["pause"]);
+    expect(states.at(-1)).toEqual({ status: "paused", messageId: "m1" });
+  });
+
+  it("counts spoken words across chunks", async () => {
+    const { player, plays, progress, flush } = harness();
+    player.speak(LONG, { mode: "interrupt", messageId: "m1" });
+    await flush();
+    const firstChunkWords = plays[0]!.text.split(" ").length;
+    expect(plays[0]!.hooks.wordStarts(10)).toHaveLength(firstChunkWords);
+    plays[0]!.hooks.onWord(2);
+    expect(progress.at(-1)).toEqual({ messageId: "m1", wordIndex: 2 });
+    plays[0]!.end();
+    await flush();
+    plays[1]!.hooks.onWord(0);
+    expect(progress.at(-1)).toEqual({ messageId: "m1", wordIndex: firstChunkWords });
+    player.stop();
+    expect(progress.at(-1)).toEqual({ messageId: null, wordIndex: -1 });
   });
 
   it("does nothing for text with nothing to say", async () => {

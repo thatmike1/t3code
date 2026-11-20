@@ -8,15 +8,29 @@ import { create } from "zustand";
 
 import { toastManager } from "~/components/ui/toast";
 import { chunkForSpeech } from "./claudeVoice";
+import {
+  parseWordTimings,
+  splitWords,
+  wordIndexAt,
+  wordStarts,
+  type WordTimings,
+} from "./sayStrip.logic";
 
 const VOICE_SERVICE_URL = "http://127.0.0.1:1357";
 
-export type VoiceStatus = "idle" | "loading" | "playing";
+export type VoiceStatus = "idle" | "loading" | "playing" | "paused";
 
 export interface VoicePlayerState {
   readonly status: VoiceStatus;
   /** The message being read, or null for text that has no message. */
   readonly messageId: string | null;
+}
+
+/** Which word of the text being read is spoken now, counted across all its chunks. */
+export interface VoiceProgress {
+  readonly messageId: string | null;
+  /** -1 until the first word starts. */
+  readonly wordIndex: number;
 }
 
 export type SpeakMode = "interrupt" | "queue";
@@ -26,18 +40,39 @@ export interface SpeakOptions {
   readonly messageId?: string | null;
 }
 
+export interface SpeechClip {
+  readonly audio: Blob;
+  /** One [start, end] pair per word of the chunk when the service sent them. */
+  readonly timings: WordTimings | null;
+}
+
+export interface ClipHooks {
+  /** When each of the clip's words starts, once the audio knows its duration. */
+  readonly wordStarts: (duration: number) => number[];
+  readonly onWord: (index: number) => void;
+}
+
+export interface ClipPlayback {
+  /** Settles when the clip ends or the signal aborts; rejects when it cannot play. */
+  readonly ended: Promise<void>;
+  readonly pause: () => void;
+  readonly resume: () => void;
+}
+
 export interface VoicePlayerDeps {
   /** Fetches one rendered clip; rejects on network or service errors. */
-  readonly fetchClip: (text: string, signal: AbortSignal) => Promise<Blob>;
-  /** Plays a clip and resolves when it ends or the signal aborts. */
-  readonly playClip: (clip: Blob, signal: AbortSignal) => Promise<void>;
+  readonly fetchClip: (text: string, signal: AbortSignal) => Promise<SpeechClip>;
+  readonly playClip: (clip: SpeechClip, signal: AbortSignal, hooks: ClipHooks) => ClipPlayback;
   readonly setState: (state: VoicePlayerState) => void;
+  readonly setProgress?: (progress: VoiceProgress) => void;
   readonly onError: (error: unknown) => void;
 }
 
 export interface VoicePlayer {
   speak: (text: string, options: SpeakOptions) => void;
   stop: () => void;
+  pause: () => void;
+  resume: () => void;
 }
 
 interface SpeechJob {
@@ -46,15 +81,27 @@ interface SpeechJob {
 }
 
 const IDLE: VoicePlayerState = { status: "idle", messageId: null };
+const NO_PROGRESS: VoiceProgress = { messageId: null, wordIndex: -1 };
 
 export function createVoicePlayer(deps: VoicePlayerDeps): VoicePlayer {
   let queue: SpeechJob[] = [];
   let running = false;
   let currentController: AbortController | null = null;
+  let currentPlayback: ClipPlayback | null = null;
+  let paused = false;
+  // what the job is doing underneath a pause, restored on resume
+  let activity: VoicePlayerState = IDLE;
+
+  const publish = (state: VoicePlayerState) => {
+    activity = state;
+    deps.setState(paused && state.status !== "idle" ? { ...state, status: "paused" } : state);
+  };
+  const setProgress = (progress: VoiceProgress) => deps.setProgress?.(progress);
 
   const abortCurrent = () => {
     currentController?.abort();
     currentController = null;
+    currentPlayback = null;
   };
 
   async function playJob(job: SpeechJob, signal: AbortSignal) {
@@ -65,13 +112,28 @@ export function createVoicePlayer(deps: VoicePlayerDeps): VoicePlayer {
       return pending;
     };
     let next = fetchChunk(0);
+    let wordOffset = 0;
+    setProgress({ messageId: job.messageId, wordIndex: -1 });
     for (let index = 0; index < job.chunks.length; index += 1) {
-      deps.setState({ status: "loading", messageId: job.messageId });
+      publish({ status: "loading", messageId: job.messageId });
       const clip = await next;
       if (signal.aborted) return;
       if (index + 1 < job.chunks.length) next = fetchChunk(index + 1);
-      deps.setState({ status: "playing", messageId: job.messageId });
-      await deps.playClip(clip, signal);
+      const words = splitWords(job.chunks[index]!);
+      const offset = wordOffset;
+      wordOffset += words.length;
+      publish({ status: "playing", messageId: job.messageId });
+      const playback = deps.playClip(clip, signal, {
+        wordStarts: (duration) => wordStarts(words, clip.timings, duration),
+        onWord: (word) => {
+          if (signal.aborted) return;
+          setProgress({ messageId: job.messageId, wordIndex: offset + Math.max(0, word) });
+        },
+      });
+      currentPlayback = playback;
+      if (paused) playback.pause();
+      await playback.ended;
+      if (currentPlayback === playback) currentPlayback = null;
       if (signal.aborted) return;
     }
   }
@@ -92,7 +154,9 @@ export function createVoicePlayer(deps: VoicePlayerDeps): VoicePlayer {
       }
     } finally {
       running = false;
-      deps.setState(IDLE);
+      paused = false;
+      publish(IDLE);
+      setProgress(NO_PROGRESS);
     }
   }
 
@@ -103,6 +167,7 @@ export function createVoicePlayer(deps: VoicePlayerDeps): VoicePlayer {
       const job: SpeechJob = { chunks, messageId: options.messageId ?? null };
       if (options.mode === "interrupt") {
         queue = [job];
+        paused = false;
         abortCurrent();
       } else {
         queue.push(job);
@@ -111,15 +176,30 @@ export function createVoicePlayer(deps: VoicePlayerDeps): VoicePlayer {
     },
     stop() {
       queue = [];
+      paused = false;
       abortCurrent();
-      deps.setState(IDLE);
+      publish(IDLE);
+      setProgress(NO_PROGRESS);
+    },
+    pause() {
+      if (!running || paused) return;
+      paused = true;
+      currentPlayback?.pause();
+      publish(activity);
+    },
+    resume() {
+      if (!paused) return;
+      paused = false;
+      currentPlayback?.resume();
+      publish(activity);
     },
   };
 }
 
 export const useVoicePlayerStore = create<VoicePlayerState>(() => IDLE);
+export const useVoiceProgressStore = create<VoiceProgress>(() => NO_PROGRESS);
 
-async function fetchClipFromService(text: string, signal: AbortSignal): Promise<Blob> {
+async function fetchClipFromService(text: string, signal: AbortSignal): Promise<SpeechClip> {
   // text/plain keeps this a simple CORS request: no preflight to the loopback service
   const response = await fetch(`${VOICE_SERVICE_URL}/speak`, {
     method: "POST",
@@ -128,29 +208,85 @@ async function fetchClipFromService(text: string, signal: AbortSignal): Promise<
     signal,
   });
   if (!response.ok) throw new Error(`Speech service answered ${response.status}`);
-  return response.blob();
+  return {
+    audio: await response.blob(),
+    timings: parseWordTimings(response.headers.get("X-Word-Timings")),
+  };
 }
 
-function playClipInAudioElement(clip: Blob, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
-  const url = URL.createObjectURL(clip);
+function playClipInAudioElement(
+  clip: SpeechClip,
+  signal: AbortSignal,
+  hooks: ClipHooks,
+): ClipPlayback {
+  if (signal.aborted) return { ended: Promise.resolve(), pause() {}, resume() {} };
+  const url = URL.createObjectURL(clip.audio);
   const audio = new Audio(url);
-  return new Promise<void>((resolve, reject) => {
+  let starts: number[] | null = null;
+  let reported = Number.NaN;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let holding = false;
+  let fail: (error: unknown) => void = () => undefined;
+
+  // one timeout to the next word boundary, re-read from the audio clock each time
+  const tick = () => {
+    clearTimeout(timer);
+    if (starts === null || audio.paused) return;
+    const now = audio.currentTime;
+    const index = wordIndexAt(starts, now);
+    if (index !== reported) {
+      reported = index;
+      hooks.onWord(index);
+    }
+    const nextStart = starts[index + 1];
+    if (nextStart === undefined) return;
+    timer = setTimeout(tick, Math.max(15, ((nextStart - now) * 1000) / (audio.playbackRate || 1)));
+  };
+  const start = () =>
+    audio.play().catch((error: unknown) => {
+      // pausing before playback began rejects the play request; that is not a failure
+      if (!holding) fail(error);
+    });
+
+  const ended = new Promise<void>((resolve, reject) => {
     const finish = (error?: unknown) => {
+      clearTimeout(timer);
       signal.removeEventListener("abort", onAbort);
       audio.onended = null;
       audio.onerror = null;
+      audio.onplaying = null;
+      audio.onpause = null;
+      audio.onloadedmetadata = null;
       audio.pause();
       URL.revokeObjectURL(url);
       if (error === undefined) resolve();
       else reject(error);
     };
+    fail = finish;
     const onAbort = () => finish();
     signal.addEventListener("abort", onAbort, { once: true });
+    audio.onloadedmetadata = () => {
+      starts = hooks.wordStarts(audio.duration);
+      tick();
+    };
+    audio.onplaying = tick;
+    audio.onpause = () => clearTimeout(timer);
     audio.onended = () => finish();
     audio.onerror = () => finish(new Error("Could not play the speech clip"));
-    audio.play().catch((error: unknown) => finish(error));
+    void start();
   });
+
+  return {
+    ended,
+    pause() {
+      holding = true;
+      audio.pause();
+    },
+    resume() {
+      holding = false;
+      void start();
+    },
+  };
 }
 
 const ERROR_TOAST_INTERVAL_MS = 30_000;
@@ -174,6 +310,12 @@ const voicePlayer = createVoicePlayer({
   fetchClip: fetchClipFromService,
   playClip: playClipInAudioElement,
   setState: (state) => useVoicePlayerStore.setState(state, true),
+  setProgress: (progress) => {
+    const current = useVoiceProgressStore.getState();
+    if (current.messageId === progress.messageId && current.wordIndex === progress.wordIndex)
+      return;
+    useVoiceProgressStore.setState(progress, true);
+  },
   onError: reportVoiceError,
 });
 
@@ -185,4 +327,13 @@ export function speak(text: string, options: SpeakOptions): void {
 /** Stops playback and drops everything queued. */
 export function stopSpeaking(): void {
   voicePlayer.stop();
+}
+
+/** Holds playback where it is; {@link resumeSpeaking} carries on from the same word. */
+export function pauseSpeaking(): void {
+  voicePlayer.pause();
+}
+
+export function resumeSpeaking(): void {
+  voicePlayer.resume();
 }

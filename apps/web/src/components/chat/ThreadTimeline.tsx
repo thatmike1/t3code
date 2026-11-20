@@ -1,4 +1,6 @@
-import { useLiveVoice } from "../../hooks/useLiveVoice";
+import { liveVoiceMessagesFromTimeline, useLiveVoice } from "../../hooks/useLiveVoice";
+import { latestSaySummary } from "~/lib/sayStrip.logic";
+import { SayStrip, useSayStripCommands } from "./SayStrip";
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { type ComponentProps, useLayoutEffect } from "react";
 import { useIncrementalTimelineEntries } from "../../hooks/useIncrementalTimelineEntries";
@@ -20,6 +22,7 @@ import { MessagesTimeline } from "./MessagesTimeline";
  */
 export function ThreadTimeline({
   liveVoiceSettledRunId,
+  sayStripSlot,
   threadDetailRef,
   entriesInput,
   draftEntries,
@@ -30,6 +33,8 @@ export function ThreadTimeline({
 }: Omit<ComponentProps<typeof MessagesTimeline>, "timelineEntries"> & {
   /** Null until the thread's detail may load; see resolveThreadDetailRef. */
   liveVoiceSettledRunId: string | null;
+  /** Where the spoken summary strip renders, at the top of the composer stack; null hides it. */
+  sayStripSlot: HTMLElement | null;
   threadDetailRef: ScopedThreadRef | null;
   entriesInput: Omit<TimelineEntriesInput, "visibleTurnItems">;
   /** A local draft's optimistic rows; null for a server thread. */
@@ -49,6 +54,9 @@ export function ThreadTimeline({
     timelineEntries: serverEntries,
     settledRunId: liveVoiceSettledRunId,
   });
+  const summary =
+    draftEntries === null ? latestSaySummary(liveVoiceMessagesFromTimeline(serverEntries)) : null;
+  useSayStripCommands(summary);
   const entries = draftEntries ?? serverEntries;
   const displayedEntries = resolveThreadSwitchTimeline({
     loading: entries.length === 0 && syncing,
@@ -64,6 +72,11 @@ export function ThreadTimeline({
     rememberReadyThreadTimeline({ threadKey: activeThreadKey, entries });
   }, [activeThreadKey, detailLoading, entries]);
   return (
-    <MessagesTimeline {...timelineProps} syncing={syncing} timelineEntries={displayedEntries} />
+    <>
+      <MessagesTimeline {...timelineProps} syncing={syncing} timelineEntries={displayedEntries} />
+      {summary !== null && sayStripSlot !== null ? (
+        <SayStrip messageId={summary.messageId} say={summary.say} slot={sayStripSlot} />
+      ) : null}
+    </>
   );
 }
