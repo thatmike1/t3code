@@ -28,6 +28,7 @@ export const MessageSpeakButton = memo(function MessageSpeakButton({
   return (
     <Tooltip>
       <TooltipTrigger
+        delay={0}
         render={
           <Button
             aria-label={label}
@@ -44,7 +45,7 @@ export const MessageSpeakButton = memo(function MessageSpeakButton({
       >
         {status === "loading" ? (
           <Spinner className="size-3" />
-        ) : status === "playing" ? (
+        ) : status === "playing" || status === "paused" ? (
           <SquareIcon className="size-3 fill-current text-primary" />
         ) : (
           <Volume2Icon className="size-3" />
