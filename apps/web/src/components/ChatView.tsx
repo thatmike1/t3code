@@ -766,6 +766,7 @@ export default function ChatView(props: ChatViewProps) {
   const [composerTimelineInset, setComposerTimelineInset] = useState(0);
   const composerTimelineInsetRef = useRef(0);
   const [composerReservedHeight, setComposerReservedHeight] = useState(0);
+  const [sayStripSlot, setSayStripSlot] = useState<HTMLDivElement | null>(null);
   const composerReservedHeightRef = useRef(0);
   const composerExpandedHeightRef = useRef(0);
   const [scrollToEndClearance, setScrollToEndClearance] = useState(0);
@@ -3514,6 +3515,7 @@ export default function ChatView(props: ChatViewProps) {
               <WorkspaceMutationIdContext value={workspaceMutationId}>
                 <ThreadTimeline
                   liveVoiceSettledRunId={latestRunSettled ? (activeLatestRun?.runId ?? null) : null}
+                  sayStripSlot={isDraftHeroState ? null : sayStripSlot}
                   pendingApprovals={pendingApprovals}
                   heldApprovalRequestIds={heldApprovalRequestIds}
                   respondingRequestIds={respondingRequestIds}
@@ -3669,6 +3671,7 @@ export default function ChatView(props: ChatViewProps) {
                       </div>
                     </div>
                   ) : null}
+                  <div ref={setSayStripSlot} data-say-strip-slot="true" />
                   <div
                     ref={draftHeroComposerAnchorRef}
                     className="relative z-10"
