@@ -382,7 +382,6 @@ export function commandLabel(command: KeybindingCommand): string {
   if (command === "chat.newHome") return "Chat: New Thread in Home Project";
   if (command === "voice.playPause") return "Voice: Play or Pause the Spoken Summary";
   if (command === "voice.toggleSummary") return "Voice: Show or Fold the Spoken Summary";
-  if (command === "voice.cycleSummaryPlacement") return "Voice: Move the Spoken Summary";
   const usageMetric = METRIC_OPTIONS.find((option) => option.command === command);
   if (usageMetric) return `Usage: ${usageMetric.label}`;
   const usagePeriod = WINDOW_OPTIONS.find((option) => option.command === command);

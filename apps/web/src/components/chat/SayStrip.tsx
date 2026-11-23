@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import { AudioLinesIcon, MinusIcon, MoveHorizontalIcon, PauseIcon, PlayIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, PauseIcon, PlayIcon } from "lucide-react";
 import { memo, useEffect, useLayoutEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 
@@ -8,10 +8,8 @@ import { observeResize } from "~/lib/observeResize";
 import {
   resolveSayStripLayout,
   sayWords,
-  SAY_STRIP_PLACEMENT_LABELS,
   type LayoutRect,
   type SayStripLayout,
-  type SayStripPlacement,
 } from "~/lib/sayStrip.logic";
 import {
   pauseSpeaking,
@@ -25,19 +23,17 @@ import { useStableCallback } from "~/hooks/useStableCallback";
 import { registerCommands } from "~/shortcuts/dispatcher";
 import { useSayStripStore } from "~/sayStripStore";
 import { primaryServerKeybindingsAtom } from "~/state/server";
-import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
-const STRIP_MAX_WIDTH = 340;
+const STRIP_MAX_WIDTH = 440;
 const STRIP_MIN_WIDTH = 200;
-const FOLDED_SIZE = 28;
 const OBSTACLE_SELECTOR =
   "[data-thread-details-card], [data-preview-mini-player], [data-thread-find-bar]";
 
 /**
  * The strip's shortcuts, live while a server thread is open: play or pause,
- * fold, and move. They work with no summary too, so folding is never stuck.
+ * and fold. They work with no summary too, so folding is never stuck.
  */
 export function useSayStripCommands(summary: { messageId: string; say: string } | null) {
   const playPause = useStableCallback(() => toggleSayPlayback(summary));
@@ -52,12 +48,6 @@ export function useSayStripCommands(summary: { messageId: string; say: string } 
         "voice.toggleSummary": (event) => {
           event.preventDefault();
           useSayStripStore.getState().toggleCollapsed();
-        },
-        "voice.cycleSummaryPlacement": (event) => {
-          event.preventDefault();
-          const store = useSayStripStore.getState();
-          if (store.collapsed) store.toggleCollapsed();
-          store.cyclePlacement();
         },
       }),
     [playPause],
@@ -92,25 +82,21 @@ interface Placed {
 
 /**
  * Measures the chat canvas around the composer stack the strip is portalled
- * into and resolves where the strip goes. Re-measures on resizes, and on
- * timeline scrolls while it follows the latest reply.
+ * into and resolves where the strip goes. Re-measures on resizes, the
+ * strip's own included, so a fold settles into place as it animates.
  */
 function useSayStripPlacement(input: {
   slot: HTMLElement;
   strip: HTMLElement | null;
-  messageId: string;
-  placement: SayStripPlacement;
-  folded: boolean;
 }): Placed | null {
-  const { slot, strip, messageId, placement, folded } = input;
+  const { slot, strip } = input;
   const [placed, setPlaced] = useState<Placed | null>(null);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- measures DOM geometry outside React (canvas, composer, timeline scroll, floating cards)
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- measures DOM geometry outside React (canvas, composer, floating cards)
   useLayoutEffect(() => {
     const stack = slot.closest<HTMLElement>('[data-chat-composer-stack="true"]');
     const canvas = slot.closest<HTMLElement>("[data-chat-canvas]");
     if (!stack || !canvas) return;
-    const scroller = canvas.querySelector<HTMLElement>(".messages-timeline-scroll");
     let frame = 0;
 
     const measure = () => {
@@ -120,28 +106,16 @@ function useSayStripPlacement(input: {
       // the stack runs past the composer card into the safe-area spacer; align to the card
       const shell = stack.querySelector<HTMLElement>('[data-slot="composer-shell"]');
       const composer = shell ? relativeRect(shell.getBoundingClientRect(), origin) : stackRect;
-      const viewport = scroller
-        ? relativeRect(scroller.getBoundingClientRect(), origin)
-        : { top: 0, bottom: composer.top };
-      const anchor = canvas.querySelector<HTMLElement>(
-        `[data-say-anchor="${CSS.escape(messageId)}"]`,
-      );
       const obstacles = [...canvas.querySelectorAll<HTMLElement>(OBSTACLE_SELECTOR)]
         .map((element) => relativeRect(element.getBoundingClientRect(), origin))
         .filter((rect) => rect.right > rect.left && rect.bottom > rect.top);
-      const height = folded ? FOLDED_SIZE : (strip?.offsetHeight ?? 0);
       const layout = resolveSayStripLayout({
-        // folded, the dock has no row of its own: it waits left of the composer
-        placement: folded && placement === "above-composer" ? "left-composer" : placement,
         canvas: { width: origin.width, height: origin.height },
         composer,
-        // the composer overlays the timeline's bottom, so the visible part ends at the composer
-        viewport: { top: viewport.top, bottom: Math.min(viewport.bottom, composer.top) },
-        replyEnd: anchor ? relativeRect(anchor.getBoundingClientRect(), origin) : null,
         obstacles,
-        height,
-        maxWidth: folded ? FOLDED_SIZE : STRIP_MAX_WIDTH,
-        minWidth: folded ? FOLDED_SIZE : STRIP_MIN_WIDTH,
+        height: strip?.offsetHeight ?? 0,
+        maxWidth: STRIP_MAX_WIDTH,
+        minWidth: STRIP_MIN_WIDTH,
       });
       setPlaced((previous) => {
         const next = { layout, stackLeft: stackRect.left, stackBottom: stackRect.bottom };
@@ -157,18 +131,13 @@ function useSayStripPlacement(input: {
     measure();
     const observed: Element[] = [canvas, stack];
     if (strip) observed.push(strip);
-    if (scroller) observed.push(scroller);
-    if (scroller?.firstElementChild) observed.push(scroller.firstElementChild);
     for (const element of canvas.querySelectorAll(OBSTACLE_SELECTOR)) observed.push(element);
     const stopObserving = observeResize(observed, schedule);
-    const follows = placement === "right-reply";
-    if (follows) scroller?.addEventListener("scroll", schedule, { passive: true });
     return () => {
       stopObserving();
-      if (follows) scroller?.removeEventListener("scroll", schedule);
       if (frame !== 0) cancelAnimationFrame(frame);
     };
-  }, [slot, strip, messageId, placement, folded]);
+  }, [slot, strip]);
 
   return placed;
 }
@@ -227,9 +196,10 @@ function ShortcutHint({ label, shortcut }: { label: string; shortcut: string | n
 }
 
 /**
- * The spoken summary of the newest reply, readable without hovering, with a
- * play control. It sits beside the chat lane where there is room, otherwise
- * above the composer, and folds down to a faint icon.
+ * The spoken summary of the newest reply, readable without hovering. A thin
+ * row on top holds play and fold, the words run the strip's full width below.
+ * It sits left of the composer where there is room, otherwise above it; folded,
+ * only the faint row stays, so a summary can still be played without opening it.
  */
 export const SayStrip = memo(function SayStrip({
   messageId,
@@ -241,9 +211,7 @@ export const SayStrip = memo(function SayStrip({
   /** The empty box at the top of the composer stack the strip renders into. */
   slot: HTMLElement;
 }) {
-  const placement = useSayStripStore((state) => state.placement);
   const folded = useSayStripStore((state) => state.collapsed);
-  const cyclePlacement = useSayStripStore((state) => state.cyclePlacement);
   const toggleCollapsed = useSayStripStore((state) => state.toggleCollapsed);
   const status = useVoicePlayerStore((state) =>
     state.messageId === messageId ? state.status : "idle",
@@ -254,19 +222,19 @@ export const SayStrip = memo(function SayStrip({
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const words = sayWords(say);
   const [strip, setStrip] = useState<HTMLDivElement | null>(null);
-  const placed = useSayStripPlacement({ slot, strip, messageId, placement, folded });
+  const placed = useSayStripPlacement({ slot, strip });
 
   const active = status !== "idle";
   const playShortcut = shortcutLabelForCommand(keybindings, "voice.playPause");
   const foldShortcut = shortcutLabelForCommand(keybindings, "voice.toggleSummary");
-  const moveShortcut = shortcutLabelForCommand(keybindings, "voice.cycleSummaryPlacement");
-  const layout = placed?.layout ?? { kind: "dock" as const, fellBack: false };
+  const layout = placed?.layout ?? { kind: "dock" as const };
   const playLabel =
     status === "playing" || status === "loading"
       ? "Pause"
       : status === "paused"
         ? "Resume"
         : "Play summary";
+  const foldLabel = folded ? "Show spoken summary" : "Fold away";
 
   const sideStyle: CSSProperties | undefined =
     layout.kind === "side" && placed !== null
@@ -278,134 +246,15 @@ export const SayStrip = memo(function SayStrip({
         }
       : undefined;
 
-  // a round, borderless control of the strip's own, larger than the row buttons so it is easy to hit
-  const playButton = (
-    <Tooltip>
-      <TooltipTrigger
-        delay={0}
-        render={
-          <button
-            aria-label={playLabel}
-            aria-pressed={status === "playing"}
-            onClick={() => toggleSayPlayback({ messageId, say })}
-            type="button"
-            className={cn(
-              "inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-              active ? "bg-accent/60 text-foreground" : "text-muted-foreground",
-            )}
-          />
-        }
-      >
-        {status === "loading" ? (
-          <Spinner className="size-4" />
-        ) : status === "playing" ? (
-          <PauseIcon className="size-4 fill-current" />
-        ) : (
-          <PlayIcon className="size-4 translate-x-px fill-current" />
-        )}
-      </TooltipTrigger>
-      <TooltipPopup>
-        <ShortcutHint label={playLabel} shortcut={playShortcut} />
-      </TooltipPopup>
-    </Tooltip>
-  );
-
-  if (folded) {
-    const foldedStyle: CSSProperties | undefined = sideStyle;
-    return createPortal(
-      <div
-        ref={setStrip}
-        data-say-strip="folded"
-        className={cn("pointer-events-auto", layout.kind === "dock" && "flex pb-1")}
-        style={foldedStyle}
-      >
-        <Tooltip>
-          <TooltipTrigger
-            delay={0}
-            render={
-              <button
-                aria-label="Show spoken summary"
-                onClick={toggleCollapsed}
-                type="button"
-                className={cn(
-                  "inline-flex size-7 cursor-pointer items-center justify-center rounded-md outline-none transition-[opacity,color,background-color] hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  active ? "text-foreground opacity-100" : "text-muted-foreground opacity-35",
-                )}
-              />
-            }
-          >
-            <AudioLinesIcon className="size-3.5" />
-          </TooltipTrigger>
-          <TooltipPopup side={layout.kind === "side" && layout.side === "right" ? "left" : "right"}>
-            <ShortcutHint label="Show spoken summary" shortcut={foldShortcut} />
-          </TooltipPopup>
-        </Tooltip>
-      </div>,
-      slot,
-    );
-  }
-
-  const controls = (
-    <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within/say:opacity-100 group-hover/say:opacity-100 pointer-coarse:opacity-100">
-      <Tooltip>
-        <TooltipTrigger
-          delay={0}
-          render={
-            <Button
-              aria-label={`Move the summary. Now: ${SAY_STRIP_PLACEMENT_LABELS[placement]}`}
-              onClick={cyclePlacement}
-              size="xs"
-              type="button"
-              variant="ghost-muted"
-              className={layout.kind === "side" ? "-ms-2" : undefined}
-            />
-          }
-        >
-          <MoveHorizontalIcon className="size-3.5" />
-          {SAY_STRIP_PLACEMENT_LABELS[placement]}
-        </TooltipTrigger>
-        <TooltipPopup>
-          <ShortcutHint
-            label={
-              layout.kind === "dock" && layout.fellBack
-                ? "Next placement. No room for this one here, so it sits above the composer"
-                : "Next placement"
-            }
-            shortcut={moveShortcut}
-          />
-        </TooltipPopup>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger
-          delay={0}
-          render={
-            <Button
-              aria-label="Fold the summary away"
-              onClick={toggleCollapsed}
-              size="icon-xs"
-              type="button"
-              variant="ghost-muted"
-            />
-          }
-        >
-          <MinusIcon className="size-3.5" />
-        </TooltipTrigger>
-        <TooltipPopup>
-          <ShortcutHint label="Fold away" shortcut={foldShortcut} />
-        </TooltipPopup>
-      </Tooltip>
-    </div>
-  );
-
   return createPortal(
     <div
       ref={setStrip}
-      data-say-strip={layout.kind === "side" ? layout.side : "dock"}
-      data-say-strip-placement={placement}
+      data-say-strip={layout.kind === "side" ? "left" : "dock"}
       data-say-strip-state={status}
+      data-say-strip-folded={folded}
       className={cn(
-        "group/say pointer-events-auto flex items-start gap-1.5 text-sm leading-relaxed",
-        layout.kind === "dock" && "pb-2 ps-0.5",
+        "group/say pointer-events-auto flex flex-col text-sm leading-relaxed",
+        layout.kind === "dock" && (folded ? "pb-1" : "pb-2"),
         // quiet until it speaks; it brightens under the pointer so it reads easily
         active
           ? "text-muted-foreground"
@@ -413,21 +262,89 @@ export const SayStrip = memo(function SayStrip({
       )}
       style={sideStyle}
     >
-      {playButton}
-      <div className="min-w-0 flex-1 pt-1.5">
-        <SayWords
-          words={words}
-          spokenIndex={spokenIndex}
-          active={active}
-          onWord={(word) => playFromWord({ messageId, say }, word)}
-        />
-        {layout.kind === "side" ? (
-          <div className="mt-0.5 flex h-6 items-center">{controls}</div>
-        ) : null}
+      <div
+        className={cn(
+          "-ms-1.5 flex items-center gap-1 transition-opacity duration-200",
+          // folded and silent, the row is a faint mark until the pointer finds it
+          folded &&
+            !active &&
+            "opacity-40 group-hover/say:opacity-100 group-focus-within/say:opacity-100",
+        )}
+      >
+        <Tooltip>
+          <TooltipTrigger
+            delay={0}
+            render={
+              <button
+                aria-label={playLabel}
+                aria-pressed={status === "playing"}
+                onClick={() => toggleSayPlayback({ messageId, say })}
+                type="button"
+                className={cn(
+                  "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  active ? "bg-accent/60 text-foreground" : "text-muted-foreground",
+                )}
+              />
+            }
+          >
+            {status === "loading" ? (
+              <Spinner className="size-4" />
+            ) : status === "playing" ? (
+              <PauseIcon className="size-4 fill-current" />
+            ) : (
+              <PlayIcon className="size-4 translate-x-px fill-current" />
+            )}
+          </TooltipTrigger>
+          <TooltipPopup>
+            <ShortcutHint label={playLabel} shortcut={playShortcut} />
+          </TooltipPopup>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            delay={0}
+            render={
+              <button
+                aria-label={foldLabel}
+                aria-expanded={!folded}
+                onClick={toggleCollapsed}
+                type="button"
+                className={cn(
+                  "ms-auto inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none transition-[opacity,color,background-color] hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring pointer-coarse:opacity-100",
+                  // open, the fold control waits for the pointer; folded, it is the way back
+                  !folded && "opacity-0 group-hover/say:opacity-100",
+                )}
+              />
+            }
+          >
+            {folded ? (
+              <ChevronUpIcon className="size-3.5" />
+            ) : (
+              <ChevronDownIcon className="size-3.5" />
+            )}
+          </TooltipTrigger>
+          <TooltipPopup>
+            <ShortcutHint label={foldLabel} shortcut={foldShortcut} />
+          </TooltipPopup>
+        </Tooltip>
       </div>
-      {layout.kind === "dock" ? (
-        <div className="flex shrink-0 items-center pt-1">{controls}</div>
-      ) : null}
+      {/* rows from 1fr to 0fr fold the words to nothing; bottom-anchored, the play row settles into the corner */}
+      <div
+        aria-hidden={folded}
+        inert={folded}
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+          folded ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100",
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <SayWords
+            words={words}
+            spokenIndex={spokenIndex}
+            active={active}
+            onWord={(word) => playFromWord({ messageId, say }, word)}
+          />
+        </div>
+      </div>
     </div>,
     slot,
   );

@@ -142,7 +142,6 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "usage.period.quarter",
   "voice.playPause",
   "voice.toggleSummary",
-  "voice.cycleSummaryPlacement",
   ...MODEL_PICKER_KEYBINDING_COMMANDS,
   ...THREAD_KEYBINDING_COMMANDS,
 ] as const;
