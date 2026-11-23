@@ -1,3 +1,4 @@
+import { useGT } from "gt-react";
 import {
   DEFAULT_CLIENT_SETTINGS,
   SidebarWorkingShelfReturn,
@@ -25,6 +26,7 @@ const isScope = Schema.is(SidebarWorkingShelfScope);
 /** fork: knobs under the Working section toggle, shown while it is on. The
     defaults reproduce upstream's beta. */
 export function WorkingShelfSettings() {
+  const gt = useGT();
   const settings = useClientSettings();
   const update = updateClientSettings;
   const environments = useEnvironmentIdentities();
@@ -51,7 +53,7 @@ export function WorkingShelfSettings() {
           settings.sidebarWorkingShelfReturn !==
           DEFAULT_CLIENT_SETTINGS.sidebarWorkingShelfReturn ? (
             <SettingResetButton
-              label="return placement"
+              ariaLabel={gt("Reset return placement to default")}
               onClick={() =>
                 void update({
                   sidebarWorkingShelfReturn: DEFAULT_CLIENT_SETTINGS.sidebarWorkingShelfReturn,
@@ -93,7 +95,7 @@ export function WorkingShelfSettings() {
         resetAction={
           settings.sidebarWorkingShelfScope !== DEFAULT_CLIENT_SETTINGS.sidebarWorkingShelfScope ? (
             <SettingResetButton
-              label="shelf scope"
+              ariaLabel={gt("Reset shelf scope to default")}
               onClick={() =>
                 void update({
                   sidebarWorkingShelfScope: DEFAULT_CLIENT_SETTINGS.sidebarWorkingShelfScope,

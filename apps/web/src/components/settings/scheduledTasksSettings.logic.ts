@@ -66,7 +66,13 @@ export function scheduleLabel(
       : resolve(msg("Every {seconds} sec", { seconds: Math.round(schedule.everyMs / 1000) }));
   }
   if (schedule.catchUpToday) {
-    const label = scheduleLabel({ ...schedule, catchUpToday: false }, timeZone, runAt, resolve, locale);
+    const label = scheduleLabel(
+      { ...schedule, catchUpToday: false },
+      timeZone,
+      runAt,
+      resolve,
+      locale,
+    );
     return resolve(msg("{label}, catches up", { label }));
   }
   const weekdays = schedule.weekdays ?? [];

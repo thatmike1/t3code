@@ -1,10 +1,11 @@
+import { useGT } from "gt-react";
 import { DEFAULT_CLIENT_SETTINGS, ForkArtwork } from "@t3tools/contracts/settings";
 import * as Schema from "effect/Schema";
 
 import { useClientSettings, updateClientSettings } from "../../hooks/useSettings";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingResetButton, SettingsRow } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 
 const LABELS: Record<ForkArtwork, string> = {
   paint: "MS Paint",
@@ -15,6 +16,8 @@ const LABELS: Record<ForkArtwork, string> = {
 const isForkArtwork = Schema.is(ForkArtwork);
 
 export function ForkArtworkSettings() {
+  const gt = useGT();
+  const searchableSetting = useSearchableSetting();
   const artwork = useClientSettings((settings) => settings.forkArtwork);
   const update = updateClientSettings;
   return (
@@ -24,7 +27,7 @@ export function ForkArtworkSettings() {
       resetAction={
         artwork !== DEFAULT_CLIENT_SETTINGS.forkArtwork ? (
           <SettingResetButton
-            label="fork artwork"
+            ariaLabel={gt("Reset fork artwork to default")}
             onClick={() => void update({ forkArtwork: DEFAULT_CLIENT_SETTINGS.forkArtwork })}
           />
         ) : null

@@ -1481,9 +1481,9 @@ function TaskForm({
         {draft.schedule.mode === "fixed_time" ? (
           <Text className="px-2 text-sm text-foreground-muted">
             <T>
-              Time uses the environment's time zone, which may differ from your phone's. With catch up
-              on, a run missed earlier today starts once when the environment is back, and Run now
-              counts as today's run.
+              Time uses the environment's time zone, which may differ from your phone's. With catch
+              up on, a run missed earlier today starts once when the environment is back, and Run
+              now counts as today's run.
             </T>
           </Text>
         ) : null}
