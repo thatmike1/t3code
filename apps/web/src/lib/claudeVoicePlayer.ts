@@ -38,6 +38,8 @@ export type SpeakMode = "interrupt" | "queue";
 export interface SpeakOptions {
   readonly mode: SpeakMode;
   readonly messageId?: string | null;
+  /** Starts reading at this word, counted across all chunks as {@link VoiceProgress} counts them. */
+  readonly startWord?: number;
 }
 
 export interface SpeechClip {
@@ -47,6 +49,8 @@ export interface SpeechClip {
 }
 
 export interface ClipHooks {
+  /** The clip starts playing at this word instead of its beginning. */
+  readonly startWord: number;
   /** When each of the clip's words starts, once the audio knows its duration. */
   readonly wordStarts: (duration: number) => number[];
   readonly onWord: (index: number) => void;
@@ -78,6 +82,46 @@ export interface VoicePlayer {
 interface SpeechJob {
   readonly chunks: ReadonlyArray<string>;
   readonly messageId: string | null;
+  readonly startWord: number;
+}
+
+// enough for a few replies, so clicking back to an earlier word replays without a new render
+const CLIP_CACHE_SIZE = 24;
+
+/** Which chunk holds the word, and its index inside that chunk; past the end clamps to the last word. */
+export function locateWord(
+  chunkWordCounts: ReadonlyArray<number>,
+  word: number,
+): { chunk: number; local: number; before: number } {
+  let before = 0;
+  for (let chunk = 0; chunk < chunkWordCounts.length; chunk += 1) {
+    const count = chunkWordCounts[chunk]!;
+    if (word < before + count) return { chunk, local: Math.max(0, word - before), before };
+    before += count;
+  }
+  const last = chunkWordCounts.length - 1;
+  if (last < 0) return { chunk: 0, local: 0, before: 0 };
+  const lastCount = chunkWordCounts[last]!;
+  return { chunk: last, local: Math.max(0, lastCount - 1), before: before - lastCount };
+}
+
+/** Resolves with the promise's value, or with null as soon as the signal aborts. */
+function unlessAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T | null> {
+  if (signal.aborted) return Promise.resolve(null);
+  return new Promise<T | null>((resolve, reject) => {
+    const onAbort = () => resolve(null);
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 const IDLE: VoicePlayerState = { status: "idle", messageId: null };
@@ -91,6 +135,25 @@ export function createVoicePlayer(deps: VoicePlayerDeps): VoicePlayer {
   let paused = false;
   // what the job is doing underneath a pause, restored on resume
   let activity: VoicePlayerState = IDLE;
+  // renders outlive the job that asked for them, so a seek or replay reuses them
+  const clips = new Map<string, Promise<SpeechClip>>();
+  const neverAborted = new AbortController().signal;
+
+  const clipFor = (text: string): Promise<SpeechClip> => {
+    const cached = clips.get(text);
+    if (cached) {
+      clips.delete(text);
+      clips.set(text, cached);
+      return cached;
+    }
+    const pending = deps.fetchClip(text, neverAborted);
+    clips.set(text, pending);
+    pending.catch(() => {
+      if (clips.get(text) === pending) clips.delete(text);
+    });
+    while (clips.size > CLIP_CACHE_SIZE) clips.delete(clips.keys().next().value!);
+    return pending;
+  };
 
   const publish = (state: VoicePlayerState) => {
     activity = state;
@@ -106,24 +169,37 @@ export function createVoicePlayer(deps: VoicePlayerDeps): VoicePlayer {
 
   async function playJob(job: SpeechJob, signal: AbortSignal) {
     const fetchChunk = (index: number) => {
-      const pending = deps.fetchClip(job.chunks[index]!, signal);
+      const pending = clipFor(job.chunks[index]!);
       // a prefetch may fail while the previous clip still plays; it is awaited below
       pending.catch(() => undefined);
       return pending;
     };
-    let next = fetchChunk(0);
-    let wordOffset = 0;
-    setProgress({ messageId: job.messageId, wordIndex: -1 });
-    for (let index = 0; index < job.chunks.length; index += 1) {
+    const chunkWords = job.chunks.map(splitWords);
+    const start =
+      job.startWord > 0
+        ? locateWord(
+            chunkWords.map((words) => words.length),
+            job.startWord,
+          )
+        : { chunk: 0, local: 0, before: 0 };
+    let next = fetchChunk(start.chunk);
+    let wordOffset = start.before;
+    // a seek lights its word at once instead of waiting for the clip
+    setProgress({
+      messageId: job.messageId,
+      wordIndex: job.startWord > 0 ? start.before + start.local : -1,
+    });
+    for (let index = start.chunk; index < job.chunks.length; index += 1) {
       publish({ status: "loading", messageId: job.messageId });
-      const clip = await next;
-      if (signal.aborted) return;
+      const clip = await unlessAborted(next, signal);
+      if (clip === null || signal.aborted) return;
       if (index + 1 < job.chunks.length) next = fetchChunk(index + 1);
-      const words = splitWords(job.chunks[index]!);
+      const words = chunkWords[index]!;
       const offset = wordOffset;
       wordOffset += words.length;
       publish({ status: "playing", messageId: job.messageId });
       const playback = deps.playClip(clip, signal, {
+        startWord: index === start.chunk ? start.local : 0,
         wordStarts: (duration) => wordStarts(words, clip.timings, duration),
         onWord: (word) => {
           if (signal.aborted) return;
@@ -164,7 +240,11 @@ export function createVoicePlayer(deps: VoicePlayerDeps): VoicePlayer {
     speak(text, options) {
       const chunks = chunkForSpeech(text);
       if (chunks.length === 0) return;
-      const job: SpeechJob = { chunks, messageId: options.messageId ?? null };
+      const job: SpeechJob = {
+        chunks,
+        messageId: options.messageId ?? null,
+        startWord: Math.max(0, Math.floor(options.startWord ?? 0)),
+      };
       if (options.mode === "interrupt") {
         queue = [job];
         paused = false;
@@ -267,13 +347,18 @@ function playClipInAudioElement(
     signal.addEventListener("abort", onAbort, { once: true });
     audio.onloadedmetadata = () => {
       starts = hooks.wordStarts(audio.duration);
+      if (hooks.startWord > 0) {
+        audio.currentTime = starts[hooks.startWord] ?? 0;
+        // playback waits for the seek so the clip's opening words never sound
+        if (!holding) void start();
+      }
       tick();
     };
     audio.onplaying = tick;
     audio.onpause = () => clearTimeout(timer);
     audio.onended = () => finish();
     audio.onerror = () => finish(new Error("Could not play the speech clip"));
-    void start();
+    if (hooks.startWord === 0) void start();
   });
 
   return {
