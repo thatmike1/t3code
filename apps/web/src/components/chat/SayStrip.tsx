@@ -173,14 +173,22 @@ function useSayStripPlacement(input: {
   return placed;
 }
 
+/** Reads the summary from a word; a click that ends a text selection is left alone. */
+function playFromWord(summary: { messageId: string; say: string }, word: number) {
+  if (window.getSelection()?.isCollapsed === false) return;
+  speak(summary.say, { mode: "interrupt", messageId: summary.messageId, startWord: word });
+}
+
 function SayWords({
   words,
   spokenIndex,
   active,
+  onWord,
 }: {
   words: string[];
   spokenIndex: number;
   active: boolean;
+  onWord: (index: number) => void;
 }) {
   return (
     <p className="text-pretty">
@@ -189,8 +197,9 @@ function SayWords({
         // oxlint-disable-next-line react/no-array-index-key
         <span key={index}>
           <span
+            onClick={() => onWord(index)}
             className={cn(
-              "rounded-xs transition-colors duration-150 box-decoration-clone",
+              "cursor-pointer rounded-xs transition-colors duration-150 box-decoration-clone hover:bg-accent hover:text-foreground",
               !active
                 ? undefined
                 : index < spokenIndex
@@ -406,7 +415,12 @@ export const SayStrip = memo(function SayStrip({
     >
       {playButton}
       <div className="min-w-0 flex-1 pt-1.5">
-        <SayWords words={words} spokenIndex={spokenIndex} active={active} />
+        <SayWords
+          words={words}
+          spokenIndex={spokenIndex}
+          active={active}
+          onWord={(word) => playFromWord({ messageId, say }, word)}
+        />
         {layout.kind === "side" ? (
           <div className="mt-0.5 flex h-6 items-center">{controls}</div>
         ) : null}
