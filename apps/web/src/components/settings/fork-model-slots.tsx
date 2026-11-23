@@ -1,3 +1,4 @@
+import { useGT } from "gt-react";
 import type { ModelShortcutSlots, QuickModelKeybindingCommand } from "@t3tools/contracts";
 
 import { updateClientSettings, useClientSettings } from "../../hooks/useSettings";
@@ -19,6 +20,7 @@ const saveSlots = (modelShortcutSlots: ModelShortcutSlots) =>
 
 /** fork: the model a numbered shortcut slot picks on this client, shown beside its key. */
 export function ForkModelSlotPicker({ command }: { command: QuickModelKeybindingCommand }) {
+  const gt = useGT();
   const slots = useClientSettings((settings) => settings.modelShortcutSlots) ?? {};
   const scopedSettings = useScopedSettings();
   const { environment } = useSettingsScope();
@@ -28,7 +30,6 @@ export function ForkModelSlotPicker({ command }: { command: QuickModelKeybinding
     EMPTY_SERVER_PROVIDERS;
   const entries = providerInstanceEntriesFor(providers, scopedSettings, null);
   const modelOptions = getCustomModelOptionsByInstance(scopedSettings, providers);
-  const label = `model shortcut ${modelShortcutSlotNumber(command)}`;
   const target = slots[command];
   const usable = entries.filter((entry) => entry.enabled && entry.isAvailable);
   const sameDriver = usable.filter((entry) => entry.driverKind === target?.driver);
@@ -45,8 +46,10 @@ export function ForkModelSlotPicker({ command }: { command: QuickModelKeybinding
     <span className="flex items-center gap-1">
       {target ? (
         <SettingResetButton
-          label={label}
-          tooltip="Clear the model"
+          ariaLabel={gt("Clear the model of model shortcut {n}", {
+            n: modelShortcutSlotNumber(command),
+          })}
+          tooltip={gt("Clear the model")}
           onClick={() =>
             saveSlots(Object.fromEntries(Object.entries(slots).filter(([key]) => key !== command)))
           }
@@ -60,7 +63,9 @@ export function ForkModelSlotPicker({ command }: { command: QuickModelKeybinding
         instanceEntries={entries}
         modelOptionsByInstance={modelOptions}
         triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-        triggerAriaLabel={`Model for ${label}`}
+        triggerAriaLabel={gt("Model for model shortcut {n}", {
+          n: modelShortcutSlotNumber(command),
+        })}
         onInstanceModelChange={(instanceId, model) => {
           const entry = entries.find((candidate) => candidate.instanceId === instanceId);
           if (entry) saveSlots({ ...slots, [command]: { driver: entry.driverKind, model } });

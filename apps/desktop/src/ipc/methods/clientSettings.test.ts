@@ -8,6 +8,7 @@ import * as DesktopLinuxUrlHandler from "../../app/DesktopLinuxUrlHandler.ts";
 import * as DesktopClientSettings from "../../settings/DesktopClientSettings.ts";
 import * as DesktopSnapShot from "../../snapShot/DesktopSnapShot.ts";
 import * as DesktopWindow from "../../window/DesktopWindow.ts";
+import * as ElectronApp from "../../electron/ElectronApp.ts";
 import { setClientSettings } from "./clientSettings.ts";
 
 describe("client settings icon updates", () => {
@@ -31,6 +32,9 @@ describe("client settings icon updates", () => {
             }),
         }),
         Layer.mock(DesktopSnapShot.DesktopSnapShot)({ configure: () => Effect.void }),
+        Layer.mock(ElectronApp.ElectronApp)({
+          preferredSystemLanguages: Effect.succeed(["en-US"]),
+        }),
       );
       return Effect.gen(function* () {
         const store = yield* DesktopClientSettings.DesktopClientSettings;

@@ -38,6 +38,7 @@ export function withUnboundModelSlotRows(
       key: "",
       when,
       source: "Default",
+      isUnassigned: false,
       defaultKey: null,
       defaultWhen: when,
       binding,

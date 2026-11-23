@@ -1,5 +1,5 @@
 import { CircleDotIcon } from "lucide-react";
-import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
+import { namedClipboardTarget, writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 import { readLocalApi } from "~/localApi";
 import { ContextChip, ContextChipLabel } from "../ContextChip";
 import { toastManager } from "../ui/toast";
@@ -37,7 +37,7 @@ export function BeadChip(props: {
           href: props.href,
           position: { x: event.clientX, y: event.clientY },
           showContextMenu: (items, position) => api.contextMenu.show(items, position),
-          copyText: writeTextToClipboard,
+          copyText: (text, target) => writeTextToClipboard(text, namedClipboardTarget(target)),
           openInPreview: props.openInPreview,
         }).catch(() => {
           toastManager.add({ type: "error", title: "Could not copy" });

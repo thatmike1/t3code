@@ -576,7 +576,7 @@ export function AppearanceSettingsPanel() {
           resetAction={
             settings.chatAlignment !== DEFAULT_UNIFIED_SETTINGS.chatAlignment ? (
               <SettingResetButton
-                label="chat alignment"
+                ariaLabel={gt("Reset chat alignment to default")}
                 onClick={() =>
                   updateSettings({ chatAlignment: DEFAULT_UNIFIED_SETTINGS.chatAlignment })
                 }
@@ -608,7 +608,7 @@ export function AppearanceSettingsPanel() {
           resetAction={
             settings.chatLeftGutter !== DEFAULT_UNIFIED_SETTINGS.chatLeftGutter ? (
               <SettingResetButton
-                label="chat left gutter"
+                ariaLabel={gt("Reset chat left gutter to default")}
                 onClick={() =>
                   updateSettings({ chatLeftGutter: DEFAULT_UNIFIED_SETTINGS.chatLeftGutter })
                 }

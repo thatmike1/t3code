@@ -514,8 +514,12 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.diffColorScheme !== DEFAULT_UNIFIED_SETTINGS.diffColorScheme
       ? [gt("Diff colors")]
       : []),
-    ...(settings.chatAlignment !== DEFAULT_UNIFIED_SETTINGS.chatAlignment ? [gt("Chat alignment")] : []),
-    ...(settings.chatLeftGutter !== DEFAULT_UNIFIED_SETTINGS.chatLeftGutter ? [gt("Chat left gutter")] : []),
+    ...(settings.chatAlignment !== DEFAULT_UNIFIED_SETTINGS.chatAlignment
+      ? [gt("Chat alignment")]
+      : []),
+    ...(settings.chatLeftGutter !== DEFAULT_UNIFIED_SETTINGS.chatLeftGutter
+      ? [gt("Chat left gutter")]
+      : []),
     ...(settings.chatWidth !== DEFAULT_UNIFIED_SETTINGS.chatWidth ? [gt("Chat width")] : []),
     ...(settings.htmlPreviewWidth !== DEFAULT_UNIFIED_SETTINGS.htmlPreviewWidth
       ? [gt("HTML preview width")]
@@ -550,11 +554,12 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.sidebarProjectSortOrder !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder
       ? [gt("Project order")]
       : []),
-    ...(settings.sidebarWorkingShelfEnabled !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled ||
-      settings.sidebarWorkingShelfReturn !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfReturn ||
-      settings.sidebarWorkingShelfScope !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfScope ||
-      settings.sidebarWorkingShelfEnvironmentIds.length > 0 ||
-      Object.keys(settings.sidebarWorkingShelfThreadOverrides).length > 0
+    ...(settings.sidebarWorkingShelfEnabled !==
+      DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled ||
+    settings.sidebarWorkingShelfReturn !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfReturn ||
+    settings.sidebarWorkingShelfScope !== DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfScope ||
+    settings.sidebarWorkingShelfEnvironmentIds.length > 0 ||
+    Object.keys(settings.sidebarWorkingShelfThreadOverrides).length > 0
       ? [gt("Working section")]
       : []),
     ...(settings.sidebarAutoSettleAfterDays !== DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays
