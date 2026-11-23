@@ -2319,12 +2319,14 @@ function ScheduledTaskEditorForm({
           {draft.scheduleMode === "fixed" ? (
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 space-y-1">
-                <Label htmlFor="scheduled-task-catch-up">Catch up today if missed</Label>
+                <Label htmlFor="scheduled-task-catch-up">
+                  <T>Catch up today if missed</T>
+                </Label>
                 <p
                   id="scheduled-task-catch-up-description"
                   className="text-sm text-muted-foreground"
                 >
-                  Uses this environment's time zone. Run now also counts as today's run.
+                  <T>Uses this environment's time zone. Run now also counts as today's run.</T>
                 </p>
               </div>
               <Switch

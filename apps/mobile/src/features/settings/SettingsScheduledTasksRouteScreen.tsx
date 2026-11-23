@@ -1279,10 +1279,10 @@ function TaskForm({
               />
               <View className="min-h-14 flex-row items-center gap-3 border-t border-border-subtle px-4 py-3">
                 <Text className="min-w-0 flex-1 text-lg text-foreground">
-                  Catch up today if missed
+                  <T>Catch up today if missed</T>
                 </Text>
                 <ThemedSwitch
-                  accessibilityLabel="Catch up today if missed"
+                  accessibilityLabel={gt("Catch up today if missed")}
                   value={draft.schedule.catchUpToday}
                   onValueChange={(catchUpToday) =>
                     setDraft((current) => ({
