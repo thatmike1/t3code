@@ -1,15 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  nextSayStripPlacement,
   parseWordTimings,
   resolveSayStripLayout,
   sayWords,
-  SAY_STRIP_PLACEMENTS,
   wordIndexAt,
   wordStarts,
   type SayStripLayoutInput,
-  type SayStripPlacement,
 } from "./sayStrip.logic";
 import { chunkForSpeech } from "./claudeVoice";
 
@@ -100,49 +97,32 @@ describe("wordIndexAt", () => {
   });
 });
 
-describe("nextSayStripPlacement", () => {
-  it("cycles through every placement and back", () => {
-    let placement: SayStripPlacement = SAY_STRIP_PLACEMENTS[0];
-    const seen: SayStripPlacement[] = [placement];
-    for (let step = 1; step < SAY_STRIP_PLACEMENTS.length; step += 1) {
-      placement = nextSayStripPlacement(placement);
-      seen.push(placement);
-    }
-    expect(seen).toEqual([...SAY_STRIP_PLACEMENTS]);
-    expect(nextSayStripPlacement(placement)).toBe(SAY_STRIP_PLACEMENTS[0]);
-  });
-});
-
 describe("resolveSayStripLayout", () => {
   // a 1760 px canvas with the lane at 335..1071 and the composer at the bottom
   const base: SayStripLayoutInput = {
-    placement: "left-composer",
     canvas: { width: 1760, height: 1080 },
     composer: { left: 335, right: 1071, top: 960, bottom: 1060 },
-    viewport: { top: 0, bottom: 960 },
-    replyEnd: { left: 335, right: 1071, top: 900, bottom: 920 },
     obstacles: [],
     height: 90,
-    maxWidth: 340,
+    maxWidth: 440,
     minWidth: 200,
   };
 
   it("hugs the lane on the left, level with the composer's bottom", () => {
     expect(resolveSayStripLayout(base)).toEqual({
       kind: "side",
-      side: "left",
       left: 335 - 24 - 295,
       width: 295,
       bottom: 1060,
     });
   });
 
-  it("takes its full width on the right", () => {
-    expect(resolveSayStripLayout({ ...base, placement: "right-composer" })).toEqual({
+  it("takes no more than its full width in a wide gutter", () => {
+    const wide = { ...base, composer: { ...base.composer, left: 900, right: 1636 } };
+    expect(resolveSayStripLayout(wide)).toEqual({
       kind: "side",
-      side: "right",
-      left: 1071 + 24,
-      width: 340,
+      left: 900 - 24 - 440,
+      width: 440,
       bottom: 1060,
     });
   });
@@ -153,58 +133,19 @@ describe("resolveSayStripLayout", () => {
       canvas: { width: 900, height: 800 },
       composer: { ...base.composer, left: 80, right: 820 },
     };
-    for (const placement of ["left-composer", "right-composer", "right-reply"] as const) {
-      expect(resolveSayStripLayout({ ...narrow, placement })).toEqual({
-        kind: "dock",
-        fellBack: true,
-      });
-    }
-    expect(resolveSayStripLayout({ ...narrow, placement: "above-composer" })).toEqual({
-      kind: "dock",
-      fellBack: false,
-    });
-  });
-
-  it("follows the latest reply's end, clamped inside the visible timeline", () => {
-    const reply = { ...base, placement: "right-reply" as const };
-    expect(resolveSayStripLayout(reply)).toMatchObject({ bottom: 920 });
-    // reply scrolled above the viewport: pinned under the top edge
-    expect(
-      resolveSayStripLayout({
-        ...reply,
-        replyEnd: { left: 335, right: 1071, top: -400, bottom: -380 },
-      }),
-    ).toMatchObject({ bottom: 8 + 90 });
-    // reply not rendered by the list: it is below, so sit at the bottom of the timeline
-    expect(resolveSayStripLayout({ ...reply, replyEnd: null })).toMatchObject({ bottom: 960 });
-    // never lower than the composer's bottom
-    expect(
-      resolveSayStripLayout({
-        ...reply,
-        replyEnd: { left: 335, right: 1071, top: 1100, bottom: 1200 },
-      }),
-    ).toMatchObject({ bottom: 1060 });
+    expect(resolveSayStripLayout(narrow)).toEqual({ kind: "dock" });
   });
 
   it("narrows to stay clear of a card at its height and docks when that leaves too little", () => {
-    const card = { left: 1400, right: 1750, top: 40, bottom: 300 };
-    const reply = { ...base, placement: "right-reply" as const, obstacles: [card] };
-    // level with the card: squeezed between the lane and the card
-    expect(
-      resolveSayStripLayout({
-        ...reply,
-        replyEnd: { left: 335, right: 1071, top: 200, bottom: 220 },
-      }),
-    ).toMatchObject({ kind: "side", left: 1095, width: 1400 - 24 - 1095 });
-    // below the card: the card does not matter
-    expect(resolveSayStripLayout(reply)).toMatchObject({ kind: "side", width: 340 });
-    const wideCard = { ...card, left: 1150 };
-    expect(
-      resolveSayStripLayout({
-        ...reply,
-        obstacles: [wideCard],
-        replyEnd: { left: 335, right: 1071, top: 200, bottom: 220 },
-      }),
-    ).toEqual({ kind: "dock", fellBack: true });
+    const card = { left: 0, right: 60, top: 980, bottom: 1040 };
+    expect(resolveSayStripLayout({ ...base, obstacles: [card] })).toMatchObject({
+      kind: "side",
+      width: 335 - 24 - (60 + 24),
+    });
+    // above the strip: the card does not matter
+    const high = { ...card, top: 100, bottom: 300 };
+    expect(resolveSayStripLayout({ ...base, obstacles: [high] })).toMatchObject({ width: 295 });
+    const wideCard = { ...card, right: 150 };
+    expect(resolveSayStripLayout({ ...base, obstacles: [wideCard] })).toEqual({ kind: "dock" });
   });
 });

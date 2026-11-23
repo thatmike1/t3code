@@ -134,7 +134,6 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+o", command: "editor.openFavorite" },
   { key: "mod+alt+s", command: "voice.playPause", when: "!terminalFocus" },
   { key: "mod+alt+h", command: "voice.toggleSummary", when: "!terminalFocus" },
-  { key: "mod+alt+shift+s", command: "voice.cycleSummaryPlacement", when: "!terminalFocus" },
   { key: "mod+shift+[", command: "thread.previous" },
   { key: "mod+shift+]", command: "thread.next" },
   { key: "mod+shift+c", command: "thread.copyReference", when: "!terminalFocus" },
