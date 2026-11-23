@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import {
   createVoicePlayer,
+  locateWord,
   type ClipHooks,
   type VoicePlayerState,
   type VoiceProgress,
@@ -167,6 +168,46 @@ describe("createVoicePlayer", () => {
     expect(progress.at(-1)).toEqual({ messageId: null, wordIndex: -1 });
   });
 
+  it("starts at a clicked word: its chunk, its place in the chunk, lit at once", async () => {
+    const { player, plays, progress, flush } = harness();
+    player.speak(LONG, { mode: "interrupt", messageId: "m1" });
+    await flush();
+    const firstChunkWords = plays[0]!.text.split(" ").length;
+    player.speak(LONG, { mode: "interrupt", messageId: "m1", startWord: firstChunkWords + 3 });
+    await flush();
+    expect(progress.at(-1)).toEqual({ messageId: "m1", wordIndex: firstChunkWords + 3 });
+    const seeked = plays.at(-1)!;
+    expect(seeked.text).not.toBe(plays[0]!.text);
+    expect(seeked.hooks.startWord).toBe(3);
+    seeked.hooks.onWord(3);
+    expect(progress.at(-1)).toEqual({ messageId: "m1", wordIndex: firstChunkWords + 3 });
+    seeked.end();
+    await flush();
+    expect(plays.at(-1)!.hooks.startWord).toBe(0);
+  });
+
+  it("reuses clips it already rendered when a text is read again", async () => {
+    const { player, plays, fetched, flush } = harness();
+    player.speak("One short sentence.", { mode: "interrupt", messageId: "m1" });
+    await flush();
+    plays[0]!.end();
+    await flush();
+    player.speak("One short sentence.", { mode: "interrupt", messageId: "m1", startWord: 2 });
+    await flush();
+    expect(fetched).toEqual(["One short sentence."]);
+    expect(plays).toHaveLength(2);
+    expect(plays[1]!.hooks.startWord).toBe(2);
+  });
+
+  it("renders a failed clip again on the next try", async () => {
+    const { player, fetched, flush } = harness({ failText: "Broken." });
+    player.speak("Broken.", { mode: "interrupt", messageId: "a" });
+    await flush();
+    player.speak("Broken.", { mode: "interrupt", messageId: "a" });
+    await flush();
+    expect(fetched).toEqual(["Broken.", "Broken."]);
+  });
+
   it("does nothing for text with nothing to say", async () => {
     const setState = vi.fn();
     const player = createVoicePlayer({
@@ -178,5 +219,18 @@ describe("createVoicePlayer", () => {
     player.speak("  \n```\ncode\n```", { mode: "interrupt" });
     await vi.advanceTimersByTimeAsync(0);
     expect(setState).not.toHaveBeenCalled();
+  });
+});
+
+describe("locateWord", () => {
+  it("finds the chunk and the place inside it", () => {
+    expect(locateWord([3, 4, 2], 0)).toEqual({ chunk: 0, local: 0, before: 0 });
+    expect(locateWord([3, 4, 2], 3)).toEqual({ chunk: 1, local: 0, before: 3 });
+    expect(locateWord([3, 4, 2], 8)).toEqual({ chunk: 2, local: 1, before: 7 });
+  });
+
+  it("clamps a word past the end to the last word", () => {
+    expect(locateWord([3, 4], 50)).toEqual({ chunk: 1, local: 3, before: 3 });
+    expect(locateWord([], 5)).toEqual({ chunk: 0, local: 0, before: 0 });
   });
 });
