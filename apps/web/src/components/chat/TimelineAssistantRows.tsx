@@ -213,7 +213,6 @@ function AssistantMessageMeta({
 
   return (
     <div
-      data-say-anchor={message.id}
       className={cn(
         "flex items-center gap-2 text-xs tabular-nums transition-opacity duration-200",
         alwaysVisible
