@@ -74,7 +74,6 @@ import {
   FolderIcon,
   FolderPlusIcon,
   HouseIcon,
-  ListFilterIcon,
   PlusIcon,
   SettingsIcon,
 } from "lucide-react";
