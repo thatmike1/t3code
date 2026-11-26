@@ -93,13 +93,7 @@ import { parseThreadLinkHref } from "@t3tools/shared/threadLinks";
 import { AssistantCitationEmbed } from "./chat/AssistantCitationChip";
 import { MarkdownThreadLink } from "./chat/MarkdownThreadLink";
 import { artifactTemplateFromHastProperties } from "@t3tools/shared/codexArtifactTemplates";
-import {
-  beadBoardHref,
-  beadIdCandidate,
-  knownFullBeadId,
-  rehypeBeadAutolinks,
-  shortBeadIdCandidate,
-} from "../markdown-bead-links";
+import { beadBoardHref, inlineCodeBeadId, rehypeBeadAutolinks } from "../markdown-bead-links";
 import { rehypePathAutolinks } from "../markdown-path-links";
 import { useBeadBoardIds } from "../lib/beadBoardIds";
 import { BeadChip } from "./chat/BeadChip";
@@ -799,6 +793,8 @@ function useChatMarkdownState(
   // Subscribe so hydrated settings apply before the anchor synchronously decides whether to intercept _blank.
   const linkTargetPreference = useClientSettings((settings) => settings.browserLinkTarget);
   const mathEnabled = useClientSettings((settings) => settings.mathRenderingEnabled);
+  const beadBoards = useClientSettings((settings) => settings.beadBoards);
+  const knownBeadIds = useBeadBoardIds(beadBoards);
   // Keyed by the file links found, not the text, so streamed text that adds none keeps the
   // renderer context, and every block reading it, unchanged.
   // A template literal marks the key as a string, so the compiler memoizes the maps on its value.
@@ -1139,6 +1135,8 @@ function useChatMarkdownState(
     openIssueLink,
     openDeferredMarkdownLink,
     openBeadBoardInPreview,
+    beadBoards,
+    knownBeadIds,
     openExternalLinkInPreview,
     openMarkdownMedia,
     projects,
@@ -1686,10 +1684,7 @@ const CHAT_MARKDOWN_COMPONENTS = {
     const knownBeadIds = useBeadBoardIds(beadBoards);
     if (node?.properties?.dataInlineCode != null) {
       const codeText = nodeToPlainText(children);
-      const fullBeadId = beadIdCandidate(codeText, beadBoards);
-      const beadId = fullBeadId
-        ? knownFullBeadId(fullBeadId, beadBoards, knownBeadIds)
-        : shortBeadIdCandidate(codeText, knownBeadIds);
+      const beadId = inlineCodeBeadId(codeText, beadBoards, knownBeadIds);
       const boardHref = beadId ? beadBoardHref(beadId, beadBoards) : null;
       if (beadId && boardHref) {
         return (
@@ -2105,6 +2100,8 @@ function markdownIslandOptions(state: ChatMarkdownComponentState): MarkdownIslan
     inlineCodeFileLinkMetaByText,
     onTaskListChange,
     skills,
+    beadBoards,
+    knownBeadIds,
   } = state;
   const options: MarkdownIslandOptions = {
     components: CHAT_MARKDOWN_COMPONENTS,
@@ -2126,6 +2123,7 @@ function markdownIslandOptions(state: ChatMarkdownComponentState): MarkdownIslan
         case "code": {
           if (node.properties.dataInlineCode == null) return false;
           const codeText = hastPlainTextDeep(node);
+          if (inlineCodeBeadId(codeText, beadBoards, knownBeadIds) !== null) return true;
           return (
             (inlineCodeFileLinkMetaByText.get(codeText.trim()) ??
               resolveInlineCodeFileLinkMeta(codeText, cwd, imageBaseDir ?? cwd)) != null
@@ -2228,8 +2226,11 @@ function ChatMarkdown({
     escapeHtml: !parseRawHtml,
     insights: renderInsights && text.includes("★ Insight"),
   });
-  const beadBoards = useClientSettings((settings) => settings.beadBoards);
-  const forkMarkdown = withForkAutolinks(markdown, beadBoards, useBeadBoardIds(beadBoards));
+  const forkMarkdown = withForkAutolinks(
+    markdown,
+    componentState.beadBoards,
+    componentState.knownBeadIds,
+  );
   const blocks = streamingBlocks ?? [text];
 
   return (

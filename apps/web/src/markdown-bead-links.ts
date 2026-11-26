@@ -95,6 +95,22 @@ export function beadBoardHref(id: string, boards: BeadBoards = DEFAULT_BEAD_BOAR
   return origin ? `${origin}/#${id}` : null;
 }
 
+/**
+ * the bead id an inline code span links to: a full id its board knows (or whose board has not
+ * answered), else a short id that names exactly one known id. Null when it links nowhere.
+ */
+export function inlineCodeBeadId(
+  codeText: string,
+  boards: BeadBoards,
+  knownIds: ReadonlySet<string>,
+): string | null {
+  const fullId = beadIdCandidate(codeText, boards);
+  const id = fullId
+    ? knownFullBeadId(fullId, boards, knownIds)
+    : shortBeadIdCandidate(codeText, knownIds);
+  return id && beadBoardHref(id, boards) ? id : null;
+}
+
 /** inline code that is exactly one bead id, for the inline code renderer. */
 export function beadIdCandidate(
   codeText: string,

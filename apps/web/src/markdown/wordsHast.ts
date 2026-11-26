@@ -64,8 +64,10 @@ const CODEX_DIRECTIVES = ["codex-file-citation", "codex-followup", "artifact-tem
 
 const VOID = new Set("area base br col embed hr img input link meta source track wbr".split(" "));
 
+// fork: an unclosed `<!--` (an HTML block left open, as a streamed `<!-- say:` is) runs to the
+// end, as in an HTML parser and remark before Words
 const TAG =
-  /<(\/?)([a-zA-Z][\w:-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*(\/?)>|<!--(?:-?>|[\s\S]*?-->)|<![^>]*>|<\?[\s\S]*?\?>/g;
+  /<(\/?)([a-zA-Z][\w:-]*)((?:\s+[^\s"'>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*(\/?)>|<!--(?:-?>|[\s\S]*?(?:-->|$))|<![^>]*>|<\?[\s\S]*?\?>/g;
 const ATTRIBUTE = /([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
 
 // Start tags an HTML parser closes an open `<p>` for, and the elements that scope that search.
