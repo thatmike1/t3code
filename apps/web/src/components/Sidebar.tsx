@@ -190,7 +190,6 @@ import {
 } from "./threadActionMenu.logic";
 import {
   applySidebarThreadDrop,
-  filterSidebarProjectScopeItems,
   filterSidebarV2VisibleThreads,
   groupSidebarThreadsByProject,
   sidebarFolderExpansionKeys,

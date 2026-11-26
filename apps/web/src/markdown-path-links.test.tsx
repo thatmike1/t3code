@@ -1,18 +1,26 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { toHtml } from "hast-util-to-html";
 import { describe, expect, it } from "vite-plus/test";
 
-import { remarkPathAutolinks } from "./markdown-path-links";
+import { rehypePathAutolinks } from "./markdown-path-links";
+import { wordsHast } from "./markdown/wordsHast";
+
+const linkPaths = rehypePathAutolinks();
 
 function linkedPaths(markdown: string): string[] {
-  const html = renderToStaticMarkup(
-    <ReactMarkdown remarkPlugins={[remarkGfm, remarkPathAutolinks]}>{markdown}</ReactMarkdown>,
+  const html = toHtml(
+    wordsHast(markdown, {
+      math: false,
+      breaks: false,
+      escapeHtml: false,
+      insights: false,
+      extensions: {},
+      forkAutolinks: (tree) => linkPaths(tree),
+    }),
   );
   return [...html.matchAll(/data-path-link="([^"]+)"/gu)].map((match) => match[1] ?? "");
 }
 
-describe("remarkPathAutolinks", () => {
+describe("rehypePathAutolinks", () => {
   it("links an absolute path written in prose", () => {
     expect(
       linkedPaths("Here it is: /home/thatmike1/.local/state/foldrunner-council/visual/round2.html"),

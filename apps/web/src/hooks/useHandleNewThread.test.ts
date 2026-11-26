@@ -242,8 +242,7 @@ vi.mock("../state/entities", () => {
     workspaceRoot: "/local/project",
   };
   return {
-    readProject: () => (testState.projectRemoved ? null : project),
-    readProjects: () => (testState.projectRemoved ? [] : [project, localProject]),
+    readProjects: () => [project, localProject],
     readThreadShell: () => null,
     readThreadShells: () => [],
     useProjects: () => [],

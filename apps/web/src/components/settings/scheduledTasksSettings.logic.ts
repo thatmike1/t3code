@@ -68,6 +68,7 @@ export function scheduleLabel(
   if (schedule.catchUpToday) {
     const label = scheduleLabel(
       { ...schedule, catchUpToday: false },
+      timestampFormat,
       timeZone,
       runAt,
       resolve,

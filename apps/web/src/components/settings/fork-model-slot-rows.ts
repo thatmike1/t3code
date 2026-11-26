@@ -43,6 +43,7 @@ export function withUnboundModelSlotRows(
       defaultWhen: when,
       binding,
       conflicts: [],
+      previewLabels: [],
     };
     // rows are sorted by command, so the slot goes before the first command after it
     const index = next.findIndex((candidate) => candidate.command.localeCompare(command) > 0);

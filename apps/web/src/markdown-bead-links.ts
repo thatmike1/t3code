@@ -3,7 +3,7 @@ import {
   findAndReplaceText,
   type MarkdownNode,
   type TextMatch,
-} from "~/vendor/mdast-find-and-replace";
+} from "~/vendor/hast-find-and-replace";
 
 /**
  * a full id links through its configured prefix (a bare `<word>-<3 chars>` is also `sign-off`)
@@ -31,7 +31,7 @@ const BEAD_ID_BOUNDARY_PATTERN = /[A-Za-z0-9_\-/\\]/u;
 const WORD_CHARACTER_PATTERN = /[A-Za-z0-9_]/u;
 const APOSTROPHE_PATTERN = /['’]/u;
 const LETTER_PATTERN = /\p{L}/u;
-const BEAD_AUTOLINK_IGNORED_TYPES = new Set(["link", "linkReference"]);
+const BEAD_AUTOLINK_IGNORED_TAGS = new Set(["a", "code", "pre"]);
 
 /**
  * bare suffixes that read as words in prose: the first six collide with live ids (checked
@@ -161,9 +161,9 @@ function isStandaloneToken(matched: string, match: TextMatch): boolean {
 /**
  * bead ids written in prose, never inside code or an authored link. `knownIds` is the set
  * beadside reported; it has to keep its identity while unchanged, since the plugin list and
- * every parse cached under it are keyed on it.
+ * every parse cached under it are keyed on it. Runs on the chat's hast, before sanitizing.
  */
-export function remarkBeadAutolinks(
+export function rehypeBeadAutolinks(
   boards: BeadBoards = DEFAULT_BEAD_BOARDS,
   knownIds: ReadonlySet<string> = EMPTY_IDS,
 ) {
@@ -184,13 +184,13 @@ export function remarkBeadAutolinks(
         const url = id ? beadBoardHref(id, boards) : null;
         if (!id || !url) return false;
         return {
-          type: "link",
-          url,
-          data: { hProperties: { dataBeadId: id, dataBeadLabel: matched } },
+          type: "element",
+          tagName: "a",
+          properties: { href: url, dataBeadId: id, dataBeadLabel: matched },
           children: [{ type: "text", value: matched }],
         };
       },
-      BEAD_AUTOLINK_IGNORED_TYPES,
+      BEAD_AUTOLINK_IGNORED_TAGS,
     );
   };
 }

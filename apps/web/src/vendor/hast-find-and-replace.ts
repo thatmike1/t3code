@@ -25,12 +25,16 @@
  * SOFTWARE.
  */
 
+// fork: walks hast since upstream's Words renderer replaced remark (0.1.12); skipped elements
+// (links, code) come from the caller instead of a set of mdast node types
+
 export type MarkdownNode = {
   type: string;
+  tagName?: string;
   value?: string;
+  properties?: Record<string, unknown>;
   children?: MarkdownNode[];
-  url?: string;
-  data?: unknown;
+  position?: unknown;
 };
 
 export type TextMatch = {
@@ -45,7 +49,7 @@ export function findAndReplaceText(
     matched: string,
     match: TextMatch,
   ) => MarkdownNode | ReadonlyArray<MarkdownNode> | false,
-  ignoredTypes: ReadonlySet<string>,
+  ignoredTagNames: ReadonlySet<string>,
 ): void {
   visit(tree);
 
@@ -53,7 +57,7 @@ export function findAndReplaceText(
     if (node.children === undefined) return;
     for (let childIndex = 0; childIndex < node.children.length; childIndex += 1) {
       const child = node.children[childIndex]!;
-      if (ignoredTypes.has(child.type)) continue;
+      if (child.type === "element" && ignoredTagNames.has(child.tagName ?? "")) continue;
       if (child.type !== "text" || child.value === undefined) {
         visit(child);
         continue;

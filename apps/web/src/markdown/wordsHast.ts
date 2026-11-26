@@ -56,6 +56,8 @@ export interface WordsHastOptions {
   /** `★ Insight ───` blocks render as insight callouts. */
   readonly insights: boolean;
   readonly extensions: MarkdownExtensions;
+  /** fork: the web client's path and bead-id autolinks, run on the tree before sanitizing. */
+  readonly forkAutolinks?: ((tree: Root) => void) | undefined;
 }
 
 const CODEX_DIRECTIVES = ["codex-file-citation", "codex-followup", "artifact-template"];
@@ -1177,6 +1179,7 @@ export function wordsHast(text: string, options: WordsHastOptions): Root {
     insightMarker: insights?.marker ?? null,
   };
   transform(tree, walk, false, false);
+  options.forkAutolinks?.(tree);
   preserveImageSourceMeta(tree as never);
   normalizeLocalEditorLinks(tree as never);
   const hast = sanitizeChatHast(tree);

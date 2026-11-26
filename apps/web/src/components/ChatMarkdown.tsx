@@ -97,10 +97,10 @@ import {
   beadBoardHref,
   beadIdCandidate,
   knownFullBeadId,
-  remarkBeadAutolinks,
+  rehypeBeadAutolinks,
   shortBeadIdCandidate,
 } from "../markdown-bead-links";
-import { remarkPathAutolinks } from "../markdown-path-links";
+import { rehypePathAutolinks } from "../markdown-path-links";
 import { useBeadBoardIds } from "../lib/beadBoardIds";
 import { BeadChip } from "./chat/BeadChip";
 import {
@@ -2012,6 +2012,42 @@ function wordsOptions(
   return options;
 }
 
+// fork: path then bead-id autolinks run on Words' hast right after upstream's own links; paths go
+// first so a bead id never links inside one. One options object per (options, boards, known ids),
+// so messages keep sharing a renderer and its parse cache until either changes; the id store keeps
+// its Set while the ids are unchanged
+const NO_KNOWN_BEAD_IDS: ReadonlySet<string> = new Set();
+const forkAutolinkOptions = new WeakMap<
+  WordsHastOptions,
+  WeakMap<object, WeakMap<ReadonlySet<string>, WordsHastOptions>>
+>();
+function withForkAutolinks(
+  markdown: WordsHastOptions,
+  boards: Parameters<typeof rehypeBeadAutolinks>[0],
+  knownBeadIds: ReadonlySet<string>,
+): WordsHastOptions {
+  if (boards === undefined) return markdown;
+  const known = knownBeadIds.size === 0 ? NO_KNOWN_BEAD_IDS : knownBeadIds;
+  let byBoards = forkAutolinkOptions.get(markdown);
+  if (!byBoards) forkAutolinkOptions.set(markdown, (byBoards = new WeakMap()));
+  let byKnown = byBoards.get(boards);
+  if (!byKnown) byBoards.set(boards, (byKnown = new WeakMap()));
+  let options = byKnown.get(known);
+  if (!options) {
+    const linkPaths = rehypePathAutolinks();
+    const linkBeads = rehypeBeadAutolinks(boards, known);
+    options = {
+      ...markdown,
+      forkAutolinks: (tree) => {
+        linkPaths(tree);
+        linkBeads(tree);
+      },
+    };
+    byKnown.set(known, options);
+  }
+  return options;
+}
+
 const markdownRenderers = new WeakMap<
   WordsHastOptions,
   ReturnType<typeof createMarkdownRenderer>
@@ -2192,6 +2228,8 @@ function ChatMarkdown({
     escapeHtml: !parseRawHtml,
     insights: renderInsights && text.includes("★ Insight"),
   });
+  const beadBoards = useClientSettings((settings) => settings.beadBoards);
+  const forkMarkdown = withForkAutolinks(markdown, beadBoards, useBeadBoardIds(beadBoards));
   const blocks = streamingBlocks ?? [text];
 
   return (
@@ -2213,7 +2251,7 @@ function ChatMarkdown({
               // oxlint-disable-next-line react/no-array-index-key -- streamed blocks only change at the end
               key={index}
               text={source}
-              markdown={markdown}
+              markdown={forkMarkdown}
               // Every block before the last is finished, so its parse can be reused.
               cache={!props.isStreaming || index < blocks.length - 1}
             />

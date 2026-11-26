@@ -1,23 +1,34 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { toHtml } from "hast-util-to-html";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
   beadBoardHref,
   beadIdCandidate,
-  remarkBeadAutolinks,
+  rehypeBeadAutolinks,
   shortBeadIdCandidate,
 } from "./markdown-bead-links";
-import { remarkPathAutolinks } from "./markdown-path-links";
+import { rehypePathAutolinks } from "./markdown-path-links";
+import { wordsHast } from "./markdown/wordsHast";
 
-function renderMarkdown(markdown: string): string {
-  return renderToStaticMarkup(
-    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBeadAutolinks]}>{markdown}</ReactMarkdown>,
+/** the chat's Words pipeline with the given fork autolink passes. */
+function renderWith(markdown: string, passes: ReadonlyArray<(tree: never) => void>): string {
+  return toHtml(
+    wordsHast(markdown, {
+      math: false,
+      breaks: false,
+      escapeHtml: false,
+      insights: false,
+      extensions: {},
+      forkAutolinks: (tree) => passes.forEach((pass) => pass(tree as never)),
+    }),
   );
 }
 
-describe("remarkBeadAutolinks", () => {
+function renderMarkdown(markdown: string): string {
+  return renderWith(markdown, [rehypeBeadAutolinks()]);
+}
+
+describe("rehypeBeadAutolinks", () => {
   it("links a bead id written in prose", () => {
     const html = renderMarkdown("filed as ccChat-general-4y6 with the notes");
 
@@ -123,11 +134,7 @@ describe("shortBeadIdCandidate", () => {
 
 it("recognizes configured project prefixes in prose and inline code", () => {
   const boards = [{ prefix: "nexiflow", origin: "http://localhost:1339" }];
-  const html = renderToStaticMarkup(
-    <ReactMarkdown remarkPlugins={[[remarkBeadAutolinks, boards]]}>
-      {"nexiflow-ab12 and ccChat-general-ab12"}
-    </ReactMarkdown>,
-  );
+  const html = renderWith("nexiflow-ab12 and ccChat-general-ab12", [rehypeBeadAutolinks(boards)]);
   expect(html).toContain('href="http://localhost:1339/#nexiflow-ab12"');
   expect(html).not.toContain('data-bead-id="ccChat-general-ab12"');
   expect(beadIdCandidate("nexiflow-ab12", boards)).toBe("nexiflow-ab12");
@@ -149,19 +156,13 @@ const KNOWN = new Set([
 ]);
 
 function renderWithKnownIds(markdown: string, known: ReadonlySet<string> = KNOWN): string {
-  return renderToStaticMarkup(
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkPathAutolinks, [remarkBeadAutolinks, BOARDS, known]]}
-    >
-      {markdown}
-    </ReactMarkdown>,
-  );
+  return renderWith(markdown, [rehypePathAutolinks(), rehypeBeadAutolinks(BOARDS, known)]);
 }
 
 const linkedIds = (html: string) =>
   [...html.matchAll(/data-bead-id="([^"]+)"/gu)].map((match) => match[1]);
 
-describe("remarkBeadAutolinks with known ids", () => {
+describe("rehypeBeadAutolinks with known ids", () => {
   it("links a full id in prose only when its answered board knows it", () => {
     expect(linkedIds(renderWithKnownIds("nexiflow-audit and nexiflow-ab12"))).toEqual([
       "nexiflow-ab12",

@@ -3,7 +3,7 @@ import {
   findAndReplaceText,
   type MarkdownNode,
   type TextMatch,
-} from "~/vendor/mdast-find-and-replace";
+} from "~/vendor/hast-find-and-replace";
 
 /**
  * absolute and `~/` paths written in prose become the same file link an inline code path gets.
@@ -22,7 +22,7 @@ const PROSE_PATH_PATTERN = new RegExp(
   String.raw`(?<!${NOT_A_PATH_START})(?:~(?:/${SEGMENT})+|(?:/${SEGMENT}){2,})(?::\d+(?::\d+)?)?`,
   "gu",
 );
-const PATH_AUTOLINK_IGNORED_TYPES = new Set(["link", "linkReference"]);
+const PATH_AUTOLINK_IGNORED_TAGS = new Set(["a", "code", "pre"]);
 
 /**
  * sentence punctuation after a path, and a closing bracket that has no opening one inside it.
@@ -60,30 +60,33 @@ function prosePathLinkCandidate(token: string): string | null {
 }
 
 /**
- * upstream links absolute prose paths itself (`remarkLinkAbsoluteFilePaths` in the shared
- * pipeline, which runs before this plugin). Those links have no source position and their text is
- * their url; marking them like ours keeps one renderer and the plain-path copy for every prose path.
+ * upstream links absolute prose paths itself (`linkText` in `wordsHast`, which runs before this
+ * pass). Those links have no source position, no property but `href`, and their text is their
+ * href; marking them like ours keeps one renderer and the plain-path copy for every prose path.
  */
-function markUpstreamProsePathLinks(node: MarkdownNode & { position?: unknown }): void {
-  if (node.type === "link") {
+function markUpstreamProsePathLinks(node: MarkdownNode): void {
+  if (node.type === "element" && node.tagName === "a") {
     const [only, ...rest] = node.children ?? [];
+    const properties = node.properties ?? {};
+    const href = properties.href;
     if (
       node.position === undefined &&
-      node.data === undefined &&
+      Object.keys(properties).length === 1 &&
+      typeof href === "string" &&
       rest.length === 0 &&
       only?.type === "text" &&
-      only.value === node.url &&
-      node.url !== undefined &&
-      prosePathLinkCandidate(node.url) !== null
+      only.value === href &&
+      prosePathLinkCandidate(href) !== null
     ) {
-      node.data = { hProperties: { dataPathLink: node.url } };
+      node.properties = { ...properties, dataPathLink: href };
     }
     return;
   }
   node.children?.forEach(markUpstreamProsePathLinks);
 }
 
-export function remarkPathAutolinks() {
+/** absolute and `~/` prose paths as file links, on the chat's hast before sanitizing. */
+export function rehypePathAutolinks() {
   return (tree: MarkdownNode) => {
     markUpstreamProsePathLinks(tree);
     findAndReplaceText(
@@ -96,15 +99,15 @@ export function remarkPathAutolinks() {
         const target = path.includes("/", 1) || path.startsWith("~/") ? path : null;
         if (target === null || prosePathLinkCandidate(target) === null) return false;
         const link: MarkdownNode = {
-          type: "link",
-          url: target,
-          data: { hProperties: { dataPathLink: target } },
+          type: "element",
+          tagName: "a",
+          properties: { href: target, dataPathLink: target },
           children: [{ type: "text", value: target }],
         };
         const rest = matched.slice(path.length);
         return rest ? [link, { type: "text", value: rest }] : link;
       },
-      PATH_AUTOLINK_IGNORED_TYPES,
+      PATH_AUTOLINK_IGNORED_TAGS,
     );
   };
 }
