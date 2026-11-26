@@ -187,7 +187,8 @@ describe("sidebar project folder new thread", () => {
         <Sidebar routeReveal={{ observedKey: null, pendingKey: null }} />
       </SidebarProvider>,
     );
-    await userEvent.click(screen.getByRole("button", { name: "New thread in acme/demo-repo" }));
+    // fork: grouped projects are labelled by repo name without the owner
+    await userEvent.click(screen.getByRole("button", { name: "New thread in demo-repo" }));
 
     expect(startThread).toHaveBeenCalledExactlyOnceWith(dev1ProjectRef);
   });
