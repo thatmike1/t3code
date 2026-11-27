@@ -3,15 +3,16 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { CheckIcon, CircleIcon, Undo2Icon, ListChecksIcon, XIcon } from "lucide-react";
+import { CheckIcon, CircleIcon, ListChecksIcon, Undo2Icon } from "lucide-react";
 import { useGT } from "gt-react";
-import { useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { threadEnvironment } from "../../state/threads";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
+import { ComposerBanner } from "./ComposerBanner";
 import { Spinner } from "../ui/spinner";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -31,7 +32,6 @@ export interface ComposerTidy {
   readonly result: TidyResult | null;
   readonly run: () => void;
   readonly undo: () => void;
-  readonly dismiss: () => void;
   readonly addAsk: (ask: string) => void;
 }
 
@@ -51,7 +51,7 @@ export function useComposerTidy(input: {
   // Reads the thread on screen when the reply lands, not the one the click saw.
   const isOnThread = useStableCallback((threadId: ThreadId) => input.threadId === threadId);
   const running = runningFor !== null && runningFor === input.threadId;
-  // Sending clears the draft, and the strip belongs to the draft it checked.
+  // Sending clears the draft, and the asks belong to the draft they checked.
   const result =
     stored !== null && stored.threadId === input.threadId && input.prompt.trim().length > 0
       ? stored
@@ -113,7 +113,7 @@ export function useComposerTidy(input: {
     input.replacePrompt(`${current}${separator}${ask}: `, current);
   };
 
-  return { running, result, run, undo, dismiss: () => setStored(null), addAsk };
+  return { running, result, run, undo, addAsk };
 }
 
 const keepFocus = (event: PointerEvent) => event.preventDefault();
@@ -155,75 +155,255 @@ export function ComposerTidyButton(props: { tidy: ComposerTidy; disabled: boolea
   );
 }
 
-export function ComposerTidyStrip(props: { tidy: ComposerTidy }) {
+const CLOSE_DELAY_MS = 140;
+
+/**
+ * The asks of the last reply, tucked behind the composer as a shoulder tab. Render it inside a
+ * positioned `ComposerBanner.Dock`: the open stack spans the dock's width. Hovering or clicking
+ * it slides the asks out as a stack of cards; it never discards them, so the list stays reachable
+ * until the tidied draft is sent or cleared.
+ */
+export function ComposerTidyAsks(props: { tidy: ComposerTidy }) {
   const gt = useGT();
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const tabRef = useRef<HTMLDivElement>(null);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<number | null>(null);
   const result = props.tidy.result;
+  const expanded = result !== null && (pinned || hovered);
+
+  // A pinned stack closes on a click elsewhere or Escape, like a menu.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- document listeners held while the stack is pinned
+  useEffect(() => {
+    if (!pinned) return;
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      const target = event.target as Node;
+      if (tabRef.current?.contains(target) || stackRef.current?.contains(target)) return;
+      setPinned(false);
+      setHovered(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPinned(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [pinned]);
+
   if (result === null) return null;
+  const total = result.asks.length;
   const open = result.asks.filter((ask) => !ask.answered).length;
+
+  const cancelClose = () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  const onPointerEnter = (event: PointerEvent) => {
+    if (event.pointerType !== "mouse") return;
+    cancelClose();
+    setHovered(true);
+  };
+  const onPointerLeave = (event: PointerEvent) => {
+    if (event.pointerType !== "mouse") return;
+    cancelClose();
+    closeTimer.current = window.setTimeout(() => setHovered(false), CLOSE_DELAY_MS);
+  };
+
+  const summary =
+    total === 0
+      ? gt("Tidied. The last reply asked for nothing.")
+      : open === 0
+        ? gt("Your draft answers everything the last reply asked.")
+        : gt("{open} of {total} asks still open. Click one to add a line for it.", {
+            open,
+            total,
+          });
+
   return (
-    <div
-      data-chat-composer-tidy-strip="true"
-      className="mb-2 flex flex-wrap items-center gap-1.5 rounded-xl border border-border/70 bg-card/80 px-2.5 py-1.5 text-xs"
-    >
-      <span className="me-1 font-medium text-foreground">
-        {result.asks.length === 0
-          ? gt("Tidied. The last reply asked for nothing.")
-          : open === 0
-            ? gt("Tidied. Your draft answers everything the last reply asked.")
-            : gt("Tidied. {open} of {total} asks still open:", {
-                open,
-                total: result.asks.length,
-              })}
-      </span>
-      {result.asks.map((ask) => (
-        <button
-          key={ask.ask}
-          type="button"
-          disabled={ask.answered}
-          onPointerDown={keepFocus}
-          onClick={() => props.tidy.addAsk(ask.ask)}
-          aria-label={
-            ask.answered
-              ? gt("Answered: {ask}", { ask: ask.ask })
-              : gt("Open, add a line for it: {ask}", { ask: ask.ask })
-          }
+    <>
+      <ComposerBanner.Root
+        density="comfortable"
+        width="content"
+        data-composer-shoulder-tab
+        data-chat-composer-tidy-asks="true"
+        data-expanded={expanded ? "true" : "false"}
+        className="group/tidy-asks"
+        ref={tabRef}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+      >
+        {/* the cards peeking out behind the tab before the stack opens */}
+        {total > 1 ? (
+          <TidyPeekCard className="inset-x-2 -top-1 group-data-[expanded=true]/tidy-asks:translate-y-1" />
+        ) : null}
+        {total > 2 ? (
+          <TidyPeekCard className="inset-x-4 -top-2 opacity-60 group-data-[expanded=true]/tidy-asks:translate-y-2" />
+        ) : null}
+        <ComposerBanner.Row
+          render={<button type="button" />}
+          aria-expanded={expanded}
+          aria-label={summary}
           className={cn(
-            "inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5",
-            ask.answered
-              ? "border-transparent text-muted-foreground"
-              : "border-warning/50 bg-warning-surface text-foreground hover:bg-warning/20",
+            "transition-colors duration-200",
+            expanded ? "text-foreground" : "text-muted-foreground hover:text-foreground",
           )}
-        >
-          {ask.answered ? (
-            <CheckIcon className="size-3 shrink-0" />
-          ) : (
-            <CircleIcon className="size-3 shrink-0" />
-          )}
-          <span className="truncate">{ask.ask}</span>
-        </button>
-      ))}
-      <span className="ms-auto flex items-center gap-0.5">
-        <Button
-          type="button"
-          size="xs"
-          variant="ghost"
           onPointerDown={keepFocus}
-          onClick={props.tidy.undo}
+          onClick={() => {
+            cancelClose();
+            if (pinned) setHovered(false);
+            setPinned(!pinned);
+          }}
         >
-          <Undo2Icon className="size-3" />
-          {gt("Undo")}
-        </Button>
-        <Button
-          type="button"
-          size="icon-xs"
-          variant="ghost"
-          aria-label={gt("Close")}
-          onPointerDown={keepFocus}
-          onClick={props.tidy.dismiss}
-        >
-          <XIcon className="size-3" />
-        </Button>
-      </span>
-    </div>
+          <ComposerBanner.Icon>
+            <ListChecksIcon />
+          </ComposerBanner.Icon>
+          <ComposerBanner.Content>
+            {total === 0
+              ? gt("Tidied")
+              : gt("Asks", { $context: "noun, what the agent asked for" })}
+          </ComposerBanner.Content>
+          {total > 0 ? (
+            <ComposerBanner.Actions>
+              <ComposerBanner.Count
+                className={cn(open > 0 ? "text-warning-foreground" : "text-muted-foreground")}
+              >
+                {open > 0 ? gt("{open} open", { open }) : <CheckIcon className="size-3" />}
+              </ComposerBanner.Count>
+            </ComposerBanner.Actions>
+          ) : null}
+        </ComposerBanner.Row>
+      </ComposerBanner.Root>
+      <div
+        ref={stackRef}
+        inert={!expanded}
+        aria-hidden={!expanded}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        className={cn(
+          // Spans the dock, which the composer positions; bottom padding bridges the gap to the tab.
+          "absolute inset-x-0 bottom-full z-10 flex flex-col gap-1 pb-1.5",
+          // A frosted backing keeps the thread's text from showing between the cards.
+          "before:absolute before:inset-x-0 before:top-0 before:bottom-1.5 before:-z-1 before:-m-1 before:rounded-2xl before:bg-background/75 before:backdrop-blur-md before:transition-opacity before:duration-200 motion-reduce:before:transition-none",
+          expanded
+            ? "pointer-events-auto before:opacity-100"
+            : "pointer-events-none before:opacity-0",
+        )}
+      >
+        <TidyStackCard index={0} count={total + 1} expanded={expanded}>
+          <p className="min-w-0 flex-1 text-muted-foreground">{summary}</p>
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            className="shrink-0"
+            onPointerDown={keepFocus}
+            onClick={props.tidy.undo}
+          >
+            <Undo2Icon className="size-3" />
+            {gt("Undo tidy")}
+          </Button>
+        </TidyStackCard>
+        {result.asks.map((ask, index) => (
+          <TidyStackCard
+            key={ask.ask}
+            index={index + 1}
+            count={total + 1}
+            expanded={expanded}
+            {...(ask.answered
+              ? {}
+              : {
+                  onClick: () => props.tidy.addAsk(ask.ask),
+                  label: gt("Open, add a line for it: {ask}", { ask: ask.ask }),
+                })}
+          >
+            {ask.answered ? (
+              <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+            ) : (
+              <CircleIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
+            )}
+            <span
+              className={cn(
+                "min-w-0 flex-1 text-start",
+                ask.answered ? "text-muted-foreground" : "text-foreground",
+              )}
+            >
+              {ask.ask}
+            </span>
+            {ask.answered ? (
+              <span className="shrink-0 text-muted-foreground">{gt("answered")}</span>
+            ) : (
+              <span className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/card:opacity-100">
+                {gt("add a line")}
+              </span>
+            )}
+          </TidyStackCard>
+        ))}
+      </div>
+    </>
+  );
+}
+
+const cardSurface =
+  "rounded-xl border border-border/70 bg-popover text-popover-foreground shadow-sm/5";
+
+function TidyPeekCard(props: { className: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute z-[-2] h-4 rounded-t-xl border border-b-0 border-(--chat-composer-attached-outline) bg-(--chat-composer-attached-surface)",
+        "transition-[translate,opacity] duration-200 ease-out group-data-[expanded=true]/tidy-asks:opacity-0 motion-reduce:transition-none",
+        props.className,
+      )}
+    />
+  );
+}
+
+/**
+ * One card of the open stack. Closed, the cards sit pressed down behind the tab; opening slides
+ * them up one after another, nearest the composer first, and closing drops them back together.
+ */
+function TidyStackCard(props: {
+  index: number;
+  count: number;
+  expanded: boolean;
+  onClick?: () => void;
+  label?: string;
+  children: ReactNode;
+}) {
+  const fromBottom = props.count - 1 - props.index;
+  const className = cn(
+    cardSurface,
+    "group/card flex w-full items-start gap-2 px-2.5 py-1.5 text-xs/4",
+    "transition-[translate,opacity,scale] ease-drawer motion-reduce:transition-opacity",
+    props.expanded
+      ? "translate-y-0 scale-100 opacity-100 duration-300"
+      : "translate-y-3 scale-[0.97] opacity-0 duration-150",
+    props.onClick !== undefined &&
+      "cursor-pointer hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring",
+  );
+  const style = { transitionDelay: props.expanded ? `${Math.min(fromBottom, 6) * 35}ms` : "0ms" };
+  if (props.onClick === undefined) {
+    return (
+      <div className={className} style={style}>
+        {props.children}
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      aria-label={props.label}
+      className={className}
+      style={style}
+      onPointerDown={keepFocus}
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
   );
 }

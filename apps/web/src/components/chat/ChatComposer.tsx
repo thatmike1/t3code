@@ -311,7 +311,7 @@ import { HELD_COMPOSER_SEND_BANNER_ID } from "./ComposerHeldSendBanner";
 import { ComposerControlsBar } from "./ComposerControlsBar";
 import { composerCommandKeyHandler } from "./composerCommandKey";
 import { promptSuggestionToAccept, usePromptSuggestion } from "./usePromptSuggestion";
-import { ComposerTidyButton, ComposerTidyStrip, useComposerTidy } from "./ComposerTidy";
+import { ComposerTidyAsks, ComposerTidyButton, useComposerTidy } from "./ComposerTidy";
 import { useFreshSessionArmed } from "./freshSessionArms";
 
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
@@ -3730,7 +3730,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       data-chat-composer-form="true"
       {...threadContextDropTargetProps()}
     >
-      <ComposerBanner.Dock>
+      <ComposerBanner.Dock className="relative">
         <ComposerBanner.Column>
           <ComposerBannerStack items={shelfItems} />
           {showComposerTopDrawer ? (
@@ -3758,6 +3758,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             </ComposerBanner.Attachment>
           ) : null}
         </ComposerBanner.Column>
+        <ComposerTidyAsks tidy={composerTidy} />
         <ComposerStashBadge
           count={stashQueue.length}
           menuOpen={isStashMenuOpen}
@@ -3772,7 +3773,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           focusComposer={focusComposer}
         />
       ) : null}
-      <ComposerTidyStrip tidy={composerTidy} />
       <div className="relative">
         <ComposerSurface.Main
           ref={composerMainSurfaceRef}

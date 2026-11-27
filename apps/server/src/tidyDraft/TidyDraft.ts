@@ -15,6 +15,7 @@ Rewrite the draft so it is easy to read and nothing gets lost:
 - Keep every point, question, decision, fact, feeling and aside they made. Cut only fillers, restarts and repeats of the same point.
 - Fix words speech-to-text clearly misheard, using the conversation for what they meant (names, tools, projects). Do not guess beyond that.
 - When the draft covers several topics, give each topic its own numbered point, in the order they raised them, and merge the parts of one topic that were dictated at different times. A draft with one topic stays plain paragraphs.
+- When one point holds several separate parts (sub-questions, a list of items, steps), give it lettered or bulleted sub-points under its number. Keep a short point as one sentence.
 - Do not answer the draft, add ideas, or add anything they did not say.
 - Keep the draft's language. Keep everything that is not prose (paths, code, links, ids, placeholders such as [image]) exactly as written.
 
