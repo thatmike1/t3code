@@ -3612,6 +3612,8 @@ export const OrchestrationV2Command = Schema.Union([
     senderThreadId: Schema.optional(ThreadId),
     linkedSender: Schema.optional(OrchestrationV2LinkedSender),
     idleCompaction: Schema.optional(OrchestrationV2IdleCompaction),
+    /** Refuse to queue this message behind a run that still owns the thread. */
+    requireIdle: Schema.optional(Schema.Boolean),
     /** Start a new provider session without the thread's earlier context. Never steers. */
     freshContext: Schema.optional(Schema.Boolean),
     /** Asks the run for a result as data matching this JSON Schema. Never steers. */

@@ -2,11 +2,9 @@ import { describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 
 import {
-  buildLightTidyDraftQuestion,
   buildTidyDraftQuestion,
   isTidyCacheCold,
   parseTidyDraftAnswer,
-  selectTidyExcerpt,
   TIDY_COLD_CACHE_AFTER_MS,
   tidyColdCacheAfterMs,
 } from "./TidyDraft.ts";
@@ -126,67 +124,5 @@ describe("isTidyCacheCold", () => {
       TIDY_COLD_CACHE_AFTER_MS,
     );
     expect(cold({ latestProviderTurn: turn(1), coldAfterMs: 0 })).toBe(true);
-  });
-});
-
-describe("selectTidyExcerpt", () => {
-  const user = (text: string) => ({ role: "user" as const, text });
-  const assistant = (text: string) => ({ role: "assistant" as const, text });
-
-  it("keeps everything in order when it fits", () => {
-    const messages = [user("a"), assistant("b"), user("c"), assistant("d <!-- say: go? -->")];
-    expect(selectTidyExcerpt(messages, 100)).toEqual({ messages, truncated: false });
-  });
-
-  it("keeps the last reply whole even past the budget", () => {
-    const reply = assistant("r".repeat(1_000));
-    const excerpt = selectTidyExcerpt([user("older"), user("question"), reply], 2);
-    expect(excerpt.messages.at(-1)).toEqual(reply);
-    expect(excerpt.truncated).toBe(true);
-  });
-
-  it("fills the budget newest first and cuts the message that no longer fits from its start", () => {
-    // 10 tokens is 40 characters.
-    const excerpt = selectTidyExcerpt(
-      [user("x".repeat(30)), assistant("y".repeat(30)), user("z".repeat(20)), assistant("last")],
-      10,
-    );
-    expect(excerpt.truncated).toBe(true);
-    expect(excerpt.messages).toEqual([
-      assistant(`[…] ${"y".repeat(20)}`),
-      user("z".repeat(20)),
-      assistant("last"),
-    ]);
-  });
-
-  it("keeps messages after the last reply and drops empty ones", () => {
-    const excerpt = selectTidyExcerpt(
-      [user("q"), assistant("a"), user("  "), user("follow-up")],
-      100,
-    );
-    expect(excerpt.messages).toEqual([user("q"), assistant("a"), user("follow-up")]);
-  });
-
-  it("has nothing to offer without an assistant reply", () => {
-    expect(selectTidyExcerpt([user("hi")]).messages).toEqual([]);
-  });
-});
-
-describe("buildLightTidyDraftQuestion", () => {
-  it("writes the excerpt before the same rules and says it is partial", () => {
-    const excerpt = {
-      messages: [
-        { role: "user" as const, text: "hi" },
-        { role: "assistant" as const, text: "go? <!-- say: say go -->" },
-      ],
-      truncated: true,
-    };
-    const question = buildLightTidyDraftQuestion("yeah go", excerpt);
-    expect(question).toContain("only its most recent part: older messages are left out");
-    expect(question).toContain(
-      '<conversation>\n<message role="user">\nhi\n</message>\n<message role="assistant">\ngo? <!-- say: say go -->\n</message>\n</conversation>',
-    );
-    const rules = buildTidyDraftQuestion("yeah go").split("\n\n").slice(1).join("\n\n");
-    expect(question.endsWith(rules)).toBe(true);
   });
 });

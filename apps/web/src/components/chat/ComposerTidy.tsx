@@ -25,8 +25,7 @@ interface TidyResult {
   readonly previous: string;
   readonly tidied: string;
   readonly asks: ReadonlyArray<TidyDraftAsk>;
-  /** The thread's cache had gone cold, so the agent saw only the recent part of the thread. */
-  readonly light: boolean;
+  readonly warmed: boolean;
 }
 
 export interface ComposerTidy {
@@ -93,7 +92,7 @@ export function useComposerTidy(input: {
           previous: draft,
           tidied: outcome.value.draft,
           asks: outcome.value.asks,
-          light: outcome.value.source === "light",
+          warmed: outcome.value.source === "warmed",
         });
       },
     );
@@ -300,9 +299,9 @@ export function ComposerTidyAsks(props: { tidy: ComposerTidy }) {
         <TidyStackCard index={0} count={total + 1} expanded={expanded}>
           <p className="min-w-0 flex-1 text-muted-foreground">
             {summary}
-            {result.light ? (
+            {result.warmed ? (
               <span className="block">
-                {gt("The thread had gone quiet, so this tidy read only its recent messages.")}
+                {gt("The thread had gone quiet, so Tidy warmed it with a short message first.")}
               </span>
             ) : null}
           </p>

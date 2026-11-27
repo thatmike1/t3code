@@ -88,7 +88,6 @@ import {
   ProjectWriteFileError,
   ProjectMutationError,
   ProviderUploadFeedbackError,
-  TidyDraftError,
   ProviderSetupError,
   RelayClientInstallFailedError,
   type RelayClientInstallProgressEvent,
@@ -263,7 +262,7 @@ import * as ProcessDiagnostics from "./diagnostics/ProcessDiagnostics.ts";
 import * as ProcessResourceMonitor from "./diagnostics/ProcessResourceMonitor.ts";
 import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as TabTint from "./tabTint/TabTint.ts";
-import * as TidyDraft from "./tidyDraft/TidyDraft.ts";
+import * as TidyDraft from "./tidyDraft/TidyDraftService.ts";
 
 import * as ThreadWorkspaces from "./threadWorkspaces/ThreadWorkspaces.ts";
 import * as HostResources from "./resourceTelemetry/HostResources.ts";
@@ -315,7 +314,6 @@ import { requestUrl } from "./requestUrl.ts";
 
 const CONFIG_DISCOVERY_TIMEOUT = Duration.seconds(5);
 const isProviderUploadFeedbackError = Schema.is(ProviderUploadFeedbackError);
-const isTidyDraftError = Schema.is(TidyDraftError);
 
 const resolveDiscoveryForConfig = <A, E, R>(
   discovery: Effect.Effect<A, E, R>,
@@ -1479,6 +1477,7 @@ export const layerWsRpc = (
     Effect.gen(function* () {
       const currentSessionId = currentSession.sessionId;
       const sql = yield* SqlClient.SqlClient;
+      const tidyDraft = yield* TidyDraft.TidyDraftService;
       const threadManagement = yield* ThreadManagementService.ThreadManagementService;
       const intakeContext = yield* Effect.context<
         | ThreadManagementService.ThreadManagementService
@@ -2766,152 +2765,7 @@ export const layerWsRpc = (
                 ),
               ),
           ),
-        [WS_METHODS.providerTidyDraft]:
-          /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(
-            function* (input) {
-              const fail = (detail: string) =>
-                new TidyDraftError({ threadId: input.threadId, detail });
-              const projection = yield* threadManagement
-                .getThreadRecords(
-                  input.threadId,
-                  ["providerThreads", "providerSessions", "runs", "providerTurns"],
-                  {
-                    // Runs that keep the cache warm, and rolled-back runs whose messages are gone.
-                    runStatuses: ["preparing", "starting", "running", "rolled_back"],
-                    latestProviderTurnUsageOnly: true,
-                  },
-                )
-                .pipe(Effect.mapError(() => fail("This thread could not be read.")));
-              const providerThread =
-                projection.providerThreads.find(
-                  (candidate) => candidate.id === projection.thread.activeProviderThreadId,
-                ) ?? projection.providerThreads.at(-1);
-              const providerSessionId = providerThread?.providerSessionId ?? null;
-              if (providerThread === undefined || providerSessionId === null) {
-                return yield* fail(
-                  "There is no conversation to tidy against yet. Send a message first.",
-                );
-              }
-              const providerSession = projection.providerSessions.find(
-                (candidate) => candidate.id === providerSessionId,
-              );
-              // A cold Claude cache would make a side question write the whole conversation into
-              // it, and the next turn again, so a fresh query on its recent messages answers.
-              const cold =
-                providerThread.driver === "claudeAgent" &&
-                TidyDraft.isTidyCacheCold({
-                  runs: projection.runs,
-                  latestProviderTurn: projection.providerTurns.at(-1),
-                  nowMs: DateTime.toEpochMillis(yield* DateTime.now),
-                  coldAfterMs: TidyDraft.tidyColdCacheAfterMs(hostEnvironment),
-                });
-              if (cold && providerSessionsV2.askLightQuestion !== undefined) {
-                const rolledBack = new Set(
-                  projection.runs
-                    .filter((run) => run.status === "rolled_back")
-                    .map((run) => run.id),
-                );
-                const { messages } = yield* threadManagement
-                  .getThreadRecords(input.threadId, ["messages"], {
-                    messageRoles: ["user", "assistant"],
-                  })
-                  .pipe(Effect.mapError(() => fail("This thread could not be read.")));
-                const excerpt = TidyDraft.selectTidyExcerpt(
-                  messages.flatMap((message) =>
-                    message.streaming ||
-                    message.role === "system" ||
-                    (message.runId !== null && rolledBack.has(message.runId))
-                      ? []
-                      : [{ role: message.role, text: message.text }],
-                  ),
-                );
-                if (excerpt.messages.length > 0) {
-                  const lightAnswer = yield* providerSessionsV2
-                    .askLightQuestion({
-                      threadId: input.threadId,
-                      providerSessionId,
-                      modelSelection: projection.thread.modelSelection,
-                      cwd: providerSession?.cwd ?? null,
-                      prompt: TidyDraft.buildLightTidyDraftQuestion(input.draft, excerpt),
-                    })
-                    .pipe(Effect.mapError((cause) => fail(cause.message)));
-                  if (lightAnswer !== null) {
-                    const parsed = TidyDraft.parseTidyDraftAnswer(lightAnswer);
-                    if (parsed === null) {
-                      return yield* fail("The agent's answer could not be read. Try again.");
-                    }
-                    return { ...parsed, source: "light" as const };
-                  }
-                }
-              }
-              const question = TidyDraft.buildTidyDraftQuestion(input.draft);
-              // The running process answers from its own cache; a released one is forked instead.
-              const runtime = Option.getOrNull(yield* providerSessionsV2.get(providerSessionId));
-              // A live process that failed still holds the thread, so a fork fails for that reason.
-              let liveFailure: string | null = null;
-              const live =
-                runtime?.askSideQuestion === undefined
-                  ? null
-                  : yield* runtime.askSideQuestion({ providerThread, question }).pipe(
-                      Effect.catch((cause) =>
-                        Effect.sync(() => {
-                          liveFailure = cause.message;
-                          return null;
-                        }),
-                      ),
-                    );
-              let answer = live;
-              if (answer === null) {
-                const modelSelection = projection.thread.modelSelection;
-                if (modelSelection.instanceId !== providerThread.providerInstanceId) {
-                  return yield* fail(
-                    "This thread switched models since its last message. Send a message first.",
-                  );
-                }
-                // The stored session keeps the folder the thread's turns ran in.
-                if (
-                  providerSession === undefined ||
-                  providerSessionsV2.askDetachedSideQuestion === undefined
-                ) {
-                  return yield* fail("This thread's session could not be found.");
-                }
-                answer = yield* providerSessionsV2
-                  .askDetachedSideQuestion({
-                    threadId: input.threadId,
-                    providerSessionId,
-                    providerThread,
-                    modelSelection,
-                    runtimePolicy: {
-                      runtimeMode: projection.thread.runtimeMode,
-                      interactionMode: projection.thread.interactionMode,
-                      cwd: providerSession.cwd,
-                    },
-                    question,
-                  })
-                  .pipe(Effect.mapError((cause) => fail(liveFailure ?? cause.message)));
-                if (answer === null) {
-                  return yield* fail(`Tidy does not work on ${providerThread.driver} threads yet.`);
-                }
-              }
-              const parsed = TidyDraft.parseTidyDraftAnswer(answer);
-              if (parsed === null) {
-                return yield* fail("The agent's answer could not be read. Try again.");
-              }
-              return { ...parsed, source: live === null ? ("fork" as const) : ("live" as const) };
-            },
-            (effect, input) =>
-              effect.pipe(
-                Effect.mapError((cause) =>
-                  isTidyDraftError(cause)
-                    ? cause
-                    : new TidyDraftError({
-                        threadId: input.threadId,
-                        detail: "Tidy failed. Try again.",
-                      }),
-                ),
-              ),
-          ),
+        [WS_METHODS.providerTidyDraft]: (input) => tidyDraft.run(input),
         [WS_METHODS.serverUpdateProvider]: (input) =>
           providerMaintenanceRunner.updateProvider(input),
         [WS_METHODS.providerConsumeResetCredit]:
@@ -3974,7 +3828,7 @@ export const layerWsRpc = (
         yield* OtherWsRpcGroup.toHandlers(otherHandlers),
       );
     }),
-  );
+  ).pipe(Layer.provide(TidyDraft.layer));
 
 // Default socket-level Defect frames end every pending client request.
 export const WS_RPC_SERVER_OPTIONS = {

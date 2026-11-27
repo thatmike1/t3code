@@ -374,58 +374,6 @@ describe("ClaudeAdapterV2 native resume history", () => {
   });
 });
 
-describe("claudeLightQueryOptions", () => {
-  const base = () =>
-    ClaudeAdapterV2.makeClaudeQueryOptions({
-      modelSelection: CLAUDE_TEST_MODEL_SELECTION,
-      nativeThreadId: "light-question",
-      resume: false,
-      cwd: "/workspace",
-      settings: {
-        ...AUTO_COMPACT_CLAUDE_SETTINGS,
-        launchArgs: "--plugin-dir ./a --add-dir /shared --verbose --append-system-prompt extra",
-      },
-      environment: { HOME: "/home/test" },
-      mcpServers: { t3: { type: "http", url: "http://127.0.0.1:1/mcp" } },
-      onStop: () => Promise.resolve({}),
-      tools: [],
-    });
-
-  it("keeps the thread's model and credentials but drops Claude Code's prompt, tools and extensions", () => {
-    const thread = base();
-    const options = ClaudeAdapterV2.claudeLightQueryOptions(thread, { managedMcpConfig: false });
-    assert.equal(options.model, thread.model);
-    assert.deepEqual(options.thinking, thread.thinking);
-    assert.equal(options.systemPrompt, ClaudeAdapterV2.CLAUDE_LIGHT_QUERY_SYSTEM_PROMPT);
-    assert.deepEqual(options.tools, []);
-    assert.equal(options.title, "T3 tidy");
-    assert.deepEqual(options.settingSources, ["user"]);
-    assert.deepEqual(options.skills, []);
-    assert.isTrue(options.strictMcpConfig);
-    assert.isFalse(options.persistSession);
-    assert.isFalse(options.includePartialMessages);
-    for (const key of ["plugins", "hooks", "mcpServers", "additionalDirectories"] as const) {
-      assert.isUndefined(options[key], key);
-    }
-    assert.deepEqual(options.extraArgs, { "thinking-display": "summarized" });
-    assert.equal(options.env?.HOME, "/home/test");
-    assert.equal(options.env?.DISABLE_PROMPT_CACHING, "1");
-    assert.equal(options.env?.CLAUDE_CODE_DISABLE_CLAUDE_MDS, "1");
-    assert.isTrue(typeof options.settings === "object");
-    const settings = options.settings as {
-      disableAllHooks?: boolean;
-      env?: Record<string, string>;
-    };
-    assert.isTrue(settings.disableAllHooks);
-    assert.equal(settings.env?.DISABLE_PROMPT_CACHING, "1");
-  });
-
-  it("leaves strict MCP config off where managed-mcp.json forbids the flag", () => {
-    const options = ClaudeAdapterV2.claudeLightQueryOptions(base(), { managedMcpConfig: true });
-    assert.isUndefined(options.strictMcpConfig);
-  });
-});
-
 describe("ClaudeAdapterV2 runtime query policy", () => {
   it.each([
     "-- --thinking-display omitted",

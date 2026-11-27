@@ -164,6 +164,7 @@ export interface ThreadManagementSendInput {
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly modelSelection?: ModelSelection;
   readonly mode: ThreadManagementSendMode;
+  readonly requireIdle?: boolean;
   /** Start a new provider session; the orchestrator queues it instead of steering. */
   readonly freshContext?: boolean;
   /** Ask the run for a result as data matching this JSON Schema; it is queued, never steered. */
@@ -983,6 +984,7 @@ const make = Effect.gen(function* () {
       ...(input.freshContext ? { freshContext: true } : {}),
       ...(input.outputSchema === undefined ? {} : { outputSchema: input.outputSchema }),
       dispatchMode,
+      ...(input.requireIdle === true ? { requireIdle: true } : {}),
       ...(mode === "auto" ? { deliveryIntent: "auto" } : {}),
       createdBy: input.createdBy,
       creationSource: input.creationSource,

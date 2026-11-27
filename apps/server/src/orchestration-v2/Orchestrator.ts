@@ -7456,6 +7456,19 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
     }
 
+    if (
+      command.requireIdle === true &&
+      projection.runs.some(
+        (run) => isActiveRun(run) || (run.status === "queued" && run.queueHeld !== true),
+      )
+    ) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: "This thread already has a run in progress.",
+      });
+    }
+
     // The service checked idleness before this command; a run or a delegated result that landed
     // since makes the thread busy, and that turn refreshes the cache anyway.
     if (
@@ -8084,6 +8097,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       dispatchMode.type === "start_immediately" ||
       dispatchMode.type === "queue_after_active";
     const shouldQueue = queueBehindRun !== undefined && startsOrQueuesRun;
+    if (command.requireIdle === true && shouldQueue) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: "This thread is not ready to start a new run.",
+      });
+    }
     // An explicit pick queued ahead reaches the thread only when its run starts. A goal or
     // restart command that stops the active run goes first, so nothing queued applies before it.
     // Buffered provider wakes drain output their own provider already produced.

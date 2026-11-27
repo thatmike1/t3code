@@ -4,8 +4,8 @@ import { ThreadId } from "./baseSchemas.ts";
 
 /**
  * the composer's Tidy button: the thread's agent rewrites a dictated draft in the user's voice and
- * marks which asks of its last reply the draft answers. it runs as a side question, so it reuses
- * the session's prompt cache and adds no turn.
+ * marks which asks of its last reply the draft answers. it asks a side question using the session's prompt
+ * cache, with a normal warm-up turn first if Claude's cache is cold.
  */
 export const TIDY_DRAFT_MAX_LENGTH = 50_000;
 
@@ -26,11 +26,10 @@ export const TidyDraftResult = Schema.Struct({
   draft: Schema.String,
   asks: Schema.Array(TidyDraftAsk),
   /**
-   * "live" asked the running session; "fork" asked a short-lived copy of it; "light" asked a fresh
-   * one-shot query that saw only the recent part of the conversation, because the thread's prompt
-   * cache had expired.
+   * "live" asked the running session; "fork" asked a short-lived copy of it;
+   * "warmed" sent a warm-up turn before asking the running session.
    */
-  source: Schema.Literals(["live", "fork", "light"]),
+  source: Schema.Literals(["live", "fork", "warmed"]),
 });
 export type TidyDraftResult = typeof TidyDraftResult.Type;
 

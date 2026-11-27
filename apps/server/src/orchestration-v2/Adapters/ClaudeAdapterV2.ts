@@ -199,7 +199,6 @@ import { signalProcessGroup } from "@t3tools/provider-core/server/processGroup";
 import {
   claudeLocalSettingsDirectory,
   claudeSignedOutMessage,
-  hasClaudeManagedMcpConfig,
   makeClaudeEnvironment,
   mergeClaudeProcessEnvironment,
   resolveClaudeHomePath,
@@ -387,7 +386,6 @@ const CLAUDE_SCRIPT_EXTENSIONS = [".js", ".mjs", ".tsx", ".ts", ".jsx"];
 const CLAUDE_MCP_REGISTRATION_TIMEOUT = "90 seconds";
 const CLAUDE_BOOT_TIMEOUT = "5 minutes";
 // A tidy rewrites a draft; past this a stuck question gives up instead of holding the button.
-const CLAUDE_LIGHT_QUERY_TIMEOUT = "3 minutes";
 // Claude can consume a subagent result before the launching turn ends, leaving
 // its notification with no native wake turn to answer the continuation.
 const CLAUDE_WAKE_TURN_START_DEADLINE = "2 minutes";
@@ -2763,69 +2761,6 @@ export function makeClaudeQueryOptions(input: {
   const withDirectories =
     additionalDirectories.length === 0 ? options : { ...options, additionalDirectories };
   return input.cwd === null ? withDirectories : { ...withDirectories, cwd: input.cwd };
-}
-
-// Flag settings beat a user's settings.json env, so the light query's switches go there too.
-const CLAUDE_LIGHT_QUERY_ENV = {
-  // The prompt is never sent again, so a cache entry would only cost its write surcharge.
-  DISABLE_PROMPT_CACHING: "1",
-  // The prompt carries all the context the answer needs.
-  CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1",
-  CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1",
-  ENABLE_CLAUDEAI_MCP_SERVERS: "false",
-  CLAUDE_CODE_AUTO_CONNECT_IDE: "0",
-} as const;
-
-export const CLAUDE_LIGHT_QUERY_SYSTEM_PROMPT =
-  "You help a user of T3 Code, an app for working with coding agents, tidy a reply they dictated. Follow the instructions in their message and answer with exactly what it asks for.";
-
-/**
- * Narrows a thread's query options to a bare one-shot question: the thread's model, effort and
- * credentials, but a short system prompt in place of Claude Code's, no tools, MCP servers, hooks,
- * plugins, skills or memory files, no prompt caching, and nothing saved. User settings still load,
- * because they can hold the credentials (an apiKeyHelper) the thread's turns run on.
- */
-export function claudeLightQueryOptions(
-  base: ClaudeAgentSdkQueryOptions,
-  input: { readonly managedMcpConfig: boolean },
-): ClaudeAgentSdkQueryOptions {
-  const {
-    plugins: _plugins,
-    hooks: _hooks,
-    mcpServers: _mcpServers,
-    additionalDirectories: _additionalDirectories,
-    extraArgs,
-    settings,
-    ...rest
-  } = base;
-  const thinkingDisplay = extraArgs?.["thinking-display"];
-  return {
-    ...rest,
-    systemPrompt: CLAUDE_LIGHT_QUERY_SYSTEM_PROMPT,
-    // A title skips the extra request Claude Code sends to name a new session.
-    title: "T3 tidy",
-    tools: [],
-    settingSources: ["user"],
-    skills: [],
-    // managed-mcp.json already isolates servers and makes Claude reject the flag.
-    ...(input.managedMcpConfig ? {} : { strictMcpConfig: true }),
-    includePartialMessages: false,
-    promptSuggestions: false,
-    persistSession: false,
-    // A settings file path cannot take extra keys; the process env carries the switches then.
-    settings:
-      typeof settings === "string"
-        ? settings
-        : {
-            ...settings,
-            disableAllHooks: true,
-            env: { ...settings?.env, ...CLAUDE_LIGHT_QUERY_ENV },
-          },
-    env: { ...rest.env, ...CLAUDE_LIGHT_QUERY_ENV },
-    ...(thinkingDisplay === undefined
-      ? {}
-      : { extraArgs: { "thinking-display": thinkingDisplay } }),
-  };
 }
 
 /**
@@ -6441,105 +6376,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
     },
   );
 
-  // A thread whose prompt cache expired would pay a full cache write to reopen its conversation,
-  // so a cold tidy asks a fresh one-shot query that carries the recent messages in its prompt.
-  const askLightQuestion = Effect.fn("ClaudeAdapterV2.askLightQuestion")(function* (input: {
-    readonly threadId: ThreadId;
-    readonly providerSessionId: OrchestrationV2ProviderSession["id"];
-    readonly modelSelection: ModelSelection;
-    readonly cwd: string | null;
-    readonly prompt: string;
-  }) {
-    const failed = (detail: string) => (cause: unknown) =>
-      new ProviderAdapter.ProviderAdapterProtocolError({
-        driver: CLAUDE_PROVIDER,
-        detail,
-        cause,
-      });
-    const launchArgSettings = yield* readClaudeLaunchArgSettings({
-      settings: adapterOptions.settings,
-      cwd: input.cwd,
-      fileSystem,
-      path,
-    }).pipe(Effect.mapError(failed("Claude's launch settings could not be read")));
-    const catalog = yield* routeModelCatalog(modelCatalog, input.cwd, launchArgSettings);
-    const managedMcpConfig = yield* hasClaudeManagedMcpConfig().pipe(
-      Effect.provideService(FileSystem.FileSystem, fileSystem),
-      Effect.provideService(HostProcess.Platform, hostPlatform),
-    );
-    const sessionId = yield* queryRunner.allocateSessionId.pipe(
-      Effect.mapError(failed("Claude could not start a question")),
-    );
-    const options = claudeLightQueryOptions(
-      makeClaudeQueryOptions({
-        modelSelection: input.modelSelection,
-        modelCatalog: catalog,
-        nativeThreadId: sessionId,
-        resume: false,
-        cwd: input.cwd,
-        settings: adapterOptions.settings,
-        ...(launchArgSettings === undefined
-          ? {}
-          : { sdkSettings: claudeSdkLaunchArgSettings(launchArgSettings) }),
-        environment: adapterOptions.environment,
-        tools: [],
-        permissionMode: "default",
-      }),
-      { managedMcpConfig },
-    );
-    const session = yield* queryRunner
-      .open({ threadId: input.threadId, providerSessionId: input.providerSessionId, options })
-      .pipe(Effect.mapError(failed("Claude could not start a question")));
-    return yield* Effect.gen(function* () {
-      yield* session
-        .offer({
-          type: "user",
-          message: { role: "user", content: input.prompt },
-          parent_tool_use_id: null,
-        })
-        .pipe(Effect.mapError(failed("Claude could not take the question")));
-      const result = yield* session.messages.pipe(
-        Stream.filter((message): message is SDKResultMessage => message.type === "result"),
-        Stream.take(1),
-        Stream.runHead,
-        Effect.mapError(failed("Claude could not answer the question")),
-        Effect.timeoutOption(CLAUDE_LIGHT_QUERY_TIMEOUT),
-        Effect.map(Option.flatten),
-      );
-      if (Option.isNone(result)) {
-        return yield* new ProviderAdapter.ProviderAdapterProtocolError({
-          driver: CLAUDE_PROVIDER,
-          detail: "Claude gave no answer",
-        });
-      }
-      const message = result.value;
-      // The tidy exists to save usage, so each light question's cost lands in the log.
-      yield* Effect.logInfo("orchestration-v2.claude-light-question", {
-        threadId: input.threadId,
-        model: options.model,
-        subtype: message.subtype,
-        inputTokens: message.usage.input_tokens,
-        cacheReadInputTokens: message.usage.cache_read_input_tokens,
-        cacheCreationInputTokens: message.usage.cache_creation_input_tokens,
-        outputTokens: message.usage.output_tokens,
-        costUsd: message.total_cost_usd,
-        durationMs: message.duration_ms,
-      });
-      if (message.subtype !== "success" || message.result.trim().length === 0) {
-        return yield* new ProviderAdapter.ProviderAdapterProtocolError({
-          driver: CLAUDE_PROVIDER,
-          detail: "Claude gave no answer",
-        });
-      }
-      return message.result;
-    }).pipe(Effect.ensuring(session.close.pipe(Effect.ignore)));
-  });
-
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: adapterOptions.instanceId,
     driver: CLAUDE_PROVIDER,
     askDetachedSideQuestion,
-    askLightQuestion,
     getCapabilities: Effect.fn("ClaudeAdapterV2.getCapabilities")(function () {
       return Effect.succeed(ClaudeProviderCapabilitiesV2);
     }),
