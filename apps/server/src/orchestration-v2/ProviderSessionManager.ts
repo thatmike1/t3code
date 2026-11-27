@@ -332,6 +332,20 @@ export interface ProviderSessionManagerV2Shape {
     string | null,
     ProviderAdapter.ProviderAdapterV2Error | ProviderAdapterRegistry.ProviderAdapterRegistryV2Error
   >;
+  /**
+   * Answers a self-contained prompt with a fresh one-shot query on the selected model, outside any
+   * session. Succeeds with null when the provider cannot.
+   */
+  readonly askLightQuestion?: (input: {
+    readonly threadId: ThreadId;
+    readonly providerSessionId: ProviderSessionId;
+    readonly modelSelection: ModelSelection;
+    readonly cwd: string | null;
+    readonly prompt: string;
+  }) => Effect.Effect<
+    string | null,
+    ProviderAdapter.ProviderAdapterV2Error | ProviderAdapterRegistry.ProviderAdapterRegistryV2Error
+  >;
 }
 
 export class ProviderSessionManagerV2 extends Context.Service<
@@ -3762,6 +3776,16 @@ export const layerWithOptions = (
                 adapter.askDetachedSideQuestion === undefined
                   ? Effect.succeed(null)
                   : adapter.askDetachedSideQuestion(input),
+              ),
+            ),
+        askLightQuestion: (input) =>
+          registry
+            .get(input.modelSelection.instanceId)
+            .pipe(
+              Effect.flatMap((adapter) =>
+                adapter.askLightQuestion === undefined
+                  ? Effect.succeed(null)
+                  : adapter.askLightQuestion(input),
               ),
             ),
       } satisfies ProviderSessionManagerV2Shape);

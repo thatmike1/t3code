@@ -919,5 +919,17 @@ export class ProviderAdapterV2 extends Context.Service<
       readonly runtimePolicy: ProviderAdapterV2RuntimePolicy;
       readonly question: string;
     }) => Effect.Effect<string, ProviderAdapterV2Error>;
+    /**
+     * Answers a self-contained prompt with a fresh one-shot query on the thread's model: no
+     * conversation, no tools, nothing saved. The tidy uses it on a thread whose prompt cache has
+     * expired, where reopening the conversation would pay a full cache write.
+     */
+    readonly askLightQuestion?: (input: {
+      readonly threadId: ThreadId;
+      readonly providerSessionId: ProviderSessionId;
+      readonly modelSelection: ModelSelection;
+      readonly cwd: string | null;
+      readonly prompt: string;
+    }) => Effect.Effect<string, ProviderAdapterV2Error>;
   }
 >()("@t3tools/provider-core/server/ProviderAdapter/ProviderAdapterV2") {}

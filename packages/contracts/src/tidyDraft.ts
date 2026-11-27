@@ -25,8 +25,12 @@ export type TidyDraftAsk = typeof TidyDraftAsk.Type;
 export const TidyDraftResult = Schema.Struct({
   draft: Schema.String,
   asks: Schema.Array(TidyDraftAsk),
-  /** "live" asked the running session; "fork" asked a short-lived copy of it. */
-  source: Schema.Literals(["live", "fork"]),
+  /**
+   * "live" asked the running session; "fork" asked a short-lived copy of it; "light" asked a fresh
+   * one-shot query that saw only the recent part of the conversation, because the thread's prompt
+   * cache had expired.
+   */
+  source: Schema.Literals(["live", "fork", "light"]),
 });
 export type TidyDraftResult = typeof TidyDraftResult.Type;
 
