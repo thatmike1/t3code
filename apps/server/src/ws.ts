@@ -88,6 +88,7 @@ import {
   ProjectWriteFileError,
   ProjectMutationError,
   ProviderUploadFeedbackError,
+  TidyDraftError,
   ProviderSetupError,
   RelayClientInstallFailedError,
   type RelayClientInstallProgressEvent,
@@ -262,6 +263,8 @@ import * as ProcessDiagnostics from "./diagnostics/ProcessDiagnostics.ts";
 import * as ProcessResourceMonitor from "./diagnostics/ProcessResourceMonitor.ts";
 import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as TabTint from "./tabTint/TabTint.ts";
+import * as TidyDraft from "./tidyDraft/TidyDraft.ts";
+
 import * as ThreadWorkspaces from "./threadWorkspaces/ThreadWorkspaces.ts";
 import * as HostResources from "./resourceTelemetry/HostResources.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
@@ -312,6 +315,7 @@ import { requestUrl } from "./requestUrl.ts";
 
 const CONFIG_DISCOVERY_TIMEOUT = Duration.seconds(5);
 const isProviderUploadFeedbackError = Schema.is(ProviderUploadFeedbackError);
+const isTidyDraftError = Schema.is(TidyDraftError);
 
 const resolveDiscoveryForConfig = <A, E, R>(
   discovery: Effect.Effect<A, E, R>,
@@ -2758,6 +2762,88 @@ export const layerWsRpc = (
                     : new ProviderUploadFeedbackError({
                         threadId: input.threadId,
                         cause,
+                      }),
+                ),
+              ),
+          ),
+        [WS_METHODS.providerTidyDraft]:
+          /* Request instrumentation already owns the span; keep this helper in that context. */
+          Effect.fnUntraced(
+            function* (input) {
+              const fail = (detail: string) =>
+                new TidyDraftError({ threadId: input.threadId, detail });
+              const projection = yield* threadManagement
+                .getThreadRecords(input.threadId, ["providerThreads", "providerSessions"])
+                .pipe(Effect.mapError(() => fail("This thread could not be read.")));
+              const providerThread =
+                projection.providerThreads.find(
+                  (candidate) => candidate.id === projection.thread.activeProviderThreadId,
+                ) ?? projection.providerThreads.at(-1);
+              const providerSessionId = providerThread?.providerSessionId ?? null;
+              if (providerThread === undefined || providerSessionId === null) {
+                return yield* fail(
+                  "There is no conversation to tidy against yet. Send a message first.",
+                );
+              }
+              const question = TidyDraft.buildTidyDraftQuestion(input.draft);
+              // The running process answers from its own cache; a released one is forked instead.
+              const runtime = Option.getOrNull(yield* providerSessionsV2.get(providerSessionId));
+              const live =
+                runtime?.askSideQuestion === undefined
+                  ? null
+                  : yield* runtime
+                      .askSideQuestion({ providerThread, question })
+                      .pipe(Effect.orElseSucceed(() => null));
+              let answer = live;
+              if (answer === null) {
+                const modelSelection = projection.thread.modelSelection;
+                if (modelSelection.instanceId !== providerThread.providerInstanceId) {
+                  return yield* fail(
+                    "This thread switched models since its last message. Send a message first.",
+                  );
+                }
+                // The stored session keeps the folder the thread's turns ran in.
+                const providerSession = projection.providerSessions.find(
+                  (candidate) => candidate.id === providerSessionId,
+                );
+                if (
+                  providerSession === undefined ||
+                  providerSessionsV2.askDetachedSideQuestion === undefined
+                ) {
+                  return yield* fail("This thread's session could not be found.");
+                }
+                answer = yield* providerSessionsV2
+                  .askDetachedSideQuestion({
+                    threadId: input.threadId,
+                    providerSessionId,
+                    providerThread,
+                    modelSelection,
+                    runtimePolicy: {
+                      runtimeMode: projection.thread.runtimeMode,
+                      interactionMode: projection.thread.interactionMode,
+                      cwd: providerSession.cwd,
+                    },
+                    question,
+                  })
+                  .pipe(Effect.mapError((cause) => fail(cause.message)));
+                if (answer === null) {
+                  return yield* fail(`Tidy does not work on ${providerThread.driver} threads yet.`);
+                }
+              }
+              const parsed = TidyDraft.parseTidyDraftAnswer(answer);
+              if (parsed === null) {
+                return yield* fail("The agent's answer could not be read. Try again.");
+              }
+              return { ...parsed, source: live === null ? ("fork" as const) : ("live" as const) };
+            },
+            (effect, input) =>
+              effect.pipe(
+                Effect.mapError((cause) =>
+                  isTidyDraftError(cause)
+                    ? cause
+                    : new TidyDraftError({
+                        threadId: input.threadId,
+                        detail: "Tidy failed. Try again.",
                       }),
                 ),
               ),

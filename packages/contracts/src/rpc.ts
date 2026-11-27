@@ -413,6 +413,7 @@ import {
   ResourceTelemetrySnapshot,
 } from "./resourceTelemetry.ts";
 import { TabTintSnapshot } from "./tabTint.ts";
+import { TidyDraftError, TidyDraftInput, TidyDraftResult } from "./tidyDraft.ts";
 import {
   UsageLimitSourceError,
   ProviderConsumeResetCreditInput,
@@ -528,6 +529,7 @@ export const WS_METHODS = {
   mcpAppsUpdateModelContext: "mcpApps.updateModelContext",
 
   providerUploadFeedback: "provider.uploadFeedback",
+  providerTidyDraft: "provider.tidyDraft",
   providerMcpSignInStart: "provider.mcpSignIn.start",
   providerMcpSignInComplete: "provider.mcpSignIn.complete",
   providerAuthStart: "provider.auth.start",
@@ -1819,6 +1821,12 @@ const WsMcpAppsReadResourceRpc = Rpc.make(WS_METHODS.mcpAppsReadResource, {
   error: Schema.Union([McpAppRequestError, EnvironmentAuthorizationError]),
 });
 
+const WsProviderTidyDraftRpc = Rpc.make(WS_METHODS.providerTidyDraft, {
+  payload: TidyDraftInput,
+  success: TidyDraftResult,
+  error: Schema.Union([TidyDraftError, EnvironmentAuthorizationError]),
+});
+
 const WsProviderUploadFeedbackRpc = Rpc.make(WS_METHODS.providerUploadFeedback, {
   payload: ProviderUploadFeedbackInput,
   success: ProviderUploadFeedbackResult,
@@ -2688,6 +2696,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsMcpAppsReadResourceRpc,
   WsMcpAppsUpdateModelContextRpc,
   WsProviderUploadFeedbackRpc,
+  WsProviderTidyDraftRpc,
   WsProviderMcpSignInStartRpc,
   WsProviderMcpSignInCompleteRpc,
   WsSubscribeVcsStatusRpc,

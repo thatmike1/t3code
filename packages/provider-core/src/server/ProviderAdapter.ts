@@ -825,6 +825,14 @@ export interface ProviderAdapterV2SessionRuntime {
     readonly providerThread: OrchestrationV2ProviderThread;
     readonly modelSelection: ModelSelection;
   }) => Effect.Effect<void, ProviderAdapterV2Error>;
+  /**
+   * Asks the running session a side question that sees the whole conversation but adds nothing to
+   * it (Claude Code's /btw). Succeeds with null when no process is running for the thread.
+   */
+  readonly askSideQuestion?: (input: {
+    readonly providerThread: OrchestrationV2ProviderThread;
+    readonly question: string;
+  }) => Effect.Effect<string | null, ProviderAdapterV2Error>;
   /** Renames the provider's native session while its process is running; otherwise the next turn does. */
   readonly applyThreadTitle?: (input: {
     readonly providerThread: OrchestrationV2ProviderThread;
@@ -899,5 +907,17 @@ export class ProviderAdapterV2 extends Context.Service<
     readonly openSession: (
       input: ProviderAdapterV2OpenSessionInput,
     ) => Effect.Effect<ProviderAdapterV2SessionRuntime, ProviderAdapterV2Error, Scope.Scope>;
+    /**
+     * The same side question for a thread whose session was released: a short-lived, unsaved fork
+     * of the thread's native conversation answers it and is closed again.
+     */
+    readonly askDetachedSideQuestion?: (input: {
+      readonly threadId: ThreadId;
+      readonly providerSessionId: ProviderSessionId;
+      readonly providerThread: OrchestrationV2ProviderThread;
+      readonly modelSelection: ModelSelection;
+      readonly runtimePolicy: ProviderAdapterV2RuntimePolicy;
+      readonly question: string;
+    }) => Effect.Effect<string, ProviderAdapterV2Error>;
   }
 >()("@t3tools/provider-core/server/ProviderAdapter/ProviderAdapterV2") {}

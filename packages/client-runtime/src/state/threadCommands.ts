@@ -513,6 +513,11 @@ export function createThreadEnvironmentAtoms<R, E>(
       scheduler,
       concurrency,
     }),
+    // Outside the thread's queue: the agent answers on the side while a turn may be running.
+    tidyDraft: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:commands:thread:tidy-draft",
+      tag: WS_METHODS.providerTidyDraft,
+    }),
     // Outside the thread's queue: finishing can wait on the agent, and messages must not.
     mcpSignInStart: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:commands:thread:mcp-sign-in-start",

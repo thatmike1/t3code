@@ -830,6 +830,17 @@ export interface ClaudeAgentSdkQuerySession {
   >;
   readonly interrupt: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;
   readonly close: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;
+  /** Claude Code's /btw: answers from the session's context and cache, adds nothing to it. */
+  readonly askSideQuestion?: (
+    question: string,
+  ) => Effect.Effect<string | null, ClaudeAgentSdkQueryRunnerError>;
+}
+
+/** The SDK ships the side question on Query without typing it. */
+interface ClaudeSideQuestionQuery {
+  readonly askSideQuestion?: (
+    question: string,
+  ) => Promise<{ readonly response: string; readonly synthetic?: boolean } | null>;
 }
 
 type ClaudeQueryStreamExit = Exit.Exit<void, ClaudeAgentSdkQueryRunnerError>;
@@ -2111,6 +2122,19 @@ export const layerQueryRunner: Layer.Layer<
               }),
             ),
           ),
+        askSideQuestion: (question) =>
+          Effect.tryPromise({
+            try: async () => {
+              const ask = (queryRuntime as unknown as ClaudeSideQuestionQuery).askSideQuestion;
+              if (typeof ask !== "function") {
+                throw new Error("This Claude Code version cannot answer side questions.");
+              }
+              await queryRuntime.initializationResult();
+              const reply = await ask.call(queryRuntime, question);
+              return reply === null || reply.synthetic === true ? null : reply.response;
+            },
+            catch: (cause) => queryRunnerError(cause, "askSideQuestion"),
+          }),
         mcpServerStatus: Effect.tryPromise({
           try: () => queryRuntime.mcpServerStatus(),
           catch: (cause) => queryRunnerError(cause, "mcpServerStatus"),
@@ -6245,9 +6269,116 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
   const mcpSignInKey = (nativeThreadId: string, server: string) =>
     `${nativeThreadId}\u0000${server}`;
 
+  // A released thread has no process to ask, so an unsaved fork of its conversation answers. It is
+  // opened with the options a turn would use, so the fork's prompt prefix can match the cache.
+  const askDetachedSideQuestion = Effect.fn("ClaudeAdapterV2.askDetachedSideQuestion")(
+    function* (input: {
+      readonly threadId: ThreadId;
+      readonly providerSessionId: OrchestrationV2ProviderSession["id"];
+      readonly providerThread: OrchestrationV2ProviderThread;
+      readonly modelSelection: ModelSelection;
+      readonly runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
+      readonly question: string;
+    }) {
+      const failed = (detail: string) => (cause: unknown) =>
+        new ProviderAdapter.ProviderAdapterProtocolError({
+          driver: CLAUDE_PROVIDER,
+          detail,
+          cause,
+        });
+      const nativeThreadId = input.providerThread.nativeThreadRef?.nativeId;
+      if (nativeThreadId === undefined || nativeThreadId === null) {
+        return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+          driver: CLAUDE_PROVIDER,
+          detail: "This thread has no Claude conversation yet",
+        });
+      }
+      const cwd = input.runtimePolicy.cwd;
+      const launchArgSettings = yield* readClaudeLaunchArgSettings({
+        settings: adapterOptions.settings,
+        cwd,
+        fileSystem,
+        path,
+      }).pipe(Effect.mapError(failed("Claude's launch settings could not be read")));
+      const catalog = yield* routeModelCatalog(modelCatalog, cwd, launchArgSettings);
+      const [appendSystemPromptFileText, toolSearchOverride] = yield* Effect.all(
+        [
+          readClaudeAppendSystemPromptFile({
+            settings: adapterOptions.settings,
+            cwd,
+            fileSystem,
+            path,
+          }),
+          resolveToolSearchOverride(cwd, launchArgSettings),
+        ],
+        { concurrency: "unbounded" },
+      ).pipe(Effect.mapError(failed("Claude's launch settings could not be read")));
+      const queryPolicy = claudeRuntimeQueryPolicyForRuntimePolicy(input.runtimePolicy);
+      const mcpOverrides = claudeMcpQueryOverrides({
+        mcpSession: yield* mcpSessions.read(input.threadId),
+        readOnlySandbox:
+          sandboxPolicyKindForClaudeRuntimePolicy(input.runtimePolicy) === "readOnly",
+        ...(queryPolicy.allowedTools === undefined
+          ? {}
+          : { allowedTools: queryPolicy.allowedTools }),
+      });
+      const options: ClaudeAgentSdkQueryOptions = {
+        ...makeClaudeQueryOptions({
+          modelSelection: input.modelSelection,
+          modelCatalog: catalog,
+          nativeThreadId,
+          resume: true,
+          cwd,
+          ...(input.runtimePolicy.workspace === undefined
+            ? {}
+            : { workspace: input.runtimePolicy.workspace }),
+          attachmentsDir,
+          settings: adapterOptions.settings,
+          ...(launchArgSettings === undefined
+            ? {}
+            : { sdkSettings: claudeSdkLaunchArgSettings(launchArgSettings) }),
+          environment: adapterOptions.environment,
+          tools: queryPolicy.tools ?? CLAUDE_CODE_PRESET_TOOLS,
+          ...(mcpOverrides.allowedTools === undefined
+            ? {}
+            : { allowedTools: mcpOverrides.allowedTools }),
+          ...(mcpOverrides.mcpServers === undefined ? {} : { mcpServers: mcpOverrides.mcpServers }),
+          permissionMode: "default",
+          ...(appendSystemPromptFileText === undefined ? {} : { appendSystemPromptFileText }),
+          ...(toolSearchOverride === undefined ? {} : { toolSearchOverride }),
+        }),
+        forkSession: true,
+        persistSession: false,
+        promptSuggestions: false,
+      };
+      const session = yield* queryRunner
+        .open({ threadId: input.threadId, providerSessionId: input.providerSessionId, options })
+        .pipe(Effect.mapError(failed("Claude could not open a copy of this conversation")));
+      return yield* Effect.gen(function* () {
+        if (session.askSideQuestion === undefined) {
+          return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+            driver: CLAUDE_PROVIDER,
+            detail: "This Claude Code version cannot answer side questions",
+          });
+        }
+        const answer = yield* session
+          .askSideQuestion(input.question)
+          .pipe(Effect.mapError(failed("Claude could not answer the side question")));
+        if (answer === null) {
+          return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+            driver: CLAUDE_PROVIDER,
+            detail: "Claude gave no answer",
+          });
+        }
+        return answer;
+      }).pipe(Effect.ensuring(session.close.pipe(Effect.ignore)));
+    },
+  );
+
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: adapterOptions.instanceId,
     driver: CLAUDE_PROVIDER,
+    askDetachedSideQuestion,
     getCapabilities: Effect.fn("ClaudeAdapterV2.getCapabilities")(function () {
       return Effect.succeed(ClaudeProviderCapabilitiesV2);
     }),
@@ -15127,6 +15258,30 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             yield* applySelectionLive(live, selection).pipe(
               Effect.catch((cause) =>
                 Effect.logWarning("orchestration-v2.claude-live-selection-failed", { cause }),
+              ),
+            );
+          }),
+          askSideQuestion: Effect.fn("ClaudeAdapterV2.askSideQuestion")(function* ({
+            providerThread,
+            question,
+          }) {
+            const live = yield* Ref.get(queryContext);
+            if (
+              live === null ||
+              live.stopping ||
+              live.nativeThreadId !== providerThread.nativeThreadRef?.nativeId ||
+              live.query.askSideQuestion === undefined
+            ) {
+              return null;
+            }
+            return yield* live.query.askSideQuestion(question).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProviderAdapter.ProviderAdapterProtocolError({
+                    driver: CLAUDE_PROVIDER,
+                    detail: "Claude could not answer the side question",
+                    cause,
+                  }),
               ),
             );
           }),

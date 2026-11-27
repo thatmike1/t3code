@@ -311,6 +311,7 @@ import { HELD_COMPOSER_SEND_BANNER_ID } from "./ComposerHeldSendBanner";
 import { ComposerControlsBar } from "./ComposerControlsBar";
 import { composerCommandKeyHandler } from "./composerCommandKey";
 import { promptSuggestionToAccept, usePromptSuggestion } from "./usePromptSuggestion";
+import { ComposerTidyButton, ComposerTidyStrip, useComposerTidy } from "./ComposerTidy";
 import { useFreshSessionArmed } from "./freshSessionArms";
 
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
@@ -2558,6 +2559,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThread,
     activeThreadRuns,
   );
+  // The Tidy button needs a thread whose agent has seen the conversation the draft answers.
+  const tidyThreadId =
+    routeKind === "draft" || activePendingUserInput ? null : (activeThread?.id ?? null);
+  const composerTidy = useComposerTidy({
+    environmentId,
+    threadId: tidyThreadId,
+    prompt,
+    readPrompt: () => promptRef.current,
+    replacePrompt: (next, expected) =>
+      applyPromptReplacementStable(0, promptRef.current.length, next, { expectedText: expected }),
+  });
   // After /clear the next message starts a fresh session that cannot see what the suggestion refers to.
   const freshSessionArmed = useFreshSessionArmed(scopedThreadKey(routeThreadRef));
   // Offered only where the default placeholder would show, so it never hides a pending question.
@@ -3760,6 +3772,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           focusComposer={focusComposer}
         />
       ) : null}
+      <ComposerTidyStrip tidy={composerTidy} />
       <div className="relative">
         <ComposerSurface.Main
           ref={composerMainSurfaceRef}
@@ -4150,6 +4163,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     keepFullHistory={props.keepFullHistory}
                     onToggleKeepFullHistory={props.onToggleKeepFullHistory}
                   >
+                    {tidyThreadId !== null && (prompt.trim().length > 0 || composerTidy.running) ? (
+                      <ComposerTidyButton
+                        tidy={composerTidy}
+                        disabled={prompt.trim().length === 0}
+                      />
+                    ) : null}
                     {speechInput.available ? (
                       <>
                         <ComposerSpeechRecordingPill

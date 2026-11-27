@@ -317,6 +317,21 @@ export interface ProviderSessionManagerV2Shape {
   readonly subscribePromptSuggestion: (
     threadId: ThreadId,
   ) => Stream.Stream<OrchestrationV2PromptSuggestion>;
+  /**
+   * Asks a released thread's provider a side question on an unsaved fork of its conversation.
+   * Succeeds with null when the provider cannot.
+   */
+  readonly askDetachedSideQuestion?: (input: {
+    readonly threadId: ThreadId;
+    readonly providerSessionId: ProviderSessionId;
+    readonly providerThread: OrchestrationV2ProviderThread;
+    readonly modelSelection: ModelSelection;
+    readonly runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
+    readonly question: string;
+  }) => Effect.Effect<
+    string | null,
+    ProviderAdapter.ProviderAdapterV2Error | ProviderAdapterRegistry.ProviderAdapterRegistryV2Error
+  >;
 }
 
 export class ProviderSessionManagerV2 extends Context.Service<
@@ -3739,6 +3754,16 @@ export const layerWithOptions = (
             ),
             Stream.changes,
           ),
+        askDetachedSideQuestion: (input) =>
+          registry
+            .get(input.modelSelection.instanceId)
+            .pipe(
+              Effect.flatMap((adapter) =>
+                adapter.askDetachedSideQuestion === undefined
+                  ? Effect.succeed(null)
+                  : adapter.askDetachedSideQuestion(input),
+              ),
+            ),
       } satisfies ProviderSessionManagerV2Shape);
     }),
   );
