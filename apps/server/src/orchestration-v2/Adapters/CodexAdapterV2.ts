@@ -336,6 +336,14 @@ const decodeCodexBackgroundTerminalsListResponse = Schema.decodeUnknownEffect(
 const CODEX_INITIALIZE_TIMEOUT = "30 seconds";
 const CodexThreadSampleResponse = Schema.Struct({ text: Schema.NullOr(Schema.String) });
 const decodeCodexThreadSampleResponse = Schema.decodeUnknownEffect(CodexThreadSampleResponse);
+const CodexLatestTurnResponse = Schema.Struct({
+  data: Schema.Array(Schema.Struct({ id: Schema.String, status: Schema.String })),
+});
+const decodeCodexLatestTurnResponse = Schema.decodeUnknownEffect(CodexLatestTurnResponse);
+// a side question rewrites text, so it reasons more than a next-prompt guess
+const CODEX_SIDE_QUESTION_EFFORT = "medium";
+// a sample is a model call: it outlives the app-server request deadline, and timing out must not retire it
+const CODEX_SIDE_QUESTION_TIMEOUT = "3 minutes";
 export const CODEX_PROMPT_SUGGESTION_PROMPT =
   "Predict the next message the user will send in this conversation. Reply with only that message, written as the user would type it, in under 20 words. Do not use tools. If there is no clear next step, reply with nothing.";
 const CODEX_CLIENT_CAPABILITIES = {
@@ -2120,7 +2128,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
   const { clientFactory, digest, fileSystem, idAllocator, serverConfig } = adapterOptions;
   const continuationRequests = adapterOptions.continuationRequests;
 
-  return ProviderAdapter.ProviderAdapterV2.of({
+  const adapter = ProviderAdapter.ProviderAdapterV2.of({
     instanceId: adapterOptions.instanceId,
     driver: CODEX_PROVIDER,
     checksVersionAtHandshake: adapterOptions.compatibility !== undefined,
@@ -8727,6 +8735,48 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 ),
               ),
           ),
+          // thread/sample answers on a cache-sharing fork that adds nothing to the thread. It forks
+          // only a thread this app-server has loaded, so an unloaded one is asked detached.
+          askSideQuestion: Effect.fn("CodexAdapterV2.askSideQuestion")(
+            function* ({ providerThread, question }) {
+              const nativeThreadId = providerThread.nativeThreadRef?.nativeId;
+              if (retired || nativeThreadId == null) return null;
+              yield* ensureInitialized;
+              const { loaded } = yield* readCodexThreadHistoryMetadata(client.raw, nativeThreadId);
+              if (!loaded) return null;
+              const latest = (yield* decodeCodexLatestTurnResponse(
+                yield* client.raw.request("thread/turns/list", {
+                  threadId: nativeThreadId,
+                  limit: 1,
+                  sortDirection: "desc",
+                  itemsView: "notLoaded",
+                }),
+              )).data[0];
+              if (latest === undefined) {
+                return yield* toProtocolError("This Codex thread has no turns to ask about yet");
+              }
+              const response = yield* client.raw.request("thread/sample", {
+                threadId: nativeThreadId,
+                expectedTurnId: latest.id,
+                ...(latest.status === "inProgress" ? { allowInProgressTurn: true } : {}),
+                prompt: question,
+                effort: CODEX_SIDE_QUESTION_EFFORT,
+              });
+              const answer = (yield* decodeCodexThreadSampleResponse(response)).text?.trim() ?? "";
+              if (answer.length === 0) return yield* toProtocolError("Codex gave no answer");
+              return answer;
+            },
+            Effect.timeout(CODEX_SIDE_QUESTION_TIMEOUT),
+            Effect.mapError((cause) =>
+              cause._tag === "ProviderAdapterProtocolError"
+                ? cause
+                : new ProviderAdapter.ProviderAdapterProtocolError({
+                    driver: CODEX_PROVIDER,
+                    detail: "Codex could not answer the side question",
+                    cause,
+                  }),
+            ),
+          ),
           applyThreadTitle: Effect.fn("CodexAdapterV2.applyThreadTitle")(function* ({
             providerThread,
             title,
@@ -9656,4 +9706,32 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
         ),
     ),
   });
+
+  // A released thread has no app-server to sample on, so a short-lived one resumes it the way a
+  // turn would (same model, config and MCP servers, so the fork can share the prompt cache), asks,
+  // and exits with the scope. Codex refuses the resume while another client has the thread loaded.
+  const askDetachedSideQuestion = Effect.fn("CodexAdapterV2.askDetachedSideQuestion")(function* (
+    input: Parameters<NonNullable<typeof adapter.askDetachedSideQuestion>>[0],
+  ) {
+    const session = yield* adapter.openSession({
+      threadId: input.threadId,
+      providerSessionId: input.providerSessionId,
+      modelSelection: input.modelSelection,
+      runtimePolicy: input.runtimePolicy,
+    });
+    const providerThread = yield* session.resumeThread({
+      providerThread: input.providerThread,
+      threadId: input.threadId,
+      modelSelection: input.modelSelection,
+      runtimePolicy: input.runtimePolicy,
+    });
+    const answer =
+      session.askSideQuestion === undefined
+        ? null
+        : yield* session.askSideQuestion({ providerThread, question: input.question });
+    if (answer === null) return yield* toProtocolError("Codex could not load this thread");
+    return answer;
+  }, Effect.scoped);
+
+  return ProviderAdapter.ProviderAdapterV2.of({ ...adapter, askDetachedSideQuestion });
 });

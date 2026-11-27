@@ -3364,6 +3364,128 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     ),
   );
 
+  const sideQuestionLayer = Layer.mergeAll(
+    IdAllocator.layer,
+    McpProviderSessions.layer,
+    NodeServices.layer,
+    NodeCrypto.layer,
+  );
+
+  it.effect("answers a side question on a sample of the loaded thread's latest turn", () =>
+    Effect.gen(function* () {
+      const nativeThreadId = "side-thread";
+      const question = "Tidy this draft.";
+      const transcript = makeCodexReplayTranscript({
+        scenario: "side-question",
+        entries: [
+          ...codexReplayPreamble({ nativeThreadId, nativeTurnId: "unused", prompt: "" }).slice(
+            0,
+            5,
+          ),
+          {
+            type: "expect_outbound",
+            label: "thread/read",
+            frame: {
+              id: 3,
+              method: "thread/read",
+              params: { threadId: nativeThreadId, includeTurns: false },
+            },
+          },
+          {
+            type: "emit_inbound",
+            label: "thread/read",
+            frame: { id: 3, result: { thread: { status: { type: "idle" } } } },
+          },
+          {
+            type: "expect_outbound",
+            label: "thread/turns/list",
+            frame: {
+              id: 4,
+              method: "thread/turns/list",
+              params: {
+                threadId: nativeThreadId,
+                limit: 1,
+                sortDirection: "desc",
+                itemsView: "notLoaded",
+              },
+            },
+          },
+          {
+            type: "emit_inbound",
+            label: "thread/turns/list",
+            frame: {
+              id: 4,
+              result: { data: [{ id: "last-turn", status: "completed" }], nextCursor: null },
+            },
+          },
+          {
+            type: "expect_outbound",
+            label: "thread/sample",
+            frame: {
+              id: 5,
+              method: "thread/sample",
+              params: {
+                threadId: nativeThreadId,
+                expectedTurnId: "last-turn",
+                prompt: question,
+                effort: "medium",
+              },
+            },
+          },
+          {
+            type: "emit_inbound",
+            label: "thread/sample",
+            frame: {
+              id: 5,
+              result: { sourceTurnId: "last-turn", responseId: "resp-side", text: " tidied \n" },
+            },
+          },
+        ],
+      });
+      const harness = yield* makeCodexReplayHarness(transcript);
+      const answer = yield* harness.runtime.askSideQuestion!({
+        providerThread: harness.providerThread,
+        question,
+      });
+      assert.strictEqual(answer, "tidied");
+    }).pipe(Effect.scoped, Effect.provide(sideQuestionLayer)),
+  );
+
+  it.effect("leaves a side question on an unloaded thread to the detached path", () =>
+    Effect.gen(function* () {
+      const nativeThreadId = "side-unloaded-thread";
+      const transcript = makeCodexReplayTranscript({
+        scenario: "side-question-unloaded",
+        entries: [
+          ...codexReplayPreamble({ nativeThreadId, nativeTurnId: "unused", prompt: "" }).slice(
+            0,
+            5,
+          ),
+          {
+            type: "expect_outbound",
+            label: "thread/read",
+            frame: {
+              id: 3,
+              method: "thread/read",
+              params: { threadId: nativeThreadId, includeTurns: false },
+            },
+          },
+          {
+            type: "emit_inbound",
+            label: "thread/read",
+            frame: { id: 3, result: { thread: { status: { type: "notLoaded" } } } },
+          },
+        ],
+      });
+      const harness = yield* makeCodexReplayHarness(transcript);
+      const answer = yield* harness.runtime.askSideQuestion!({
+        providerThread: harness.providerThread,
+        question: "Tidy this draft.",
+      });
+      assert.isNull(answer);
+    }).pipe(Effect.scoped, Effect.provide(sideQuestionLayer)),
+  );
+
   const assistantMessages = (events: ReadonlyArray<ProviderAdapter.ProviderAdapterV2Event>) =>
     events.filter(
       (

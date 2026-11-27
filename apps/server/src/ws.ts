@@ -2788,12 +2788,19 @@ export const layerWsRpc = (
               const question = TidyDraft.buildTidyDraftQuestion(input.draft);
               // The running process answers from its own cache; a released one is forked instead.
               const runtime = Option.getOrNull(yield* providerSessionsV2.get(providerSessionId));
+              // A live process that failed still holds the thread, so a fork fails for that reason.
+              let liveFailure: string | null = null;
               const live =
                 runtime?.askSideQuestion === undefined
                   ? null
-                  : yield* runtime
-                      .askSideQuestion({ providerThread, question })
-                      .pipe(Effect.orElseSucceed(() => null));
+                  : yield* runtime.askSideQuestion({ providerThread, question }).pipe(
+                      Effect.catch((cause) =>
+                        Effect.sync(() => {
+                          liveFailure = cause.message;
+                          return null;
+                        }),
+                      ),
+                    );
               let answer = live;
               if (answer === null) {
                 const modelSelection = projection.thread.modelSelection;
@@ -2825,7 +2832,7 @@ export const layerWsRpc = (
                     },
                     question,
                   })
-                  .pipe(Effect.mapError((cause) => fail(cause.message)));
+                  .pipe(Effect.mapError((cause) => fail(liveFailure ?? cause.message)));
                 if (answer === null) {
                   return yield* fail(`Tidy does not work on ${providerThread.driver} threads yet.`);
                 }
