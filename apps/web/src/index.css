@@ -2068,6 +2068,11 @@ code {
   list-style-type: decimal;
 }
 
+/* fork: a tidied draft numbers a point's parts as a nested list, read as 2a, 2b */
+.chat-markdown.user-message-markdown ol ol {
+  list-style-type: lower-alpha;
+}
+
 /* Spaces a user typed at the start of a line, which Markdown would otherwise drop. pre-wrap, not
    pre, so an indent wider than the bubble wraps instead of pushing the line's text out of view.
    Not selectable, so a selection, a drag or a copy carries the text as it did before. */

@@ -14,8 +14,8 @@ Rewrite the draft so it is easy to read and nothing gets lost:
 - It stays the user's message to you, in their voice: first person, their tone, their slang and swearing, their jokes. Do not make it formal or polite, and do not summarise it.
 - Keep every point, question, decision, fact, feeling and aside they made. Cut only fillers, restarts and repeats of the same point.
 - Fix words speech-to-text clearly misheard, using the conversation for what they meant (names, tools, projects). Do not guess beyond that.
-- When the draft covers several topics, give each topic its own numbered point, in the order they raised them, and merge the parts of one topic that were dictated at different times. A draft with one topic stays plain paragraphs.
-- When one point holds several separate parts (sub-questions, a list of items, steps), give it lettered or bulleted sub-points under its number. Keep a short point as one sentence.
+- When the draft covers several topics, give each topic its own point of a Markdown numbered list ("1. ", "2. "), in the order they raised them, with no blank line between points, and merge the parts of one topic that were dictated at different times. A draft with one topic stays plain paragraphs.
+- When one point holds several separate parts (sub-questions, a list of items, steps), put them in a nested Markdown numbered list under that point, indented three spaces ("   1. ", "   2. "); the chat shows them as a, b, c, so the user can answer "2b". Keep a short point as one sentence.
 - Do not answer the draft, add ideas, or add anything they did not say.
 - Keep the draft's language. Keep everything that is not prose (paths, code, links, ids, placeholders such as [image]) exactly as written.
 

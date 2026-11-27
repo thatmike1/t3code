@@ -51,11 +51,12 @@ export function useComposerTidy(input: {
   // Reads the thread on screen when the reply lands, not the one the click saw.
   const isOnThread = useStableCallback((threadId: ThreadId) => input.threadId === threadId);
   const running = runningFor !== null && runningFor === input.threadId;
-  // Sending clears the draft, and the asks belong to the draft they checked.
+  // Sending empties the draft, and the asks belong to the draft they checked: once it is empty
+  // they are spent, so a draft typed later never brings back the last reply's asks or an Undo.
+  const draftEmpty = input.prompt.trim().length === 0;
+  if (stored !== null && stored.threadId === input.threadId && draftEmpty) setStored(null);
   const result =
-    stored !== null && stored.threadId === input.threadId && input.prompt.trim().length > 0
-      ? stored
-      : null;
+    stored !== null && stored.threadId === input.threadId && !draftEmpty ? stored : null;
 
   const run = () => {
     const threadId = input.threadId;
